@@ -18,7 +18,7 @@ import {
   Skeleton,
   App
 } from "antd";
-import { ArrowUpRight, Users, Activity, BarChart2, Search, Eye } from "lucide-react";
+import { ArrowUpRight, Users, Activity, BarChart2, Search, Eye, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import type { TableProps } from "antd";
 
 type ColumnsType<T> = TableProps<T>["columns"];
@@ -45,7 +45,7 @@ interface ProjectType {
     startDate: string;
     endDate: string;
   };
-  status: "Pending" | "Reviewed" | "Approved";
+  status: "Pending" | "Active" | "Completed" | "Reviewed" | "Approved";
   createdAt: string;
 }
 
@@ -71,6 +71,13 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const stats = {
+    completed: data.filter(p => p.status === "Completed").length,
+    active: data.filter(p => p.status === "Active" && new Date(p.timeline.endDate) >= new Date()).length,
+    pending: data.filter(p => p.status === "Pending" && new Date(p.timeline.endDate) >= new Date()).length,
+    overdue: data.filter(p => p.status !== "Completed" && new Date(p.timeline.endDate) < new Date()).length,
   };
 
   useEffect(() => {
@@ -191,8 +198,8 @@ export default function DashboardPage() {
           onChange={(val) => handleStatusChange(record._id, val)}
           options={[
             { value: "Pending", label: <Tag color="default">Pending</Tag> },
-            { value: "Reviewed", label: <Tag color="processing">Reviewed</Tag> },
-            { value: "Approved", label: <Tag color="success">Approved</Tag> },
+            { value: "Active", label: <Tag color="processing">Active</Tag> },
+            { value: "Completed", label: <Tag color="success">Completed</Tag> },
           ]}
         />
       ),
@@ -223,24 +230,51 @@ export default function DashboardPage() {
       </div>
 
       <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card variant="borderless" style={{ borderRadius: 12 }}>
             <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic title="Total Projects" value={data.length} prefix={<Activity size={20} color="#0073ea" style={{ marginRight: 8 }} />} valueStyle={{ fontWeight: 600 }} />
+              <Statistic 
+                title="Completed" 
+                value={stats.completed} 
+                prefix={<CheckCircle size={20} color="#52c41a" style={{ marginRight: 8 }} />} 
+                valueStyle={{ fontWeight: 600, color: "#52c41a" }} 
+              />
             </Skeleton>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card variant="borderless" style={{ borderRadius: 12 }}>
             <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic title="Active Users" value={32} prefix={<Users size={20} color="#0073ea" style={{ marginRight: 8 }} />} valueStyle={{ fontWeight: 600 }} />
+              <Statistic 
+                title="Active" 
+                value={stats.active} 
+                prefix={<Activity size={20} color="#1890ff" style={{ marginRight: 8 }} />} 
+                valueStyle={{ fontWeight: 600, color: "#1890ff" }} 
+              />
             </Skeleton>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card variant="borderless" style={{ borderRadius: 12 }}>
             <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic title="Completion Rate" value={84} suffix="%" prefix={<BarChart2 size={20} color="#52c41a" style={{ marginRight: 8 }} />} valueStyle={{ color: "#52c41a", fontWeight: 600 }} />
+              <Statistic 
+                title="Pending" 
+                value={stats.pending} 
+                prefix={<Clock size={20} color="#8c8c8c" style={{ marginRight: 8 }} />} 
+                valueStyle={{ fontWeight: 600, color: "#8c8c8c" }} 
+              />
+            </Skeleton>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card variant="borderless" style={{ borderRadius: 12 }}>
+            <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
+              <Statistic 
+                title="Overdue" 
+                value={stats.overdue} 
+                prefix={<AlertCircle size={20} color="#ff4d4f" style={{ marginRight: 8 }} />} 
+                valueStyle={{ fontWeight: 600, color: "#ff4d4f" }} 
+              />
             </Skeleton>
           </Card>
         </Col>
@@ -277,7 +311,7 @@ export default function DashboardPage() {
           <div className="report-printable-area">
             <Typography.Title level={4}>{selectedProject.clientDetails.companyName}</Typography.Title>
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-              Status: <Tag color={selectedProject.status === 'Approved' ? 'success' : selectedProject.status === 'Reviewed' ? 'processing' : 'default'}>{selectedProject.status}</Tag>
+              Status: <Tag color={selectedProject.status === 'Completed' ? 'success' : selectedProject.status === 'Active' ? 'processing' : 'default'}>{selectedProject.status}</Tag>
             </Typography.Text>
 
             <Descriptions title="Client Summary" bordered column={1} style={{ marginBottom: 32 }}>

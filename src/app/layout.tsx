@@ -5,7 +5,7 @@ import LayoutWrapper from "@/components/LayoutWrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Marketing Dashboard | Monday.com Style",
+  title: "Requirement Dashboard",
   description: "A clean, responsive Next.js and Ant Design dashboard",
   icons: {
     icon: "/favicon.png",
@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning={true}>
       <body>
         <AntdRegistry>
           <ThemeProvider>

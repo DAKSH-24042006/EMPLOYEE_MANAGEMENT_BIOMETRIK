@@ -249,25 +249,6 @@ export default function UsersPage() {
   );
 
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#0073ea',
-          borderRadius: 4,
-        },
-        components: {
-          Button: {
-            paddingInline: 16,
-            controlHeight: 36,
-          },
-          Table: {
-            headerBg: '#f5f6f8',
-            headerColor: '#676879',
-            headerBorderRadius: 8,
-          }
-        }
-      }}
-    >
       <div style={{ padding: "8px 0" }}>
         <div style={{ 
           display: "flex", 
@@ -429,6 +410,5 @@ export default function UsersPage() {
           </Form>
         </Modal>
       </div>
-    </ConfigProvider>
   );
 }

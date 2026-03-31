@@ -24,7 +24,7 @@ export interface IProject extends Document {
   features: IFeatures;
   extraAddOns?: string;
   timeline: ITimeline;
-  status: "Pending" | "Reviewed" | "Approved";
+  status: "Pending" | "Active" | "Completed" | "Reviewed" | "Approved";
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -60,7 +60,7 @@ const ProjectSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "Reviewed", "Approved"],
+      enum: ["Pending", "Active", "Completed", "Reviewed", "Approved"],
       default: "Pending",
     },
     createdBy: {

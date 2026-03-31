@@ -41,7 +41,7 @@ export default function ProfilePage() {
             </div>
             <Divider />
             <Title level={5}>Bio</Title>
-            <Text>Lead administrator for Biometrik Systems marketing dashboard, managing end-to-end client requirements and data pipelines.</Text>
+            <Text>Lead administrator for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.</Text>
           </Card>
         </Col>
       </Row>

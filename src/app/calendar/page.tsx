@@ -10,7 +10,7 @@ export default function CalendarPage() {
     <div>
       <div style={{ marginBottom: 24 }}>
         <Title level={3}>Calendar</Title>
-        <Text type="secondary">View and schedule your marketing events.</Text>
+        <Text type="secondary">View and schedule your requirement events.</Text>
       </div>
       <Card variant="borderless" style={{ padding: 24 }}>
         <Calendar fullscreen={false} />

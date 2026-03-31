@@ -74,15 +74,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   ];
 
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: logoTeal,
-          borderRadius: 8,
-        },
-      }}
-    >
-      <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ minHeight: "100vh" }}>
         <Sider
           collapsible
           collapsedWidth={80}
@@ -271,6 +263,5 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </Content>
         </Layout>
       </Layout>
-    </ConfigProvider>
   );
 }
