@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, ConfigProvider } from "antd";
+import React, { useState, useEffect } from "react";
+import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, Grid, Drawer } from "antd";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -14,18 +14,26 @@ import {
   ChevronDown,
   Briefcase,
   Bell,
-  Search,
   Menu as MenuIcon,
 } from "lucide-react";
 
 const { Header, Sider, Content } = Layout;
+const { useBreakpoint } = Grid;
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const pathname = usePathname();
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+  const screens = useBreakpoint();
+
+  // Avoid hydration mismatch by waiting for mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const isMobile = mounted && (!screens.md && (screens.xs || screens.sm));
 
   // Branding colors from logo
   const logoTeal = "#00897b";
@@ -73,8 +81,107 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     })
   ];
 
+  const renderSidebarContent = (isDrawer = false) => {
+    const isActuallyCollapsed = isDrawer ? false : collapsed;
+    return (
+      <>
+        <div
+          style={{
+            height: 72,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isActuallyCollapsed ? "0 8px" : "0 24px",
+            overflow: "hidden",
+            transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center",
+            width: "100%",
+            height: "100%",
+            position: "relative"
+          }}>
+            <Image 
+              src="/Biometrik_New_Logo.png" 
+              alt="Logo" 
+              width={isActuallyCollapsed ? 48 : 180} 
+              height={40} 
+              className="object-contain"
+              priority
+              style={{
+                maxWidth: "100%",
+                height: "auto",
+                transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: "1",
+                  label: <Link href="/projects/new">New Project</Link>,
+                  icon: <Plus size={14} />,
+                },
+              ],
+            }}
+            trigger={["click"]}
+          >
+            <Button
+              type="primary"
+              size="large"
+              block
+              style={{
+                height: 48,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: isActuallyCollapsed ? "center" : "space-between",
+                padding: isActuallyCollapsed ? "0" : "0 16px",
+                background: logoTeal,
+                border: "none",
+                fontWeight: 600,
+              }}
+              icon={isActuallyCollapsed ? <Plus size={20} /> : null}
+            >
+              {!isActuallyCollapsed && (
+                <Space>
+                  <span>Create New</span>
+                  <ChevronDown size={16} />
+                </Space>
+              )}
+            </Button>
+          </Dropdown>
+        </div>
+
+        <Menu
+          theme="light"
+          mode="inline"
+          selectedKeys={[pathname]}
+          items={menuItems}
+          onClick={() => {
+            if (isDrawer) setDrawerVisible(false);
+          }}
+          style={{ 
+            background: "transparent",
+            borderRight: 0,
+            marginTop: 8
+          }}
+        />
+      </>
+    );
+  };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
+      {mounted && !isMobile && (
         <Sider
           collapsible
           collapsedWidth={80}
@@ -91,177 +198,102 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             background: "#ffffff",
           }}
         >
-          <div
-            style={{
-              height: 72,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: collapsed ? "0 8px" : "0 24px",
-              overflow: "hidden",
-              transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "center",
-              width: "100%",
-              height: "100%",
-              position: "relative"
-            }}>
-              <Image 
-                src="/Biometrik_New_Logo.png" 
-                alt="Logo" 
-                width={collapsed ? 48 : 180} 
-                height={40} 
-                className="object-contain"
-                priority
-                style={{
-                  maxWidth: "100%",
-                  height: "auto",
-                  transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
-                }}
-              />
-            </div>
-          </div>
+          {renderSidebarContent(false)}
+        </Sider>
+      )}
 
-          <div style={{ padding: collapsed ? "8px" : "0 16px 16px 16px" }}>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: "1",
-                    label: <Link href="/projects/new">New Project</Link>,
-                    icon: <Plus size={14} />,
-                  },
-                ],
+      {mounted && isMobile && (
+        <Drawer
+          placement="left"
+          onClose={() => setDrawerVisible(false)}
+          open={drawerVisible}
+          styles={{ body: { padding: 0 } }}
+          width={260}
+          closable={false}
+        >
+          {renderSidebarContent(true)}
+        </Drawer>
+      )}
+
+      <Layout>
+        <Header
+          style={{
+            padding: "0 16px",
+            background: colorBgContainer,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid #f0f0f0",
+            position: "sticky",
+            top: 0,
+            zIndex: 1,
+            width: "100%",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
+            <Button
+              type="text"
+              icon={<MenuIcon size={20} />}
+              onClick={() => {
+                if (isMobile) {
+                  setDrawerVisible(true);
+                } else {
+                  setCollapsed(!collapsed);
+                }
               }}
-              trigger={["click"]}
+              style={{
+                fontSize: "16px",
+                width: 40,
+                height: 40,
+                marginRight: 8,
+              }}
+            />
+
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: 16 }}>
+            <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
+            <Dropdown 
+              menu={{ 
+                items: [
+                  { key: "1", label: <Link href="/profile">Profile</Link> }, 
+                  { type: "divider" },
+                  { 
+                    key: "2", 
+                    label: "Logout",
+                    onClick: async () => {
+                      await fetch("/api/auth/logout", { method: "POST" });
+                      window.location.href = "/auth/login";
+                    }
+                  }
+                ] 
+              }} 
+              placement="bottomRight"
             >
-              <Button
-                type="primary"
-                size="large"
-                block
-                style={{
-                  height: 48,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: collapsed ? "center" : "space-between",
-                  padding: collapsed ? "0" : "0 16px",
-                  background: logoTeal,
-                  border: "none",
-                  fontWeight: 600,
-                }}
-                icon={collapsed ? <Plus size={20} /> : null}
-              >
-                {!collapsed && (
-                  <>
-                    <Space>
-                      <span>Create New</span>
-                      <ChevronDown size={16} />
-                    </Space>
-                    
-                  </>
-                )}
-              </Button>
+              <Avatar style={{ backgroundColor: "#ffcd00", color: "#333", cursor: "pointer", fontWeight: 600 }}>SS</Avatar>
             </Dropdown>
           </div>
-
-          <Menu
-            theme="light"
-            mode="inline"
-            selectedKeys={[pathname]}
-            items={menuItems}
-            style={{ 
-              background: "transparent",
-              borderRight: 0,
-              marginTop: 8
-            }}
-          />
-        </Sider>
+        </Header>
         
-        <Layout>
-          <Header
-            style={{
-              padding: "0 24px",
-              background: colorBgContainer,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              borderBottom: "1px solid #f0f0f0",
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-              width: "100%",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <Button
-                type="text"
-                icon={<MenuIcon size={20} />}
-                onClick={() => setCollapsed(!collapsed)}
-                style={{
-                  fontSize: "16px",
-                  width: 40,
-                  height: 40,
-                  marginRight: 16,
-                }}
-              />
-              <div style={{ display: "flex", alignItems: "center", background: "#f5f6f8", padding: "6px 16px", borderRadius: 20 }}>
-                <Search size={16} color="#676879" />
-                <input 
-                  placeholder="Search anything..." 
-                  style={{ border: "none", background: "transparent", outline: "none", marginLeft: 8, color: "#323338" }}
-                />
-              </div>
-            </div>
-            
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
-              <Dropdown 
-                menu={{ 
-                  items: [
-                    { key: "1", label: <Link href="/profile">Profile</Link> }, 
-                    { type: "divider" },
-                    { 
-                      key: "2", 
-                      label: "Logout",
-                      onClick: async () => {
-                        await fetch("/api/auth/logout", { method: "POST" });
-                        window.location.href = "/auth/login";
-                      }
-                    }
-                  ] 
-                }} 
-                placement="bottomRight"
-              >
-                <Avatar style={{ backgroundColor: "#ffcd00", color: "#333", cursor: "pointer", fontWeight: 600 }}>SS</Avatar>
-              </Dropdown>
-            </div>
-          </Header>
-          
-          <Content
-            style={{
-              margin: "0 16px 24px 16px",
-            }}
-          >
-            <Breadcrumb 
-              items={breadcrumbItems} 
-              style={{ margin: '16px 0', padding: '0 8px' }} 
-            />
-            <div style={{
-              padding: 24,
-              minHeight: 280,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}>
-              {children}
-            </div>
-          </Content>
-        </Layout>
+        <Content
+          style={{
+            margin: mounted && isMobile ? "0 8px 16px 8px" : "0 16px 24px 16px",
+          }}
+        >
+          <Breadcrumb 
+            items={breadcrumbItems} 
+            style={{ margin: mounted && isMobile ? '8px 0' : '16px 0', padding: '0 8px' }} 
+          />
+          <div style={{
+            padding: mounted && isMobile ? 16 : 24,
+            minHeight: 280,
+            background: colorBgContainer,
+            borderRadius: borderRadiusLG,
+          }}>
+            {children}
+          </div>
+        </Content>
       </Layout>
+    </Layout>
   );
 }

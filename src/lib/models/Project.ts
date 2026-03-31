@@ -6,13 +6,23 @@ export interface IClientDetails {
   email: string;
 }
 
-export interface IFeatures {
-  dashboard: boolean;
-  webApp: boolean;
-  androidApp: boolean;
-  iosApp: boolean;
-  adminPanel: boolean;
-}
+export const FEATURE_KEYS = [
+  "visitorManagement",
+  "attendanceManagement",
+  "digilockerAuthentication",
+  "webApp",
+  "androidApp",
+  "iosApp",
+  "videoKYC",
+  "rbac",
+  "adminPanel",
+  "online",
+  "offline",
+  "cloud",
+  "onPremise",
+] as const;
+
+export interface IFeatures extends Record<typeof FEATURE_KEYS[number], boolean> {}
 
 export interface ITimeline {
   startDate: Date;
@@ -24,7 +34,7 @@ export interface IProject extends Document {
   features: IFeatures;
   extraAddOns?: string;
   timeline: ITimeline;
-  status: "Pending" | "Active" | "Completed" | "Reviewed" | "Approved";
+  status: "Pending" | "Active" | "Completed";
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -44,11 +54,19 @@ const ProjectSchema: Schema = new Schema(
       },
     },
     features: {
-      dashboard: { type: Boolean, default: false },
+      visitorManagement: { type: Boolean, default: false },
+      attendanceManagement: { type: Boolean, default: false },
+      digilockerAuthentication: { type: Boolean, default: false },
       webApp: { type: Boolean, default: false },
       androidApp: { type: Boolean, default: false },
       iosApp: { type: Boolean, default: false },
+      videoKYC: { type: Boolean, default: false },
+      rbac: { type: Boolean, default: false },
       adminPanel: { type: Boolean, default: false },
+      online: { type: Boolean, default: false },
+      offline: { type: Boolean, default: false },
+      cloud: { type: Boolean, default: false },
+      onPremise: { type: Boolean, default: false },
     },
     extraAddOns: {
       type: String,
@@ -60,7 +78,7 @@ const ProjectSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "Active", "Completed", "Reviewed", "Approved"],
+      enum: ["Pending", "Active", "Completed"],
       default: "Pending",
     },
     createdBy: {

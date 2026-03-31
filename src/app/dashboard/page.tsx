@@ -45,7 +45,7 @@ interface ProjectType {
     startDate: string;
     endDate: string;
   };
-  status: "Pending" | "Active" | "Completed" | "Reviewed" | "Approved";
+  status: "Pending" | "Active" | "Completed";
   createdAt: string;
 }
 
@@ -224,9 +224,11 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Dashboard</Title>
-        <Text type="secondary">Welcome back. Here is your overview.</Text>
+      <div style={{ marginBottom: 24, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+        <div>
+          <Title level={3} style={{ margin: 0 }}>Dashboard</Title>
+          <Text type="secondary">Welcome back. Here is your overview.</Text>
+        </div>
       </div>
 
       <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
@@ -237,7 +239,7 @@ export default function DashboardPage() {
                 title="Completed" 
                 value={stats.completed} 
                 prefix={<CheckCircle size={20} color="#52c41a" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#52c41a" }} 
+                styles={{ content: { fontWeight: 600, color: "#52c41a" } }} 
               />
             </Skeleton>
           </Card>
@@ -249,7 +251,7 @@ export default function DashboardPage() {
                 title="Active" 
                 value={stats.active} 
                 prefix={<Activity size={20} color="#1890ff" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#1890ff" }} 
+                styles={{ content: { fontWeight: 600, color: "#1890ff" } }} 
               />
             </Skeleton>
           </Card>
@@ -261,7 +263,7 @@ export default function DashboardPage() {
                 title="Pending" 
                 value={stats.pending} 
                 prefix={<Clock size={20} color="#8c8c8c" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#8c8c8c" }} 
+                styles={{ content: { fontWeight: 600, color: "#8c8c8c" } }} 
               />
             </Skeleton>
           </Card>
@@ -273,7 +275,7 @@ export default function DashboardPage() {
                 title="Overdue" 
                 value={stats.overdue} 
                 prefix={<AlertCircle size={20} color="#ff4d4f" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#ff4d4f" }} 
+                styles={{ content: { fontWeight: 600, color: "#ff4d4f" } }} 
               />
             </Skeleton>
           </Card>
@@ -302,7 +304,7 @@ export default function DashboardPage() {
             <Button size="small" type="primary" onClick={() => window.print()}>Print</Button>
           </div>
         }
-        width={600}
+        size="large"
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
         destroyOnClose

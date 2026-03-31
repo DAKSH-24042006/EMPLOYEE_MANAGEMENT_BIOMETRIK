@@ -11,7 +11,7 @@ import {
   Form, 
   Input, 
   Select, 
-  message, 
+  App,
   ConfigProvider, 
   Space, 
   Popconfirm,
@@ -55,6 +55,7 @@ export default function UsersPage() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [form] = Form.useForm();
+  const { message } = App.useApp();
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchUsers = useCallback(async () => {
@@ -252,8 +253,10 @@ export default function UsersPage() {
       <div style={{ padding: "8px 0" }}>
         <div style={{ 
           display: "flex", 
+          flexWrap: "wrap",
           justifyContent: "space-between", 
-          alignItems: "flex-end",
+          alignItems: "center",
+          gap: 16,
           marginBottom: 24 
         }}>
           <div>
@@ -295,7 +298,7 @@ export default function UsersPage() {
           }}
           styles={{ body: { padding: 0 } }}
         >
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 16 }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 

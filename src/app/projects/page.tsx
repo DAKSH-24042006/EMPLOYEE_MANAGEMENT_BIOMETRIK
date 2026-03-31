@@ -1,22 +1,700 @@
 "use client";
 
-import React from "react";
-import { Typography, Card, Breadcrumb } from "antd";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Typography,
+  Table,
+  Button,
+  Tag,
+  Space,
+  Modal,
+  Form,
+  Input,
+  Switch,
+  Select,
+  DatePicker,
+  Tooltip,
+  App,
+  Skeleton,
+  Row,
+  Col,
+  Card,
+  Badge,
+  Divider,
+  Checkbox,
+} from "antd";
+import {
+  EditOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  PlusOutlined,
+  ExclamationCircleOutlined,
+  ProjectOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
+import type { ColumnsType } from "antd/es/table";
+import dayjs from "dayjs";
+import Link from "next/link";
 
 const { Title, Text } = Typography;
+const { TextArea } = Input;
+const { RangePicker } = DatePicker;
+const { Option } = Select;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface IProject {
+  _id: string;
+  clientDetails: {
+    companyName: string;
+    contactPerson?: string;
+    email: string;
+  };
+  features: {
+    visitorManagement: boolean;
+    attendanceManagement: boolean;
+    digilockerAuthentication: boolean;
+    webApp: boolean;
+    androidApp: boolean;
+    iosApp: boolean;
+    videoKYC: boolean;
+    rbac: boolean;
+    adminPanel: boolean;
+    online: boolean;
+    offline: boolean;
+    cloud: boolean;
+    onPremise: boolean;
+  };
+  extraAddOns?: string;
+  timeline: {
+    startDate: string;
+    endDate: string;
+  };
+  status: "Pending" | "Active" | "Completed";
+  createdAt: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<
+  string,
+  { color: string; icon: React.ReactNode }
+> = {
+  Pending: { color: "orange", icon: <ClockCircleOutlined /> },
+  Active: { color: "blue", icon: <SyncOutlined spin /> },
+  Completed: { color: "green", icon: <CheckCircleOutlined /> }
+};
+
+const FEATURE_LABELS: Record<keyof IProject["features"], string> = {
+  visitorManagement: "Visitor Mgmt",
+  attendanceManagement: "Attendance Mgmt",
+  digilockerAuthentication: "Digilocker",
+  webApp: "Web App",
+  androidApp: "Android",
+  iosApp: "iOS",
+  videoKYC: "Video KYC",
+  rbac: "RBAC System",
+  adminPanel: "Admin Panel",
+  online: "Online",
+  offline: "Offline",
+  cloud: "Cloud",
+  onPremise: "On Premise",
+};
+
+
+
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+interface EditModalProps {
+  open: boolean;
+  project: IProject | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const { message } = App.useApp();
+
+  // Populate form when project changes
+  useEffect(() => {
+    if (project && open) {
+      form.setFieldsValue({
+        companyName: project.clientDetails.companyName,
+        contactPerson: project.clientDetails.contactPerson || "",
+        email: project.clientDetails.email,
+        visitorManagement: project.features.visitorManagement,
+        attendanceManagement: project.features.attendanceManagement,
+        digilockerAuthentication: project.features.digilockerAuthentication,
+        webApp: project.features.webApp,
+        androidApp: project.features.androidApp,
+        iosApp: project.features.iosApp,
+        videoKYC: project.features.videoKYC,
+        rbac: project.features.rbac,
+        adminPanel: project.features.adminPanel,
+        online: project.features.online,
+        offline: project.features.offline,
+        cloud: project.features.cloud,
+        onPremise: project.features.onPremise,
+        extraAddOns: project.extraAddOns || "",
+        status: project.status,
+        timeline: [
+          dayjs(project.timeline.startDate),
+          dayjs(project.timeline.endDate),
+        ],
+      });
+    }
+  }, [project, open, form]);
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+
+      const body = {
+        companyName: values.companyName,
+        contactPerson: values.contactPerson,
+        email: values.email,
+        visitorManagement: values.visitorManagement ?? false,
+        attendanceManagement: values.attendanceManagement ?? false,
+        digilockerAuthentication: values.digilockerAuthentication ?? false,
+        webApp: values.webApp ?? false,
+        androidApp: values.androidApp ?? false,
+        iosApp: values.iosApp ?? false,
+        videoKYC: values.videoKYC ?? false,
+        rbac: values.rbac ?? false,
+        adminPanel: values.adminPanel ?? false,
+        online: values.online ?? false,
+        offline: values.offline ?? false,
+        cloud: values.cloud ?? false,
+        onPremise: values.onPremise ?? false,
+        extraAddOns: values.extraAddOns,
+        status: values.status,
+        timeline: values.timeline?.map((d: dayjs.Dayjs) => d.toISOString()),
+      };
+
+      const res = await fetch(`/api/projects/${project!._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        message.success("Project updated successfully!");
+        onSaved();
+        onClose();
+      } else {
+        message.error(data.error || "Failed to update project");
+      }
+    } catch (err: any) {
+      if (err?.errorFields) return; // antd validation error
+      message.error("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title={
+        <Space>
+          <EditOutlined style={{ color: "#00897b" }} />
+          <span style={{ fontWeight: 600 }}>Edit Project</span>
+          {project && (
+            <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+              — {project.clientDetails.companyName}
+            </Text>
+          )}
+        </Space>
+      }
+      onCancel={onClose}
+      onOk={handleSave}
+      okText="Save Changes"
+      confirmLoading={saving}
+      okButtonProps={{ style: { background: "#00897b", borderColor: "#00897b" } }}
+      width={760}
+      destroyOnHidden
+    >
+      <Divider style={{ margin: "12px 0 20px" }} />
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        initialValues={{
+          visitorManagement: false,
+          attendanceManagement: false,
+          digilockerAuthentication: false,
+          webApp: false,
+          androidApp: false,
+          iosApp: false,
+          videoKYC: false,
+          rbac: false,
+          adminPanel: false,
+          online: false,
+          offline: false,
+          cloud: false,
+          onPremise: false,
+        }}
+      >
+        {/* Client Details */}
+        <Title level={5} style={{ marginBottom: 16, color: "#374151" }}>
+          Client Details
+        </Title>
+        <Row gutter={16}>
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="companyName"
+              label="Company Name"
+              rules={[{ required: true, message: "Company name is required" }]}
+            >
+              <Input placeholder="E.g., Acme Corp" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item name="contactPerson" label="Contact Person">
+              <Input placeholder="E.g., Jane Doe" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="email"
+              label="Contact Email"
+              rules={[
+                { required: true, message: "Email is required" },
+                { type: "email", message: "Enter a valid email" },
+              ]}
+            >
+              <Input placeholder="jane@acme.com" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {/* Timeline + Status */}
+        <Row gutter={16}>
+          <Col xs={24} md={14}>
+            <Form.Item
+              name="timeline"
+              label="Project Timeline"
+              rules={[{ required: true, message: "Timeline is required" }]}
+            >
+              <RangePicker style={{ width: "100%" }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={10}>
+            <Form.Item name="status" label="Status">
+              <Select>
+                {Object.keys(STATUS_CONFIG).map((s) => (
+                  <Option key={s} value={s}>
+                    <Tag color={STATUS_CONFIG[s].color} style={{ marginRight: 0 }}>
+                      {s}
+                    </Tag>
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {/* Features */}
+        <Title level={5} style={{ marginBottom: 12, color: "#374151" }}>
+          Application Features
+        </Title>
+        <Row gutter={[16, 8]} style={{ marginBottom: 16 }}>
+          {(
+            Object.keys(FEATURE_LABELS) as Array<keyof IProject["features"]>
+          ).map((key) => (
+            <Col xs={12} sm={8} md={8} key={key}>
+              <Form.Item
+                name={key}
+                valuePropName="checked"
+                style={{ margin: 0 }}
+              >
+                <Checkbox style={{ fontSize: 13 }}>
+                  {FEATURE_LABELS[key]}
+                </Checkbox>
+              </Form.Item>
+            </Col>
+          ))}
+        </Row>
+
+        {/* Extra Add-ons */}
+        <Form.Item name="extraAddOns" label="Extra Add-ons & Notes">
+          <TextArea
+            rows={3}
+            placeholder="Custom integrations, special requirements..."
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {
+  const [projects, setProjects] = useState<IProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editTarget, setEditTarget] = useState<IProject | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const { message, modal } = App.useApp();
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+
+  const fetchProjects = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/projects");
+      if (res.status === 401) {
+        message.error("Session expired. Please log in again.");
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setProjects(data.data || []);
+      } else {
+        message.error(data.error || "Failed to load projects");
+      }
+    } catch {
+      message.error("Network error. Check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+
+  const handleDelete = (project: IProject) => {
+    modal.confirm({
+      title: "Delete Project?",
+      icon: <ExclamationCircleOutlined style={{ color: "#ef4444" }} />,
+      content: (
+        <div>
+          <p>
+            You are about to permanently delete the project for{" "}
+            <strong>{project.clientDetails.companyName}</strong>.
+          </p>
+          <p style={{ color: "#6b7280", fontSize: 13 }}>
+            This action cannot be undone. All associated data will be lost.
+          </p>
+        </div>
+      ),
+      okText: "Yes, Delete",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const res = await fetch(`/api/projects/${project._id}`, {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (res.ok) {
+            message.success("Project deleted successfully.");
+            setProjects((prev) => prev.filter((p) => p._id !== project._id));
+          } else {
+            message.error(data.error || "Failed to delete project.");
+          }
+        } catch {
+          message.error("Network error. Please try again.");
+        }
+      },
+    });
+  };
+
+  // ── Edit ──────────────────────────────────────────────────────────────────
+
+  const openEdit = (project: IProject) => {
+    setEditTarget(project);
+    setEditOpen(true);
+  };
+
+  // ── Summary cards ─────────────────────────────────────────────────────────
+
+  const statusCounts = {
+    total: projects.length,
+    active: projects.filter((p) => p.status === "Active").length,
+    pending: projects.filter((p) => p.status === "Pending").length,
+    completed: projects.filter((p) => p.status === "Completed").length,
+  };
+
+  // ── Table columns ─────────────────────────────────────────────────────────
+
+  const columns: ColumnsType<IProject> = [
+    {
+      title: "Company",
+      dataIndex: ["clientDetails", "companyName"],
+      key: "company",
+      sorter: (a, b) =>
+        a.clientDetails.companyName.localeCompare(b.clientDetails.companyName),
+      render: (name: string, record) => (
+        <div>
+          <div style={{ fontWeight: 600, color: "#111827" }}>{name}</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>
+            {record.clientDetails.contactPerson || "—"}
+          </div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>
+            {record.clientDetails.email}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Timeline",
+      key: "timeline",
+      sorter: (a, b) =>
+        new Date(a.timeline.startDate).getTime() -
+        new Date(b.timeline.startDate).getTime(),
+      render: (_, record) => (
+        <div style={{ whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 12, color: "#374151" }}>
+            <span style={{ color: "#6b7280" }}>From: </span>
+            {dayjs(record.timeline.startDate).format("DD MMM YYYY")}
+          </div>
+          <div style={{ fontSize: 12, color: "#374151" }}>
+            <span style={{ color: "#6b7280" }}>To: </span>
+            {dayjs(record.timeline.endDate).format("DD MMM YYYY")}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      filters: Object.keys(STATUS_CONFIG).map((s) => ({ text: s, value: s })),
+      onFilter: (value, record) => record.status === value,
+      render: (status: string) => {
+        const cfg = STATUS_CONFIG[status] || { color: "default", icon: null };
+        return (
+          <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "2px 10px" }}>
+            {status}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Created",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      sorter: (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      render: (date: string) => (
+        <Tooltip title={dayjs(date).format("DD MMM YYYY, hh:mm A")}>
+          <Text style={{ fontSize: 12, color: "#6b7280" }}>
+            {dayjs(date).format("DD MMM YYYY")}
+          </Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      align: "center" as const,
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="Edit Project">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record)}
+              style={{ color: "#00897b" }}
+            />
+          </Tooltip>
+          <Tooltip title="Delete Project">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3}>Projects</Title>
-        <Text type="secondary">Manage and track your active marketing projects.</Text>
+      {/* ── Header ── */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 24,
+          flexWrap: "wrap",
+          gap: 16,
+        }}
+      >
+        <div>
+          <Title level={3} style={{ margin: 0 }}>
+            Projects
+          </Title>
+          <Text type="secondary">
+            Manage client projects, update details, and track progress.
+          </Text>
+        </div>
+        <Space>
+          <Tooltip title="Refresh">
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchProjects}
+              loading={loading}
+            />
+          </Tooltip>
+          <Link href="/projects/new">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              style={{ background: "#00897b", borderColor: "#00897b" }}
+            >
+              New Project
+            </Button>
+          </Link>
+        </Space>
       </div>
-      <Card variant="borderless" style={{ background: "#f9fafb", textAlign: "center", padding: "48px 0" }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>📁</div>
-        <Title level={4}>Projects Dashboard</Title>
-        <Text type="secondary">This page is under development. Soon you'll be able to see all your active and archived projects here.</Text>
+
+      {/* ── Summary Cards ── */}
+      <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {[
+            {
+              label: "Total Projects",
+              value: statusCounts.total,
+              color: "#00897b",
+              bg: "#f0fdfa",
+              icon: <ProjectOutlined style={{ fontSize: 22, color: "#00897b" }} />,
+            },
+            {
+              label: "Active",
+              value: statusCounts.active,
+              color: "#3b82f6",
+              bg: "#eff6ff",
+              icon: <SyncOutlined spin={statusCounts.active > 0} style={{ fontSize: 22, color: "#3b82f6" }} />,
+            },
+            {
+              label: "Pending",
+              value: statusCounts.pending,
+              color: "#f59e0b",
+              bg: "#fffbeb",
+              icon: <ClockCircleOutlined style={{ fontSize: 22, color: "#f59e0b" }} />,
+            },
+            {
+              label: "Completed",
+              value: statusCounts.completed,
+              color: "#10b981",
+              bg: "#ecfdf5",
+              icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
+            },
+          ].map((card) => (
+            <Col xs={12} sm={6} key={card.label}>
+              <Card
+                variant="borderless"
+                style={{
+                  borderRadius: 12,
+                  background: card.bg,
+                  border: `1px solid ${card.color}22`,
+                }}
+                styles={{ body: { padding: "16px 20px" } }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    {card.icon}
+                  </div>
+                  <div>
+                    <div
+                      style={{ fontSize: 24, fontWeight: 700, color: card.color, lineHeight: 1 }}
+                    >
+                      {card.value}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                      {card.label}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </Skeleton>
+
+      {/* ── Table ── */}
+      <Card
+        variant="borderless"
+        style={{ borderRadius: 12 }}
+        styles={{ body: { padding: 0 } }}
+      >
+        <Table
+          columns={columns}
+          dataSource={projects}
+          rowKey="_id"
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50"],
+            showTotal: (total, range) =>
+              `${range[0]}–${range[1]} of ${total} projects`,
+          }}
+          locale={{
+            emptyText: (
+              <div style={{ padding: "40px 0", textAlign: "center" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+                <Title level={5} style={{ color: "#9ca3af" }}>
+                  No projects yet
+                </Title>
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  Create your first project to get started.
+                </Text>
+                <br />
+                <Link href="/projects/new">
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    style={{ marginTop: 16, background: "#00897b", borderColor: "#00897b" }}
+                  >
+                    New Project
+                  </Button>
+                </Link>
+              </div>
+            ),
+          }}
+          scroll={{ x: 800 }}
+          style={{ borderRadius: 12 }}
+        />
       </Card>
+
+      {/* ── Edit Modal ── */}
+      <EditModal
+        open={editOpen}
+        project={editTarget}
+        onClose={() => {
+          setEditOpen(false);
+          setEditTarget(null);
+        }}
+        onSaved={fetchProjects}
+      />
     </div>
   );
 }
