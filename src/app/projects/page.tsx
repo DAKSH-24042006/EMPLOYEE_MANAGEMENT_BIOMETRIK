@@ -33,10 +33,13 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   SyncOutlined,
+  FilePdfOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Link from "next/link";
+import { generateProjectPDF } from "@/lib/reportUtils";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -51,6 +54,7 @@ interface IProject {
     companyName: string;
     contactPerson?: string;
     email: string;
+    contactNumber?: string;
   };
   features: {
     visitorManagement: boolean;
@@ -83,7 +87,7 @@ const STATUS_CONFIG: Record<
   { color: string; icon: React.ReactNode }
 > = {
   Pending: { color: "orange", icon: <ClockCircleOutlined /> },
-  Active: { color: "blue", icon: <SyncOutlined spin /> },
+  Active: { color: "blue", icon: <SyncOutlined /> },
   Completed: { color: "green", icon: <CheckCircleOutlined /> }
 };
 
@@ -126,6 +130,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         companyName: project.clientDetails.companyName,
         contactPerson: project.clientDetails.contactPerson || "",
         email: project.clientDetails.email,
+        contactNumber: project.clientDetails.contactNumber || "",
         visitorManagement: project.features.visitorManagement,
         attendanceManagement: project.features.attendanceManagement,
         digilockerAuthentication: project.features.digilockerAuthentication,
@@ -158,6 +163,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         companyName: values.companyName,
         contactPerson: values.contactPerson,
         email: values.email,
+        contactNumber: values.contactNumber,
         visitorManagement: values.visitorManagement ?? false,
         attendanceManagement: values.attendanceManagement ?? false,
         digilockerAuthentication: values.digilockerAuthentication ?? false,
@@ -246,7 +252,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
           Client Details
         </Title>
         <Row gutter={16}>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
             <Form.Item
               name="companyName"
               label="Company Name"
@@ -255,12 +261,12 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
               <Input placeholder="E.g., Acme Corp" />
             </Form.Item>
           </Col>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
             <Form.Item name="contactPerson" label="Contact Person">
               <Input placeholder="E.g., Jane Doe" />
             </Form.Item>
           </Col>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
             <Form.Item
               name="email"
               label="Contact Email"
@@ -270,6 +276,26 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
               ]}
             >
               <Input placeholder="jane@acme.com" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={6}>
+            <Form.Item 
+              name="contactNumber" 
+              label="Contact Number"
+              rules={[
+                { pattern: /^[0-9]*$/, message: "Please enter only digits" },
+                { len: 10, message: "Contact number must be exactly 10 digits" }
+              ]}
+            >
+              <Input 
+                placeholder="E.g., 9876543210" 
+                maxLength={10}
+                onKeyPress={(e) => {
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+              />
             </Form.Item>
           </Col>
         </Row>
@@ -334,6 +360,239 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
   );
 }
 
+// ─── Details Modal ────────────────────────────────────────────────────────────
+
+interface ProjectDetailsModalProps {
+  open: boolean;
+  project: IProject | null;
+  onClose: () => void;
+}
+
+function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectDetailsModalProps & { onShowPreview: (doc: any, filename: string) => void }) {
+  const [generating, setGenerating] = useState(false);
+  const { message } = App.useApp();
+
+  const handleGeneratePDF = async () => {
+    if (!project) return;
+    setGenerating(true);
+    try {
+      const { doc, filename } = await generateProjectPDF(project);
+      onShowPreview(doc, filename);
+    } catch (err) {
+      message.error("Failed to generate PDF report.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (!project) return null;
+
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={[
+        <Button key="close" onClick={onClose}>
+          Close
+        </Button>,
+        <Button
+          key="pdf"
+          type="primary"
+          icon={<FilePdfOutlined />}
+          loading={generating}
+          onClick={handleGeneratePDF}
+          style={{ background: "#00897b", borderColor: "#00897b" }}
+        >
+          Generate PDF Report
+        </Button>,
+      ]}
+      title={
+        <Space>
+          <ProjectOutlined style={{ color: "#00897b" }} />
+          <span style={{ fontWeight: 600 }}>Project Details</span>
+        </Space>
+      }
+      width={800}
+    >
+      <Divider style={{ margin: "12px 0 24px" }} />
+      
+      <div style={{ padding: "0 4px" }}>
+        {/* Client Section */}
+        <section style={{ marginBottom: 32 }}>
+          <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
+            Client Information
+          </Title>
+          <Card size="small" variant="borderless" style={{ background: "#f9fafb", borderRadius: 8 }}>
+            <Row gutter={[24, 16]}>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Company Name</Text>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>
+                  {project.clientDetails.companyName}
+                </div>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Contact Person</Text>
+                <div style={{ fontSize: 15, color: "#374151" }}>
+                  {project.clientDetails.contactPerson || "—"}
+                </div>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Email Address</Text>
+                <div style={{ fontSize: 15, color: "#374151" }}>
+                  {project.clientDetails.email}
+                </div>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: 12 }}>Contact Number</Text>
+                <div style={{ fontSize: 15, color: "#374151" }}>
+                  {project.clientDetails.contactNumber || "—"}
+                </div>
+              </Col>
+            </Row>
+          </Card>
+        </section>
+
+        {/* Status & Timeline */}
+        <section style={{ marginBottom: 32 }}>
+          <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
+            Logistics & Progress
+          </Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Card size="small" variant="borderless" style={{ textAlign: "center", background: "#f0fdfa" }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Status</Text>
+                <div style={{ marginTop: 4 }}>
+                  <Tag 
+                    color={STATUS_CONFIG[project.status].color} 
+                    icon={STATUS_CONFIG[project.status].icon}
+                    style={{ margin: 0, borderRadius: 12 }}
+                  >
+                    {project.status}
+                  </Tag>
+                </div>
+              </Card>
+            </Col>
+            <Col span={16}>
+              <Card size="small" variant="borderless" style={{ background: "#f9fafb" }}>
+                <div style={{ display: "flex", justifyContent: "space-around" }}>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Start Date</Text>
+                    <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.startDate).format("DD MMM YYYY")}</div>
+                  </div>
+                  <Divider type="vertical" style={{ height: 40 }} />
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>End Date</Text>
+                    <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.endDate).format("DD MMM YYYY")}</div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </section>
+
+        {/* Features Section */}
+        <section style={{ marginBottom: 32 }}>
+          <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
+            Application Features
+          </Title>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {Object.entries(project.features)
+              .filter(([_, enabled]) => enabled)
+              .map(([key, _]) => (
+                <Tag key={key} style={{ padding: "4px 12px", borderRadius: 4, background: "#fff", border: "1px solid #d1d5db" }}>
+                  {FEATURE_LABELS[key as keyof IProject["features"]]}
+                </Tag>
+              ))}
+            {Object.values(project.features).every(v => !v) && (
+              <Text type="secondary">No features selected.</Text>
+            )}
+          </div>
+        </section>
+
+        {/* Notes */}
+        {project.extraAddOns && (
+          <section>
+            <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
+              Additional Notes
+            </Title>
+            <div style={{ 
+              background: "#fffbeb", 
+              padding: 16, 
+              borderRadius: 8, 
+              border: "1px solid #fde68a",
+              whiteSpace: "pre-wrap",
+              color: "#92400e"
+            }}>
+              {project.extraAddOns}
+            </div>
+          </section>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Preview Modal ────────────────────────────────────────────────────────────
+
+interface ReportPreviewModalProps {
+  open: boolean;
+  url: string | null;
+  filename: string;
+  onClose: () => void;
+}
+
+function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModalProps) {
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      title={
+        <Space>
+          <FilePdfOutlined style={{ color: "#ef4444" }} />
+          <span style={{ fontWeight: 600 }}>Report Preview</span>
+          <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+            — {filename}
+          </Text>
+        </Space>
+      }
+      width={1000}
+      styles={{ body: { padding: 0, height: "75vh", overflow: "hidden" } }}
+      footer={[
+        <Button key="close" onClick={onClose}>
+          Cancel
+        </Button>,
+        <Button
+          key="download"
+          type="primary"
+          icon={<FilePdfOutlined />}
+          style={{ background: "#00897b", borderColor: "#00897b" }}
+          onClick={() => {
+            const link = document.createElement("a");
+            link.href = url!;
+            link.download = filename;
+            link.click();
+            onClose();
+          }}
+        >
+          Download PDF
+        </Button>,
+      ]}
+    >
+      {url ? (
+        <iframe
+          src={`${url}#toolbar=0`}
+          style={{ width: "100%", height: "100%", border: "none" }}
+          title="PDF Preview"
+        />
+      ) : (
+        <div style={{ padding: 40, textAlign: "center" }}>
+          <Skeleton active />
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {
@@ -341,6 +600,11 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<IProject | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<IProject | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFilename, setPreviewFilename] = useState("");
   const { message, modal } = App.useApp();
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -416,6 +680,11 @@ export default function ProjectsPage() {
     setEditOpen(true);
   };
 
+  const openDetails = (project: IProject) => {
+    setDetailTarget(project);
+    setDetailOpen(true);
+  };
+
   // ── Summary cards ─────────────────────────────────────────────────────────
 
   const statusCounts = {
@@ -435,14 +704,23 @@ export default function ProjectsPage() {
       sorter: (a, b) =>
         a.clientDetails.companyName.localeCompare(b.clientDetails.companyName),
       render: (name: string, record) => (
-        <div>
-          <div style={{ fontWeight: 600, color: "#111827" }}>{name}</div>
+        <div 
+          onClick={() => openDetails(record)} 
+          style={{ cursor: "pointer" }}
+          className="hover:underline"
+        >
+          <div style={{ fontWeight: 600, color: "#00897b" }}>{name}</div>
           <div style={{ fontSize: 12, color: "#6b7280" }}>
             {record.clientDetails.contactPerson || "—"}
           </div>
           <div style={{ fontSize: 12, color: "#6b7280" }}>
             {record.clientDetails.email}
           </div>
+          {record.clientDetails.contactNumber && (
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {record.clientDetails.contactNumber}
+            </div>
+          )}
         </div>
       ),
     },
@@ -500,6 +778,14 @@ export default function ProjectsPage() {
       align: "center" as const,
       render: (_, record) => (
         <Space>
+          <Tooltip title="View Details">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => openDetails(record)}
+              style={{ color: "#6366f1" }}
+            />
+          </Tooltip>
           <Tooltip title="Edit Project">
             <Button
               type="text"
@@ -580,7 +866,7 @@ export default function ProjectsPage() {
               value: statusCounts.active,
               color: "#3b82f6",
               bg: "#eff6ff",
-              icon: <SyncOutlined spin={statusCounts.active > 0} style={{ fontSize: 22, color: "#3b82f6" }} />,
+              icon: <SyncOutlined style={{ fontSize: 22, color: "#3b82f6" }} />,
             },
             {
               label: "Pending",
@@ -694,6 +980,35 @@ export default function ProjectsPage() {
           setEditTarget(null);
         }}
         onSaved={fetchProjects}
+      />
+
+      {/* ── Details Modal ── */}
+      <ProjectDetailsModal
+        open={detailOpen}
+        project={detailTarget}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailTarget(null);
+        }}
+        onShowPreview={(doc, filename) => {
+          const blob = doc.output("blob");
+          const url = URL.createObjectURL(blob);
+          setPreviewUrl(url);
+          setPreviewFilename(filename);
+          setPreviewOpen(true);
+        }}
+      />
+
+      {/* ── Preview Modal ── */}
+      <ReportPreviewModal
+        open={previewOpen}
+        url={previewUrl}
+        filename={previewFilename}
+        onClose={() => {
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+          setPreviewOpen(false);
+        }}
       />
     </div>
   );

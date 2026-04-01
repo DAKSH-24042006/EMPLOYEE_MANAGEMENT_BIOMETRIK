@@ -26,6 +26,7 @@ export async function POST(req: Request) {
         companyName: data.companyName,
         contactPerson: data.contactPerson || "",
         email: data.email,
+        contactNumber: data.contactNumber || "",
       },
       features: FEATURE_KEYS.reduce((acc, key) => {
         acc[key] = !!data[key];

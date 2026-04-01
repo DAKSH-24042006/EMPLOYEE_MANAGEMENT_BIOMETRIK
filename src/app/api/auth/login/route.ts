@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         name: isSales ? "Sales Mock User" : "Admin Mock User",
         email,
         password: hashedPassword,
-        role: isSales ? "SALES_TEAM" : "ADMIN",
+        role: isSales ? "SALES" : "ADMIN",
       });
     }
     // ----------------------------------------

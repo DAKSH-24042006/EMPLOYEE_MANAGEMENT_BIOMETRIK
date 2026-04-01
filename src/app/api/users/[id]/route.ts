@@ -1,19 +1,51 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import { User } from "@/lib/models/User";
+import { Role } from "@/lib/constants";
+
 import bcrypt from "bcryptjs";
+import { verifyJwt } from "@/lib/auth";
+import { cookies } from "next/headers";
+
+async function isAdmin() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+
+  if (!token) return false;
+
+  const decoded = await verifyJwt(token);
+  return decoded && decoded.role === Role.ADMIN;
+}
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { name, email, role, password } = await req.json();
+    if (!(await isAdmin())) {
+      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 403 });
+    }
+
+    const { name, email, role, password, phoneNumber, location } = await req.json();
+
+    if (phoneNumber !== undefined && !/^[0-9]+$/.test(phoneNumber)) {
+      return NextResponse.json(
+        { error: "Phone number must contain only digits" },
+        { status: 400 }
+      );
+    }
+
+    if (phoneNumber === "" || location === "") {
+      return NextResponse.json(
+        { error: "Phone number and location cannot be empty" },
+        { status: 400 }
+      );
+    }
     const { id } = await params;
 
     await dbConnect();
 
-    const updateData: any = { name, email, role };
+    const updateData: any = { name, email, role, phoneNumber, location };
     
     // If password is provided, hash it
     if (password) {
@@ -42,6 +74,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await isAdmin())) {
+      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 403 });
+    }
+
     const { id } = await params;
     await dbConnect();
 

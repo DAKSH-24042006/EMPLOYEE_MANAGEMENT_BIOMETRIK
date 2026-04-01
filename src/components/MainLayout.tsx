@@ -13,9 +13,12 @@ import {
   Plus,
   ChevronDown,
   Briefcase,
-  Bell,
   Menu as MenuIcon,
+  LogOut,
 } from "lucide-react";
+import { Role } from "@/lib/constants";
+
+
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -23,6 +26,7 @@ const { useBreakpoint } = Grid;
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const pathname = usePathname();
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -31,7 +35,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   // Avoid hydration mismatch by waiting for mount
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      const response = await fetch("/api/user/me");
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user data:", error);
+    }
+  };
 
   const isMobile = mounted && (!screens.md && (screens.xs || screens.sm));
 
@@ -65,7 +84,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       icon: <Users size={18} />,
       label: <Link href="/users">Users</Link>,
     },
-  ];
+  ].filter(item => {
+    if (item.key === "/users") {
+      return user?.role === Role.ADMIN;
+    }
+    return true;
+  });
+
 
   // Breadcrumb generator mapping URL tokens naturally
   const pathSnippets = pathname.split("/").filter((i) => i);
@@ -81,101 +106,149 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     })
   ];
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/auth/login";
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
   const renderSidebarContent = (isDrawer = false) => {
     const isActuallyCollapsed = isDrawer ? false : collapsed;
     return (
-      <>
-        <div
-          style={{
-            height: 72,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: isActuallyCollapsed ? "0 8px" : "0 24px",
-            overflow: "hidden",
-            transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "center",
-            width: "100%",
-            height: "100%",
-            position: "relative"
-          }}>
-            <Image 
-              src="/Biometrik_New_Logo.png" 
-              alt="Logo" 
-              width={isActuallyCollapsed ? 48 : 180} 
-              height={40} 
-              className="object-contain"
-              priority
-              style={{
-                maxWidth: "100%",
-                height: "auto",
-                transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "1",
-                  label: <Link href="/projects/new">New Project</Link>,
-                  icon: <Plus size={14} />,
-                },
-              ],
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 16 }}>
+          <div
+            style={{
+              height: 72,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: isActuallyCollapsed ? "0 8px" : "0 24px",
+              overflow: "hidden",
+              transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
+              marginBottom: 16,
             }}
-            trigger={["click"]}
           >
-            <Button
-              type="primary"
-              size="large"
-              block
-              style={{
-                height: 48,
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: isActuallyCollapsed ? "center" : "space-between",
-                padding: isActuallyCollapsed ? "0" : "0 16px",
-                background: logoTeal,
-                border: "none",
-                fontWeight: 600,
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              width: "100%",
+              height: "100%",
+              position: "relative"
+            }}>
+              <Image 
+                src="/Biometrik_New_Logo.png" 
+                alt="Logo" 
+                width={isActuallyCollapsed ? 48 : 180} 
+                height={40} 
+                className="object-contain"
+                priority
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "1",
+                    label: <Link href="/projects/new">New Project</Link>,
+                    icon: <Plus size={14} />,
+                  },
+                ],
               }}
-              icon={isActuallyCollapsed ? <Plus size={20} /> : null}
+              trigger={["click"]}
             >
-              {!isActuallyCollapsed && (
-                <Space>
-                  <span>Create New</span>
-                  <ChevronDown size={16} />
-                </Space>
-              )}
-            </Button>
-          </Dropdown>
+              <button
+                style={{
+                  height: 48,
+                  width: "100%",
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: isActuallyCollapsed ? "center" : "space-between",
+                  padding: isActuallyCollapsed ? "0" : "0 16px",
+                  background: logoTeal,
+                  border: "none",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                }}
+              >
+                {isActuallyCollapsed ? (
+                  <Plus size={20} />
+                ) : (
+                  <>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      Create New
+                    </span>
+                    <ChevronDown size={16} />
+                  </>
+                )}
+              </button>
+            </Dropdown>
+          </div>
+
+          <Menu
+            theme="light"
+            mode="inline"
+            selectedKeys={[pathname]}
+            items={menuItems}
+            onClick={() => {
+              if (isDrawer) setDrawerVisible(false);
+            }}
+            style={{ 
+              background: "transparent",
+              borderRight: 0,
+              marginTop: 8
+            }}
+          />
         </div>
 
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[pathname]}
-          items={menuItems}
-          onClick={() => {
-            if (isDrawer) setDrawerVisible(false);
-          }}
-          style={{ 
-            background: "transparent",
-            borderRight: 0,
-            marginTop: 8
-          }}
-        />
-      </>
+        <div style={{ padding: "16px", borderTop: "1px solid #f0f0f0" }}>
+          <Button
+            icon={<LogOut size={18} />}
+            block
+            size="large"
+            onClick={handleLogout}
+            style={{
+              height: 44,
+              borderRadius: 8,
+              border: "1.5px solid #d9d9d9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: isActuallyCollapsed ? "center" : "flex-start",
+              padding: isActuallyCollapsed ? "0" : "0 16px",
+              fontWeight: 500,
+              color: "rgba(0, 0, 0, 0.65)",
+              transition: "all 0.3s ease",
+            }}
+            className="logout-button-hover"
+          >
+            {!isActuallyCollapsed && <span style={{ marginLeft: 8 }}>Logout</span>}
+          </Button>
+          <style jsx global>{`
+            .logout-button-hover:hover {
+              background-color: #fff1f0 !important;
+              color: #ff4d4f !important;
+              border-color: #ff4d4f !important;
+              transform: translateY(-1px);
+              box-shadow: 0 2px 8px rgba(255, 77, 79, 0.15);
+            }
+          `}</style>
+        </div>
+      </div>
     );
   };
 
@@ -183,19 +256,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <Layout style={{ minHeight: "100vh" }}>
       {mounted && !isMobile && (
         <Sider
-          collapsible
-          collapsedWidth={80}
-          collapsed={collapsed}
-          onCollapse={(value) => setCollapsed(value)}
           theme="light"
-          width={260}
+          width={collapsed ? 80 : 260}
           style={{
             position: "sticky",
             top: 0,
             height: "100vh",
-            overflow: "auto",
             borderRight: "1px solid #f0f0f0",
             background: "#ffffff",
+            display: "flex",
+            flexDirection: "column",
+            transition: "width 0.2s",
           }}
         >
           {renderSidebarContent(false)}
@@ -208,7 +279,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           onClose={() => setDrawerVisible(false)}
           open={drawerVisible}
           styles={{ body: { padding: 0 } }}
-          width={260}
+          size={260}
           closable={false}
         >
           {renderSidebarContent(true)}
@@ -252,7 +323,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </div>
           
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: 16 }}>
-            <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
             <Dropdown 
               menu={{ 
                 items: [
@@ -261,17 +331,57 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   { 
                     key: "2", 
                     label: "Logout",
-                    onClick: async () => {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                      window.location.href = "/auth/login";
-                    }
+                    icon: <LogOut size={16} />,
+                    danger: true,
+                    onClick: handleLogout
                   }
                 ] 
               }} 
               placement="bottomRight"
+              trigger={["click"]}
             >
-              <Avatar style={{ backgroundColor: "#ffcd00", color: "#333", cursor: "pointer", fontWeight: 600 }}>SS</Avatar>
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "10px", 
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: "8px",
+                transition: "background 0.3s"
+              }} className="profile-trigger">
+                <Avatar 
+                  style={{ 
+                    backgroundColor: "#00897b", 
+                    color: "#fff", 
+                    fontWeight: 600,
+                    width: 36,
+                    height: 36,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "16px"
+                  }}
+                >
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </Avatar>
+                {!isMobile && (
+                  <div style={{ display: "flex", flexDirection: "column", lineHeight: "1.2" }}>
+                    <span style={{ fontWeight: 600, color: "rgba(0, 0, 0, 0.85)", fontSize: "14px" }}>
+                      {user?.name || "Loading..."}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.45)", textTransform: "capitalize" }}>
+                      {user?.role === Role.SALES ? "Sales" : (user?.role?.toLowerCase().replace("_", " ") || "User")}
+                    </span>
+
+                  </div>
+                )}
+              </div>
             </Dropdown>
+            <style jsx>{`
+              .profile-trigger:hover {
+                background: rgba(0, 0, 0, 0.025);
+              }
+            `}</style>
           </div>
         </Header>
         

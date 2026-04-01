@@ -4,6 +4,7 @@ export interface IClientDetails {
   companyName: string;
   contactPerson?: string;
   email: string;
+  contactNumber?: string;
 }
 
 export const FEATURE_KEYS = [
@@ -52,6 +53,7 @@ const ProjectSchema: Schema = new Schema(
         type: String,
         required: [true, "Email is required"],
       },
+      contactNumber: String,
     },
     features: {
       visitorManagement: { type: Boolean, default: false },

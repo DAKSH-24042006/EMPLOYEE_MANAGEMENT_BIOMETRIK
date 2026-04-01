@@ -226,7 +226,7 @@ export default function NewProjectPage() {
 
     if (!hasAtLeastOneFeature) {
       message.error("Please select at least one Application Feature to proceed.");
-      document.getElementById('application-suite')?.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('application-features')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
@@ -265,7 +265,7 @@ export default function NewProjectPage() {
   });
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", paddingBottom: 60 }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 16px 60px" }}>
       {/* ── Breadcrumbs ── */}
       <Breadcrumb 
         style={{ marginBottom: 16 }}
@@ -342,11 +342,11 @@ export default function NewProjectPage() {
               }}>
                 <UserOutlined />
               </div>
-              <Title level={4} style={{ margin: 0 }}>Client Identification</Title>
+              <Title level={4} style={{ margin: 0 }}>Client Information</Title>
             </div>
 
             <Row gutter={24}>
-              <Col xs={24} md={8}>
+              <Col xs={24} md={6}>
                 <Form.Item
                   name="companyName"
                   label={<span style={{ fontWeight: 500 }}>Company Name</span>}
@@ -356,7 +356,7 @@ export default function NewProjectPage() {
                 </Form.Item>
               </Col>
               
-              <Col xs={24} md={8}>
+              <Col xs={24} md={6}>
                 <Form.Item
                   name="contactPerson"
                   label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
@@ -367,7 +367,7 @@ export default function NewProjectPage() {
                 </Form.Item>
               </Col>
               
-              <Col xs={24} md={8}>
+              <Col xs={24} md={6}>
                 <Form.Item
                   name="email"
                   label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
@@ -378,6 +378,28 @@ export default function NewProjectPage() {
                   ]}
                 >
                   <Input size="large" placeholder="contact@company.com" />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={6}>
+                <Form.Item
+                  name="contactNumber"
+                  label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
+                  rules={[
+                    { pattern: /^[0-9]*$/, message: "Please enter only digits" },
+                    { len: 10, message: "Contact number must be exactly 10 digits" }
+                  ]}
+                >
+                  <Input 
+                    size="large" 
+                    placeholder="E.g., 9876543210" 
+                    maxLength={10}
+                    onKeyPress={(e) => {
+                      if (!/[0-9]/.test(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                  />
                 </Form.Item>
               </Col>
             </Row>
@@ -394,7 +416,7 @@ export default function NewProjectPage() {
             }}
             styles={{ body: { padding: "24px 32px" } }}
           >
-            <div id="application-suite" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <div id="application-features" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
               <div style={{ 
                 width: 36, 
                 height: 36, 
@@ -407,7 +429,7 @@ export default function NewProjectPage() {
               }}>
                 <AppstoreOutlined />
               </div>
-              <Title level={4} style={{ margin: 0 }}>Application Suite <span style={{ color: '#ef4444', fontSize: 14, fontWeight: 400 }}>* (Select at least one)</span></Title>
+              <Title level={4} style={{ margin: 0 }}>Application Features <span style={{ color: '#ef4444', fontSize: 14, fontWeight: 400 }}>* (Select at least one)</span></Title>
             </div>
             
             <Text type="secondary" style={{ display: "block", marginBottom: 24, paddingLeft: 48 }}>
@@ -499,20 +521,11 @@ export default function NewProjectPage() {
           </Card>
 
           {/* Footer Actions */}
-          <div style={{ 
-            background: "#fff", 
-            padding: "20px 24px", 
-            borderRadius: 16,
-            border: "1px solid #f0f0f0",
-            display: "flex", 
-            justifyContent: "flex-end", 
-            gap: 16,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-          }}>
+          <div className="footer-actions">
             <Button 
               size="large" 
               onClick={() => { form.resetFields(); }} 
-              style={{ borderRadius: 8 }}
+              className="action-btn"
             >
               Reset Changes
             </Button>
@@ -521,13 +534,7 @@ export default function NewProjectPage() {
               htmlType="submit" 
               size="large" 
               loading={submitting} 
-              style={{ 
-                padding: "0 40px", 
-                background: PRIMARY_COLOR, 
-                borderColor: PRIMARY_COLOR,
-                borderRadius: 8,
-                fontWeight: 600
-              }}
+              className="action-btn primary"
             >
               Create Project
             </Button>
@@ -561,6 +568,41 @@ export default function NewProjectPage() {
         .custom-checkbox .ant-checkbox-checked .ant-checkbox-inner {
           background-color: ${PRIMARY_COLOR} !important;
           border-color: ${PRIMARY_COLOR} !important;
+        }
+
+        .footer-actions {
+          background: #fff;
+          padding: 24px;
+          border-radius: 16px;
+          border: 1px solid #f0f0f0;
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .action-btn {
+          min-width: 160px;
+          height: 48px !important;
+          border-radius: 10px !important;
+          font-weight: 500 !important;
+        }
+
+        .action-btn.primary {
+          background-color: ${PRIMARY_COLOR} !important;
+          border-color: ${PRIMARY_COLOR} !important;
+          color: #fff !important;
+          font-weight: 600 !important;
+        }
+
+        @media (max-width: 576px) {
+          .footer-actions {
+            flex-direction: column-reverse; /* Create (2nd) on top, Reset (1st) on bottom */
+            gap: 12px;
+          }
+          .action-btn {
+            width: 100% !important;
+          }
         }
       `}</style>
     </div>

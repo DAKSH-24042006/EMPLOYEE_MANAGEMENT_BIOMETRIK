@@ -3,8 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 export const getJwtSecretKey = () => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    // For local mocking/development (In prod, enforce throwing error)
-    return new TextEncoder().encode("mocked_fallback_secret_key_for_development_purposes");
+    throw new Error("JWT_SECRET environment variable is not defined");
   }
   return new TextEncoder().encode(secret);
 };

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Form, Input, Button, Card, Typography, App } from "antd";
 import { LockOutlined, MailOutlined } from "@ant-design/icons";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const { Title, Text } = Typography;
@@ -57,19 +58,18 @@ export default function LoginPage() {
         variant="borderless"
       >
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            backgroundColor: "#0073ea",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 16px"
-          }}>
-            <span style={{ color: "#fff", fontSize: 24, fontWeight: "bold" }}>M</span>
-          </div>
-          <Title level={3} style={{ margin: 0 }}>Welcome Back</Title>
+          <Image
+            src="/Biometrik_New_Logo.png"
+            alt="Logo"
+            width={180}
+            height={150}
+            className="object-contain"
+            style={{
+              display: "block",
+              margin: "0 auto 15px"
+            }}
+          />
+          <Title level={3} style={{ margin: 0, marginBottom: 10 }}>Welcome Back</Title>
           <Text type="secondary">Enter your credentials to access your workspace</Text>
         </div>
 
@@ -108,10 +108,10 @@ export default function LoginPage() {
               Sign In
             </Button>
           </Form.Item>
-          
+
           <div style={{ textAlign: "center" }}>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              Demo Hint: Use any email and password. "sales" in email logs you in as SALES_TEAM, otherwise ADMIN.
+            <Text type="secondary" style={{ fontStyle: "italic", fontSize: 13 }}>
+              "There are no traffic jams at the extra mile !"
             </Text>
           </div>
         </Form>
