@@ -1,9 +1,8 @@
 @Library('jenkins-shared-library') _
-nextJsPipeline(
-    folderName: 'marketing-dashboard',
-    pm2Name: 'marketing-dashboard-5018',
+nextJsNewPipeline(
+    folderName: 'requirement-dashboard',
+    pm2Name: 'requirement-dashboard-5018',
     port: '5018',
-    subdomain: 'marketing',
-    secretId: 'marketing-dashboard',
+    secretId: 'requirement-dashboard',
     dbType: 'Mongodb'
 )
