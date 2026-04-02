@@ -17,6 +17,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
+import logo from '../../public/Biometrik_New_Logo.png'
 
 
 
@@ -141,7 +142,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               position: "relative"
             }}>
               <Image 
-                src="/Biometrik_New_Logo.png" 
+                src={logo} 
                 alt="Logo" 
                 width={isActuallyCollapsed ? 48 : 180} 
                 height={40} 
