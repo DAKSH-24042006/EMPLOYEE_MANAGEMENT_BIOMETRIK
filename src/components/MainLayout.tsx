@@ -145,11 +145,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 alt="Logo" 
                 width={isActuallyCollapsed ? 48 : 180} 
                 height={40} 
-                className="object-contain"
                 priority
                 style={{
-                  maxWidth: "100%",
+                  width: isActuallyCollapsed ? 48 : 180,
                   height: "auto",
+                  objectFit: "contain",
                   transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
                 }}
               />
@@ -253,7 +253,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
       {mounted && !isMobile && (
         <Sider
           theme="light"
@@ -286,7 +286,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </Drawer>
       )}
 
-      <Layout>
+      <Layout style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
         <Header
           style={{
             padding: "0 16px",
@@ -387,18 +387,26 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         
         <Content
           style={{
-            margin: mounted && isMobile ? "0 8px 16px 8px" : "0 16px 24px 16px",
+            margin: mounted && isMobile ? "0 8px 8px 8px" : "0 16px 16px 16px",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            flex: 1,
           }}
         >
           <Breadcrumb 
             items={breadcrumbItems} 
-            style={{ margin: mounted && isMobile ? '8px 0' : '16px 0', padding: '0 8px' }} 
+            style={{ margin: mounted && isMobile ? '8px 0' : '12px 0', padding: '0 8px', flex: "0 0 auto" }} 
           />
           <div style={{
-            padding: mounted && isMobile ? 16 : 24,
-            minHeight: 280,
+            padding: mounted && isMobile ? 12 : 20,
+            flex: 1,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            minHeight: 0
           }}>
             {children}
           </div>

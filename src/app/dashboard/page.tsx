@@ -180,12 +180,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div style={{ 
-      height: isDesktop ? "calc(100vh - 230px)" : "auto", 
-      display: "flex", 
-      flexDirection: "column", 
-      overflow: isDesktop ? "hidden" : "visible" 
-    }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <div>
           <Title level={3} style={{ margin: 0 }}>Dashboard Overview</Title>
@@ -193,7 +188,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <Skeleton loading={loading} active paragraph={{ rows: 1 }} style={{ flex: isDesktop ? 1 : "auto" }}>
+      <Skeleton loading={loading} active paragraph={{ rows: 4 }} style={{ flex: 1 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           {[
             {
@@ -266,31 +262,42 @@ export default function DashboardPage() {
           ))}
         </Row>
 
-        <Row gutter={[16, 16]} style={{ flex: isDesktop ? 1 : "auto", minHeight: 0 }}>
+        <Row gutter={[16, 16]} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <Col xs={24} lg={10} style={{ height: isDesktop ? "100%" : "auto", marginBottom: isDesktop ? 0 : 16 }}>
             <Card 
-              title={<span style={{ fontSize: 14, fontWeight: 600 }}><ProjectOutlined /> Project Distribution</span>}
+              title={<span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}><ProjectOutlined /> Project Distribution</span>}
               variant="borderless"
               style={{ 
-                height: isDesktop ? "100%" : 350, 
+                height: isDesktop ? "100%" : 380, 
                 borderRadius: 12, 
                 background: "#fff",
-                boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
-                border: "1px solid #f0f0f0"
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                border: "1px solid #f0f0f0",
+                display: "flex",
+                flexDirection: "column"
               }}
-              styles={{ body: { height: isDesktop ? "calc(100% - 47px)" : "auto", padding: "10px" } }}
+              styles={{ body: { 
+                flex: 1, 
+                padding: "20px 10px", 
+                display: "flex", 
+                flexDirection: "column", 
+                justifyContent: "center",
+                position: "relative",
+                minHeight: 280
+              } }}
             >
-              <div style={{ height: isDesktop ? "100%" : 250 }}>
+              <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 240, position: "relative" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={chartData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
+                      innerRadius={65}
+                      outerRadius={85}
                       paddingAngle={5}
                       dataKey="value"
+                      stroke="none"
                     >
                       {chartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -299,16 +306,17 @@ export default function DashboardPage() {
                     <ReTooltip content={<CustomTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-              <div style={{ 
-                textAlign: "center", 
-                position: "absolute", 
-                top: isDesktop ? "54%" : "180px", 
-                left: "50%", 
-                transform: "translate(-50%, -50%)" 
-              }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{data.length}</div>
-                <div style={{ fontSize: 10, color: "#6b7280" }}>Companies</div>
+                <div style={{ 
+                  textAlign: "center", 
+                  position: "absolute", 
+                  top: "50%", 
+                  left: "50%", 
+                  transform: "translate(-50%, -50%)",
+                  pointerEvents: "none"
+                }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1 }}>{data.length}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 500, marginTop: 4 }}>Companies</div>
+                </div>
               </div>
             </Card>
           </Col>
@@ -324,7 +332,11 @@ export default function DashboardPage() {
                 boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
                 border: "1px solid #f0f0f0"
               }}
-              styles={{ body: { height: isDesktop ? "calc(100% - 47px)" : "auto", padding: 0, overflow: "auto" } }}
+              styles={{ body: { 
+                flex: 1, 
+                padding: 0, 
+                overflow: "auto" 
+              } }}
             >
               <Table 
                 columns={columns} 
@@ -337,6 +349,7 @@ export default function DashboardPage() {
             </Card>
           </Col>
         </Row>
+        </div>
       </Skeleton>
     </div>
   );

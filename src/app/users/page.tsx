@@ -310,7 +310,13 @@ export default function UsersPage() {
   }
 
   return (
-    <div style={{ padding: "8px 0" }}>
+    <div style={{ 
+      padding: "0", 
+      height: "100%", 
+      display: "flex", 
+      flexDirection: "column",
+      overflow: "hidden"
+    }}>
 
       <div style={{
         display: "flex",
@@ -318,7 +324,7 @@ export default function UsersPage() {
         justifyContent: "space-between",
         alignItems: "center",
         gap: 16,
-        marginBottom: 24
+        marginBottom: 16
       }}>
         <div>
           <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Users Management</Title>
@@ -355,9 +361,18 @@ export default function UsersPage() {
         style={{
           borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          marginBottom: 24
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden"
         }}
-        styles={{ body: { padding: 0 } }}
+        styles={{ body: { 
+          padding: 0, 
+          flex: 1, 
+          display: "flex", 
+          flexDirection: "column",
+          overflow: "hidden"
+        } }}
       >
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
           <div style={{
@@ -399,7 +414,7 @@ export default function UsersPage() {
             showSizeChanger: true,
             style: { paddingRight: 24 }
           }}
-          scroll={{ x: 800 }}
+          scroll={{ x: 800, y: 'calc(100vh - 380px)' }}
         />
       </Card>
 

@@ -28,6 +28,7 @@ async function seed() {
   const hashedPassword = await bcrypt.hash("admin123", 10);
   const user = await User.create({
     username: "admin",
+    emailid: "admin@biometrik.com"
     password: hashedPassword,
     role: "ADMIN"
   });

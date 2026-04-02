@@ -265,60 +265,53 @@ export default function NewProjectPage() {
   });
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 16px 60px" }}>
-      {/* ── Breadcrumbs ── */}
-      <Breadcrumb 
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: <Link href="/projects">Projects</Link> },
-          { title: "New Project" },
-        ]}
-      />
-
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* ── Header ── */}
       <div style={{ 
         display: "flex", 
         justifyContent: "space-between", 
         alignItems: "flex-end", 
-        marginBottom: 32,
+        marginBottom: 20,
         flexWrap: "wrap",
-        gap: 16
+        gap: 16,
+        flex: "0 0 auto"
       }}>
         <div>
-          <Title level={2} style={{ margin: 0, fontWeight: 700 }}>
+          <Title level={2} style={{ margin: 0, fontWeight: 700, fontSize: 24 }}>
             Create New Project
           </Title>
-          <Text type="secondary" style={{ fontSize: 16 }}>
-            Set up the client details and select the required application features.
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Set up building the client details and select required application features.
           </Text>
         </div>
         <Link href="/projects">
-          <Button icon={<ArrowLeftOutlined />}>Back to list</Button>
+          <Button icon={<ArrowLeftOutlined />} size="small">Back to list</Button>
         </Link>
       </div>
 
-      <Skeleton active loading={mounting} paragraph={{ rows: 15 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          requiredMark={false}
-          initialValues={{
-            visitorManagement: false,
-            attendanceManagement: false,
-            digilockerAuthentication: false,
-            webApp: false,
-            androidApp: false,
-            iosApp: false,
-            videoKYC: false,
-            rbac: false,
-            adminPanel: false,
-            online: false,
-            offline: false,
-            cloud: false,
-            onPremise: false,
-          }}
-        >
+      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, paddingBottom: 40 }} className="hide-scrollbar">
+        <Skeleton active loading={mounting} paragraph={{ rows: 15 }}>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onFinish}
+            requiredMark={false}
+            initialValues={{
+              visitorManagement: false,
+              attendanceManagement: false,
+              digilockerAuthentication: false,
+              webApp: false,
+              androidApp: false,
+              iosApp: false,
+              videoKYC: false,
+              rbac: false,
+              adminPanel: false,
+              online: false,
+              offline: false,
+              cloud: false,
+              onPremise: false,
+            }}
+          >
           {/* Section 1: Client Details */}
           <Card 
             variant="borderless" 
@@ -523,13 +516,6 @@ export default function NewProjectPage() {
           {/* Footer Actions */}
           <div className="footer-actions">
             <Button 
-              size="large" 
-              onClick={() => { form.resetFields(); }} 
-              className="action-btn"
-            >
-              Reset Changes
-            </Button>
-            <Button 
               type="primary" 
               htmlType="submit" 
               size="large" 
@@ -541,70 +527,7 @@ export default function NewProjectPage() {
           </div>
         </Form>
       </Skeleton>
-      
-      {/* Global CSS for some refinements */}
-      <style jsx global>{`
-        .ant-form-item-label label {
-          font-size: 14px !important;
-          color: #4b5563 !important;
-        }
-        .ant-input-lg, .ant-picker-large {
-          border-radius: 10px !important;
-        }
-        .ant-btn-primary {
-          background-color: ${PRIMARY_COLOR} !important;
-          border-color: ${PRIMARY_COLOR} !important;
-          box-shadow: 0 4px 10px rgba(0, 137, 123, 0.2) !important;
-        }
-        .ant-btn-primary:hover {
-          background-color: #00695c !important;
-          border-color: #00695c !important;
-        }
-        .custom-checkbox .ant-checkbox-inner {
-          width: 20px !important;
-          height: 20px !important;
-          border-radius: 6px !important;
-        }
-        .custom-checkbox .ant-checkbox-checked .ant-checkbox-inner {
-          background-color: ${PRIMARY_COLOR} !important;
-          border-color: ${PRIMARY_COLOR} !important;
-        }
-
-        .footer-actions {
-          background: #fff;
-          padding: 24px;
-          border-radius: 16px;
-          border: 1px solid #f0f0f0;
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        .action-btn {
-          min-width: 160px;
-          height: 48px !important;
-          border-radius: 10px !important;
-          font-weight: 500 !important;
-        }
-
-        .action-btn.primary {
-          background-color: ${PRIMARY_COLOR} !important;
-          border-color: ${PRIMARY_COLOR} !important;
-          color: #fff !important;
-          font-weight: 600 !important;
-        }
-
-        @media (max-width: 576px) {
-          .footer-actions {
-            flex-direction: column-reverse; /* Create (2nd) on top, Reset (1st) on bottom */
-            gap: 12px;
-          }
-          .action-btn {
-            width: 100% !important;
-          }
-        }
-      `}</style>
     </div>
-  );
+  </div>
+);
 }

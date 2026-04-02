@@ -75,8 +75,8 @@ export default function ProfilePage() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flex: "0 0 auto" }}>
         <div>
           <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
           <Text type="secondary">Manage your personal information and preferences.</Text>
@@ -91,59 +91,55 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      <Row gutter={24}>
-        <Col xs={24} md={8}>
-          <Card variant="borderless" style={{ textAlign: "center", padding: "24px 0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-            <Avatar size={100} style={{ backgroundColor: "#00897b", color: "#fff", fontSize: "32px", fontWeight: 600, marginBottom: 16 }}>
-              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-            </Avatar>
-            <Title level={4} style={{ marginBottom: 4 }}>{user?.name || "Loading..."}</Title>
-            <Text type="secondary" style={{ textTransform: "uppercase", fontSize: "12px", letterSpacing: "1px", color: "#00897b", fontWeight: 600 }}>
-              {user?.role?.replace("_", " ") || "USER"}
-            </Text>
-          </Card>
-        </Col>
-        <Col xs={24} md={16}>
-          <Card variant="borderless" title="Personal Details" style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                  <Mail size={18} color="#00897b" />
+      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8 }} className="hide-scrollbar">
+        <Row gutter={[24, 24]}>
+          <Col xs={24} md={8}>
+            <Card variant="borderless" style={{ textAlign: "center", padding: "24px 0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+              <Avatar size={100} style={{ backgroundColor: "#00897b", color: "#fff", fontSize: "32px", fontWeight: 600, marginBottom: 16 }}>
+                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+              </Avatar>
+              <Title level={4} style={{ marginBottom: 4 }}>{user?.name || "Loading..."}</Title>
+              <Text type="secondary" style={{ textTransform: "uppercase", fontSize: "12px", letterSpacing: "1px", color: "#00897b", fontWeight: 600 }}>
+                {user?.role?.replace("_", " ") || "USER"}
+              </Text>
+            </Card>
+          </Col>
+          <Col xs={24} md={16}>
+            <Card variant="borderless" title="Personal Details" style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
+                    <Mail size={18} color="#00897b" />
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Email Address</Text>
+                    <Text strong>{user?.email || "..."}</Text>
+                  </div>
                 </div>
-                <div>
-                  <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Email Address</Text>
-                  <Text strong>{user?.email || "..."}</Text>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
+                    <Phone size={18} color="#00897b" />
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Phone Number</Text>
+                    <Text strong>{user?.phoneNumber || "Not provided"}</Text>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
+                    <MapPin size={18} color="#00897b" />
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Location</Text>
+                    <Text strong>{user?.location || "Not provided"}</Text>
+                  </div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                  <Phone size={18} color="#00897b" />
-                </div>
-                <div>
-                  <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Phone Number</Text>
-                  <Text strong>{user?.phoneNumber || "Not provided"}</Text>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                  <MapPin size={18} color="#00897b" />
-                </div>
-                <div>
-                  <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Location</Text>
-                  <Text strong>{user?.location || "Not provided"}</Text>
-                </div>
-              </div>
-            </div>
-            <Divider />
-            {/* <Title level={5} style={{ display: "flex", alignItems: "center", gap: 8, color: "#00897b" }}>
-              <User size={18} /> Bio
-            </Title>
-            <Text style={{ fontSize: "14px", lineHeight: "1.6", color: "#4b5563" }}>
-              Lead administrator for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.
-            </Text> */}
-          </Card>
-        </Col>
-      </Row>
+              <Divider />
+            </Card>
+          </Col>
+        </Row>
+      </div>
 
       <Modal
         title={

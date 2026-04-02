@@ -19,9 +19,9 @@ import {
   Row,
   Col,
   Card,
-  Badge,
   Divider,
   Checkbox,
+  Grid,
 } from "antd";
 import {
   EditOutlined,
@@ -279,16 +279,16 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
             </Form.Item>
           </Col>
           <Col xs={24} md={6}>
-            <Form.Item 
-              name="contactNumber" 
+            <Form.Item
+              name="contactNumber"
               label="Contact Number"
               rules={[
                 { pattern: /^[0-9]*$/, message: "Please enter only digits" },
                 { len: 10, message: "Contact number must be exactly 10 digits" }
               ]}
             >
-              <Input 
-                placeholder="E.g., 9876543210" 
+              <Input
+                placeholder="E.g., 9876543210"
                 maxLength={10}
                 onKeyPress={(e) => {
                   if (!/[0-9]/.test(e.key)) {
@@ -415,7 +415,7 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
       width={800}
     >
       <Divider style={{ margin: "12px 0 24px" }} />
-      
+
       <div style={{ padding: "0 4px" }}>
         {/* Client Section */}
         <section style={{ marginBottom: 32 }}>
@@ -462,8 +462,8 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
               <Card size="small" variant="borderless" style={{ textAlign: "center", background: "#f0fdfa" }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>Status</Text>
                 <div style={{ marginTop: 4 }}>
-                  <Tag 
-                    color={STATUS_CONFIG[project.status].color} 
+                  <Tag
+                    color={STATUS_CONFIG[project.status].color}
                     icon={STATUS_CONFIG[project.status].icon}
                     style={{ margin: 0, borderRadius: 12 }}
                   >
@@ -515,10 +515,10 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
             <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
               Additional Notes
             </Title>
-            <div style={{ 
-              background: "#fffbeb", 
-              padding: 16, 
-              borderRadius: 8, 
+            <div style={{
+              background: "#fffbeb",
+              padding: 16,
+              borderRadius: 8,
               border: "1px solid #fde68a",
               whiteSpace: "pre-wrap",
               color: "#92400e"
@@ -598,6 +598,7 @@ function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModal
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<IProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [editTarget, setEditTarget] = useState<IProject | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<IProject | null>(null);
@@ -606,6 +607,13 @@ export default function ProjectsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = useState("");
   const { message, modal } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isMobileView = mounted && !screens.md;
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -704,39 +712,28 @@ export default function ProjectsPage() {
       sorter: (a, b) =>
         a.clientDetails.companyName.localeCompare(b.clientDetails.companyName),
       render: (name: string, record) => (
-        <div 
-          onClick={() => openDetails(record)} 
+        <div
+          onClick={() => openDetails(record)}
           style={{ cursor: "pointer" }}
-          className="hover:underline"
         >
-          <div style={{ fontWeight: 600, color: "#00897b" }}>{name}</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
-            {record.clientDetails.contactPerson || "—"}
-          </div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
-            {record.clientDetails.email}
-          </div>
-          {record.clientDetails.contactNumber && (
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              {record.clientDetails.contactNumber}
+          <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13 }}>{name}</div>
+          {isMobileView && (
+            <div style={{ fontSize: 10, color: "#4b5563", marginTop: 2, fontWeight: 500 }}>
+              Created: {dayjs(record.createdAt).format("DD MMM YYYY")}
             </div>
           )}
         </div>
       ),
     },
     {
-      title: "Timeline",
-      key: "timeline",
-      sorter: (a, b) =>
-        new Date(a.timeline.startDate).getTime() -
-        new Date(b.timeline.startDate).getTime(),
+      responsive: ["sm"] as any,
       render: (_, record) => (
         <div style={{ whiteSpace: "nowrap" }}>
-          <div style={{ fontSize: 12, color: "#374151" }}>
+          <div style={{ fontSize: 11, color: "#374151" }}>
             <span style={{ color: "#6b7280" }}>From: </span>
             {dayjs(record.timeline.startDate).format("DD MMM YYYY")}
           </div>
-          <div style={{ fontSize: 12, color: "#374151" }}>
+          <div style={{ fontSize: 11, color: "#374151" }}>
             <span style={{ color: "#6b7280" }}>To: </span>
             {dayjs(record.timeline.endDate).format("DD MMM YYYY")}
           </div>
@@ -752,7 +749,7 @@ export default function ProjectsPage() {
       render: (status: string) => {
         const cfg = STATUS_CONFIG[status] || { color: "default", icon: null };
         return (
-          <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "2px 10px" }}>
+          <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "0px 8px", fontSize: 12, margin: 0 }}>
             {status}
           </Tag>
         );
@@ -762,11 +759,12 @@ export default function ProjectsPage() {
       title: "Created",
       dataIndex: "createdAt",
       key: "createdAt",
+      responsive: ["md"] as any,
       sorter: (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       render: (date: string) => (
         <Tooltip title={dayjs(date).format("DD MMM YYYY, hh:mm A")}>
-          <Text style={{ fontSize: 12, color: "#6b7280" }}>
+          <Text style={{ fontSize: 11, color: "#6b7280" }}>
             {dayjs(date).format("DD MMM YYYY")}
           </Text>
         </Tooltip>
@@ -810,24 +808,25 @@ export default function ProjectsPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* ── Header ── */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 24,
+          marginBottom: 16,
           flexWrap: "wrap",
-          gap: 16,
+          gap: 12,
+          flex: "0 0 auto"
         }}
       >
         <div>
           <Title level={3} style={{ margin: 0 }}>
             Projects
           </Title>
-          <Text type="secondary">
-            Manage client projects, update details, and track progress.
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Manage client projects and track progress.
           </Text>
         </div>
         <Space>
@@ -850,98 +849,37 @@ export default function ProjectsPage() {
         </Space>
       </div>
 
-      {/* ── Summary Cards ── */}
-      <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-          {[
-            {
-              label: "Total Projects",
-              value: statusCounts.total,
-              color: "#00897b",
-              bg: "#f0fdfa",
-              icon: <ProjectOutlined style={{ fontSize: 22, color: "#00897b" }} />,
-            },
-            {
-              label: "Active",
-              value: statusCounts.active,
-              color: "#3b82f6",
-              bg: "#eff6ff",
-              icon: <SyncOutlined style={{ fontSize: 22, color: "#3b82f6" }} />,
-            },
-            {
-              label: "Pending",
-              value: statusCounts.pending,
-              color: "#f59e0b",
-              bg: "#fffbeb",
-              icon: <ClockCircleOutlined style={{ fontSize: 22, color: "#f59e0b" }} />,
-            },
-            {
-              label: "Completed",
-              value: statusCounts.completed,
-              color: "#10b981",
-              bg: "#ecfdf5",
-              icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
-            },
-          ].map((card) => (
-            <Col xs={12} sm={6} key={card.label}>
-              <Card
-                variant="borderless"
-                style={{
-                  borderRadius: 12,
-                  background: card.bg,
-                  border: `1px solid ${card.color}22`,
-                }}
-                styles={{ body: { padding: "16px 20px" } }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                    }}
-                  >
-                    {card.icon}
-                  </div>
-                  <div>
-                    <div
-                      style={{ fontSize: 24, fontWeight: 700, color: card.color, lineHeight: 1 }}
-                    >
-                      {card.value}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                      {card.label}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </Skeleton>
 
       {/* ── Table ── */}
       <Card
         variant="borderless"
-        style={{ borderRadius: 12 }}
-        styles={{ body: { padding: 0 } }}
+        style={{ 
+          borderRadius: 12, 
+          flex: 1, 
+          display: "flex", 
+          flexDirection: "column", 
+          overflow: "hidden" 
+        }}
+        styles={{ body: { 
+          padding: 0, 
+          flex: 1, 
+          display: "flex", 
+          flexDirection: "column", 
+          overflow: "hidden" 
+        } }}
       >
         <Table
           columns={columns}
           dataSource={projects}
           rowKey="_id"
           loading={loading}
+          size="middle"
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
             showTotal: (total, range) =>
-              `${range[0]}–${range[1]} of ${total} projects`,
+              `${range[0]}–${range[1]} of ${total}`,
           }}
           locale={{
             emptyText: (
@@ -966,7 +904,7 @@ export default function ProjectsPage() {
               </div>
             ),
           }}
-          scroll={{ x: 800 }}
+          scroll={{ x: 800, y: "calc(100vh - 320px)" }}
           style={{ borderRadius: 12 }}
         />
       </Card>

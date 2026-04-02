@@ -180,12 +180,12 @@ export default function CalendarPage() {
   };
 
   return (
-    <div style={{ padding: "0 0 24px 0" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "0" }}>
       {contextHolder}
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 16, flex: "0 0 auto" }}>
         <div>
-          <Title level={3} style={{ margin: 0 }}>Sales Calendar</Title>
+          <Title level={3} style={{ margin: 0 }}>Calendar</Title>
           <Text type="secondary">Manage your daily tasks and schedule</Text>
         </div>
         <Space style={{ flexWrap: "wrap" }}>
@@ -199,12 +199,23 @@ export default function CalendarPage() {
         </Space>
       </div>
 
-      <Spin spinning={loading}>
-        <Card variant="borderless" style={{ padding: 0, borderRadius: 12, overflow: "hidden" }} styles={{ body: { padding: 0 } }}>
-          <div style={{ overflowX: "hidden", width: "100%" }}>
-            <div>
+      <Spin spinning={loading} classNames={{ root: "flex-1 overflow-hidden" }}>
+        <Card 
+          variant="borderless" 
+          style={{ 
+            padding: 0, 
+            borderRadius: 12, 
+            overflow: "hidden",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column"
+          }} 
+          styles={{ body: { padding: 0, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" } }}
+        >
+          <div style={{ overflow: "hidden", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
               {/* Weekday headers */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f0f0" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f0f0", flex: "0 0 auto" }}>
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
                   <div key={idx} style={{ padding: isMobile ? "8px 0" : "12px 0", textAlign: "center", fontWeight: 600, color: "#8c8c8c", fontSize: isMobile ? 12 : 14 }}>
                     {isMobile ? day.charAt(0) : day}
@@ -213,7 +224,7 @@ export default function CalendarPage() {
               </div>
 
               {/* Calendar Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", flex: 1, overflowY: "auto" }}>
                 {gridDays.map((date, idx) => {
                   const isCurrentMonth = date.isSame(currentDate, 'month');
                   const isToday = date.isSame(dayjs(), 'day');
@@ -224,7 +235,7 @@ export default function CalendarPage() {
                       key={idx}
                       onClick={() => onDateClick(date)}
                       style={{
-                        minHeight: isMobile ? 60 : 120,
+                        minHeight: isMobile ? 60 : "calc((100vh - 350px) / 6)", // Dynamically size cells
                         borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
                         borderBottom: "1px solid #f0f0f0",
                         padding: isMobile ? 4 : 8,
@@ -314,7 +325,7 @@ export default function CalendarPage() {
       </Spin>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 24, marginTop: 16, justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: 24, marginTop: 12, justifyContent: "center" }}>
         {PRIORITIES.map(p => (
           <div key={p.value} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: p.color }}></div>
