@@ -4,16 +4,14 @@ import React, { useState } from "react";
 import { Form, Input, Button, Card, Typography, App } from "antd";
 import { LockOutlined, MailOutlined } from "@ant-design/icons";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { message } = App.useApp();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const onFinish = async (values: any) => {
     setLoading(true);
@@ -28,7 +26,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         message.success("Login successful!");
-        router.push(callbackUrl);
+        router.push("/dashboard");
         router.refresh();
       } else {
         message.error(data.error || "Login failed");
