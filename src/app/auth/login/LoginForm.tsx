@@ -5,6 +5,7 @@ import { Form, Input, Button, Card, Typography, App } from "antd";
 import { LockOutlined, MailOutlined } from "@ant-design/icons";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import logo from '../../../../public/Biometrik_New_Logo.png'
 
 const { Title, Text } = Typography;
 
@@ -52,10 +53,11 @@ export default function LoginForm() {
     >
       <div style={{ textAlign: "center", marginBottom: 32 }}>
         <Image
-          src="/Biometrik_New_Logo.png"
+          src={logo}
           alt="Logo"
           width={180}
           height={150}
+          unoptimized
           className="object-contain"
           style={{
             display: "block",
