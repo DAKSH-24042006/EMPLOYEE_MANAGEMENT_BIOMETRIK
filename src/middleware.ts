@@ -17,7 +17,10 @@ export async function middleware(req: NextRequest) {
     const tokenCookie = req.cookies.get("token");
     const token = tokenCookie?.value;
 
+    console.log(`[Middleware] Path: ${pathname}, Token present: ${!!token}`);
+
     if (!token) {
+      console.log(`[Middleware] No token found, redirecting to login with callback: ${pathname}`);
       const loginUrl = new URL("/auth/login", req.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
@@ -25,9 +28,11 @@ export async function middleware(req: NextRequest) {
 
     // Verify JWT at the Edge
     const payload = await verifyJwt(token);
+    console.log(`[Middleware] Token verification result: ${payload ? "Valid" : "Invalid"}`);
 
     if (!payload) {
       // Invalid/Expired token
+      console.log(`[Middleware] Invalid token, redirecting to login`);
       const loginUrl = new URL("/auth/login", req.url);
       return NextResponse.redirect(loginUrl);
     }
@@ -35,6 +40,7 @@ export async function middleware(req: NextRequest) {
     // Optionally: Route specific Role-Based Access Control
     // e.g. if (pathname.startsWith("/requirement") && payload.role !== "ADMIN") return NextResponse.redirect("/unauthorized")
 
+    console.log(`[Middleware] User authorized: ${payload.userId} (${payload.role})`);
     return NextResponse.next();
   }
 

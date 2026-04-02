@@ -47,6 +47,7 @@ export async function POST(req: Request) {
 
     // Generate JWT
     const token = await signJwt({ userId: user.id || user._id.toString(), role: user.role });
+    console.log(`[Login API] Token generated for user: ${user.email} (${user.role})`);
 
     // Build the response and Set-Cookie
     const response = NextResponse.json(
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
       sameSite: "lax",
     });
 
+    console.log(`[Login API] Cookie set for token`);
     return response;
   } catch (error: any) {
     return NextResponse.json(
