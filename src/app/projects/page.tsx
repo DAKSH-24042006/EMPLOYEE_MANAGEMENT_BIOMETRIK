@@ -22,6 +22,7 @@ import {
   Divider,
   Checkbox,
   Grid,
+  List,
 } from "antd";
 import {
   EditOutlined,
@@ -35,6 +36,7 @@ import {
   SyncOutlined,
   FilePdfOutlined,
   EyeOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -424,25 +426,25 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
           </Title>
           <Card size="small" variant="borderless" style={{ background: "#f9fafb", borderRadius: 8 }}>
             <Row gutter={[24, 16]}>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Company Name</Text>
                 <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>
                   {project.clientDetails.companyName}
                 </div>
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Contact Person</Text>
                 <div style={{ fontSize: 15, color: "#374151" }}>
                   {project.clientDetails.contactPerson || "—"}
                 </div>
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Email Address</Text>
                 <div style={{ fontSize: 15, color: "#374151" }}>
                   {project.clientDetails.email}
                 </div>
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Contact Number</Text>
                 <div style={{ fontSize: 15, color: "#374151" }}>
                   {project.clientDetails.contactNumber || "—"}
@@ -457,11 +459,19 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
           <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
             Logistics & Progress
           </Title>
-          <Row gutter={24}>
-            <Col span={8}>
-              <Card size="small" variant="borderless" style={{ textAlign: "center", background: "#f0fdfa" }}>
+          <Row gutter={[24, 16]}>
+            <Col xs={24} sm={8}>
+              <Card size="small" variant="borderless" style={{ 
+                textAlign: "center", 
+                background: "#f0fdfa", 
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center"
+              }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>Status</Text>
-                <div style={{ marginTop: 4 }}>
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "center" }}>
                   <Tag
                     color={STATUS_CONFIG[project.status].color}
                     icon={STATUS_CONFIG[project.status].icon}
@@ -472,9 +482,9 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
                 </div>
               </Card>
             </Col>
-            <Col span={16}>
-              <Card size="small" variant="borderless" style={{ background: "#f9fafb" }}>
-                <div style={{ display: "flex", justifyContent: "space-around" }}>
+            <Col xs={24} sm={16}>
+              <Card size="small" variant="borderless" style={{ background: "#f9fafb", height: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", height: "100%" }}>
                   <div>
                     <Text type="secondary" style={{ fontSize: 11 }}>Start Date</Text>
                     <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.startDate).format("DD MMM YYYY")}</div>
@@ -613,7 +623,7 @@ export default function ProjectsPage() {
     setMounted(true);
   }, []);
 
-  const isMobileView = mounted && !screens.md;
+  const isMobile = mounted && !screens.md;
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -717,15 +727,11 @@ export default function ProjectsPage() {
           style={{ cursor: "pointer" }}
         >
           <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13 }}>{name}</div>
-          {isMobileView && (
-            <div style={{ fontSize: 10, color: "#4b5563", marginTop: 2, fontWeight: 500 }}>
-              Created: {dayjs(record.createdAt).format("DD MMM YYYY")}
-            </div>
-          )}
         </div>
       ),
     },
     {
+      title: "Timeline",
       responsive: ["sm"] as any,
       render: (_, record) => (
         <div style={{ whiteSpace: "nowrap" }}>
@@ -868,45 +874,105 @@ export default function ProjectsPage() {
           overflow: "hidden" 
         } }}
       >
-        <Table
-          columns={columns}
-          dataSource={projects}
-          rowKey="_id"
-          loading={loading}
-          size="middle"
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total, range) =>
-              `${range[0]}–${range[1]} of ${total}`,
-          }}
-          locale={{
-            emptyText: (
-              <div style={{ padding: "40px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
-                <Title level={5} style={{ color: "#9ca3af" }}>
-                  No projects yet
-                </Title>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Create your first project to get started.
-                </Text>
-                <br />
-                <Link href="/projects/new">
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    style={{ marginTop: 16, background: "#00897b", borderColor: "#00897b" }}
-                  >
-                    New Project
-                  </Button>
-                </Link>
-              </div>
-            ),
-          }}
-          scroll={{ x: 800, y: "calc(100vh - 320px)" }}
-          style={{ borderRadius: 12 }}
-        />
+        {isMobile ? (
+          <div style={{ padding: "16px 12px", overflowY: "auto", flex: 1 }}>
+            <List
+              dataSource={projects}
+              loading={loading}
+              locale={{ emptyText: "No projects found" }}
+              renderItem={(project) => (
+                <Card
+                  size="small"
+                  hoverable
+                  style={{ 
+                    marginBottom: 12, 
+                    borderRadius: 12, 
+                    border: "1px solid #f3f4f6", 
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)" 
+                  }}
+                  styles={{ body: { padding: "12px 16px" } }}
+                  actions={[
+                    <Tooltip title="View" key="view">
+                      <EyeOutlined onClick={() => openDetails(project)} style={{ color: "#6366f1" }} />
+                    </Tooltip>,
+                    <Tooltip title="Edit" key="edit">
+                      <EditOutlined onClick={() => openEdit(project)} style={{ color: "#00897b" }} />
+                    </Tooltip>,
+                    <Tooltip title="Delete" key="delete">
+                      <DeleteOutlined onClick={() => handleDelete(project)} style={{ color: "#ef4444" }} />
+                    </Tooltip>
+                  ]}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#111827", flex: 1, marginRight: 8 }}>
+                      {project.clientDetails.companyName}
+                    </div>
+                    <Tag 
+                      color={STATUS_CONFIG[project.status].color} 
+                      icon={STATUS_CONFIG[project.status].icon}
+                      style={{ borderRadius: 12, margin: 0, fontSize: 10, padding: "0 8px" }}
+                    >
+                      {project.status}
+                    </Tag>
+                  </div>
+                  
+                  <Row gutter={[0, 8]}>
+                    <Col span={24}>
+                      <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
+                        <ClockCircleOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
+                        <span><strong>Created:</strong> {dayjs(project.createdAt).format("DD MMM YYYY")}</span>
+                      </div>
+                    </Col>
+                    <Col span={24}>
+                      <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
+                        <CalendarOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
+                        <span>
+                          <strong>Timeline:</strong> {dayjs(project.timeline.startDate).format("DD MMM")} – {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
+                        </span>
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
+              )}
+            />
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={projects}
+            rowKey="_id"
+            loading={loading}
+            size="middle"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50"],
+              showTotal: (total, range) =>
+                `${range[0]}–${range[1]} of ${total}`,
+            }}
+            locale={{
+              emptyText: (
+                <div style={{ padding: "40px 0", textAlign: "center" }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+                  <Title level={5} style={{ color: "#9ca3af" }}>
+                    No projects yet
+                  </Title>
+                  <Link href="/projects/new">
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      style={{ marginTop: 16, background: "#00897b", borderColor: "#00897b" }}
+                    >
+                      New Project
+                    </Button>
+                  </Link>
+                </div>
+              ),
+            }}
+            scroll={{ x: 1000, y: "calc(100vh - 320px)" }}
+            style={{ borderRadius: 12 }}
+          />
+        )}
       </Card>
 
       {/* ── Edit Modal ── */}
