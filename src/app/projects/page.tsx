@@ -148,10 +148,8 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         onPremise: project.features.onPremise,
         extraAddOns: project.extraAddOns || "",
         status: project.status,
-        timeline: [
-          dayjs(project.timeline.startDate),
-          dayjs(project.timeline.endDate),
-        ],
+        startDate: dayjs(project.timeline.startDate),
+        endDate: dayjs(project.timeline.endDate),
       });
     }
   }, [project, open, form]);
@@ -181,7 +179,10 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         onPremise: values.onPremise ?? false,
         extraAddOns: values.extraAddOns,
         status: values.status,
-        timeline: values.timeline?.map((d: dayjs.Dayjs) => d.toISOString()),
+        timeline: [
+          values.startDate?.toISOString(),
+          values.endDate?.toISOString(),
+        ],
       };
 
       const res = await fetch(`/api/projects/${project!._id}`, {
@@ -306,11 +307,36 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         <Row gutter={16}>
           <Col xs={24} md={14}>
             <Form.Item
-              name="timeline"
               label="Project Timeline"
-              rules={[{ required: true, message: "Timeline is required" }]}
+              required
+              style={{ marginBottom: 0 }}
             >
-              <RangePicker style={{ width: "100%" }} />
+              <Row gutter={8}>
+                <Col span={12}>
+                  <Form.Item
+                    name="startDate"
+                    rules={[{ required: true, message: "Start date is required" }]}
+                  >
+                    <DatePicker
+                      placeholder="Start Date"
+                      style={{ width: "100%" }}
+                      format="DD/MM/YYYY"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="endDate"
+                    rules={[{ required: true, message: "End date is required" }]}
+                  >
+                    <DatePicker
+                      placeholder="End Date"
+                      style={{ width: "100%" }}
+                      format="DD/MM/YYYY"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Form.Item>
           </Col>
           <Col xs={24} md={10}>
@@ -461,9 +487,9 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
           </Title>
           <Row gutter={[24, 16]}>
             <Col xs={24} sm={8}>
-              <Card size="small" variant="borderless" style={{ 
-                textAlign: "center", 
-                background: "#f0fdfa", 
+              <Card size="small" variant="borderless" style={{
+                textAlign: "center",
+                background: "#f0fdfa",
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
@@ -489,7 +515,7 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
                     <Text type="secondary" style={{ fontSize: 11 }}>Start Date</Text>
                     <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.startDate).format("DD MMM YYYY")}</div>
                   </div>
-                  <Divider type="vertical" style={{ height: 40 }} />
+                  <Divider orientation="vertical" style={{ height: 40 }} />
                   <div>
                     <Text type="secondary" style={{ fontSize: 11 }}>End Date</Text>
                     <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.endDate).format("DD MMM YYYY")}</div>
@@ -618,12 +644,13 @@ export default function ProjectsPage() {
   const [previewFilename, setPreviewFilename] = useState("");
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
-  
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const isMobile = mounted && !screens.md;
+  const isTouchDevice = typeof window !== "undefined" && navigator.maxTouchPoints > 0;
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -694,11 +721,13 @@ export default function ProjectsPage() {
   // ── Edit ──────────────────────────────────────────────────────────────────
 
   const openEdit = (project: IProject) => {
+    document.body.click(); // Programmatically force-close any open tooltips
     setEditTarget(project);
     setEditOpen(true);
   };
 
   const openDetails = (project: IProject) => {
+    document.body.click(); // Programmatically force-close any open tooltips
     setDetailTarget(project);
     setDetailOpen(true);
   };
@@ -779,35 +808,65 @@ export default function ProjectsPage() {
     {
       title: "Actions",
       key: "actions",
-      align: "center" as const,
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="View Details">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => openDetails(record)}
-              style={{ color: "#6366f1" }}
-            />
-          </Tooltip>
-          <Tooltip title="Edit Project">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record)}
-              style={{ color: "#00897b" }}
-            />
-          </Tooltip>
-          <Tooltip title="Delete Project">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
+      render: (_, record) => {
+        const anyModalOpen = editOpen || detailOpen;
+        const shouldForceClose = anyModalOpen || isTouchDevice;
+
+        const handleSafeClick = (cb: () => void) => {
+          // ✅ FIX: remove hover/focus state completely
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          document.body.click(); // existing logic
+          cb();
+        };
+
+        return (
+          <Space>
+            <Tooltip
+              title="View Details"
+              trigger="hover"
+              open={shouldForceClose ? false : undefined}
+              destroyOnHidden
+            >
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                onClick={() => handleSafeClick(() => openDetails(record))}
+                style={{ color: "#6366f1" }}
+              />
+            </Tooltip>
+
+            <Tooltip
+              title="Edit Project"
+              trigger="hover"
+              open={shouldForceClose ? false : undefined}
+              destroyOnHidden
+            >
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => handleSafeClick(() => openEdit(record))}
+                style={{ color: "#00897b" }}
+              />
+            </Tooltip>
+
+            <Tooltip
+              title="Delete Project"
+              trigger="hover"
+              open={shouldForceClose ? false : undefined}
+              destroyOnHidden
+            >
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleSafeClick(() => handleDelete(record))}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -859,82 +918,101 @@ export default function ProjectsPage() {
       {/* ── Table ── */}
       <Card
         variant="borderless"
-        style={{ 
-          borderRadius: 12, 
-          flex: 1, 
-          display: "flex", 
-          flexDirection: "column", 
-          overflow: "hidden" 
+        style={{
+          borderRadius: 12,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden"
         }}
-        styles={{ body: { 
-          padding: 0, 
-          flex: 1, 
-          display: "flex", 
-          flexDirection: "column", 
-          overflow: "hidden" 
-        } }}
+        styles={{
+          body: {
+            padding: 0,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden"
+          }
+        }}
       >
         {isMobile ? (
           <div style={{ padding: "16px 12px", overflowY: "auto", flex: 1 }}>
-            <List
-              dataSource={projects}
-              loading={loading}
-              locale={{ emptyText: "No projects found" }}
-              renderItem={(project) => (
-                <Card
-                  size="small"
-                  hoverable
-                  style={{ 
-                    marginBottom: 12, 
-                    borderRadius: 12, 
-                    border: "1px solid #f3f4f6", 
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)" 
-                  }}
-                  styles={{ body: { padding: "12px 16px" } }}
-                  actions={[
-                    <Tooltip title="View" key="view">
-                      <EyeOutlined onClick={() => openDetails(project)} style={{ color: "#6366f1" }} />
-                    </Tooltip>,
-                    <Tooltip title="Edit" key="edit">
-                      <EditOutlined onClick={() => openEdit(project)} style={{ color: "#00897b" }} />
-                    </Tooltip>,
-                    <Tooltip title="Delete" key="delete">
-                      <DeleteOutlined onClick={() => handleDelete(project)} style={{ color: "#ef4444" }} />
-                    </Tooltip>
-                  ]}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "#111827", flex: 1, marginRight: 8 }}>
-                      {project.clientDetails.companyName}
-                    </div>
-                    <Tag 
-                      color={STATUS_CONFIG[project.status].color} 
-                      icon={STATUS_CONFIG[project.status].icon}
-                      style={{ borderRadius: 12, margin: 0, fontSize: 10, padding: "0 8px" }}
+            {loading ? (
+              <div style={{ padding: 40, textAlign: "center" }}><Skeleton active /></div>
+            ) : projects.length === 0 ? (
+              <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>No projects found</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {projects.map((project) => {
+                  const anyModalOpen = editOpen || detailOpen;
+                  const shouldForceClose = anyModalOpen || isTouchDevice;
+
+                  const safeClick = (cb: () => void) => {
+                    if (document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur();
+                    }
+                    document.body.click();
+                    cb();
+                  };
+
+                  return (
+                    <Card
+                      key={project._id}
+                      size="small"
+                      hoverable
+                      style={{
+                        marginBottom: 12,
+                        borderRadius: 12,
+                        border: "1px solid #f3f4f6",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                      }}
+                      styles={{ body: { padding: "12px 16px" } }}
+                      actions={[
+                        <Tooltip title="View" key="view" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+                          <EyeOutlined onClick={() => safeClick(() => openDetails(project))} style={{ color: "#6366f1" }} />
+                        </Tooltip>,
+                        <Tooltip title="Edit" key="edit" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+                          <EditOutlined onClick={() => safeClick(() => openEdit(project))} style={{ color: "#00897b" }} />
+                        </Tooltip>,
+                        <Tooltip title="Delete" key="delete" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+                          <DeleteOutlined onClick={() => safeClick(() => handleDelete(project))} style={{ color: "#ef4444" }} />
+                        </Tooltip>
+                      ]}
                     >
-                      {project.status}
-                    </Tag>
-                  </div>
-                  
-                  <Row gutter={[0, 8]}>
-                    <Col span={24}>
-                      <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
-                        <ClockCircleOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
-                        <span><strong>Created:</strong> {dayjs(project.createdAt).format("DD MMM YYYY")}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#111827", flex: 1, marginRight: 8 }}>
+                          {project.clientDetails.companyName}
+                        </div>
+                        <Tag
+                          color={STATUS_CONFIG[project.status].color}
+                          icon={STATUS_CONFIG[project.status].icon}
+                          style={{ borderRadius: 12, margin: 0, fontSize: 10, padding: "0 8px" }}
+                        >
+                          {project.status}
+                        </Tag>
                       </div>
-                    </Col>
-                    <Col span={24}>
-                      <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
-                        <CalendarOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
-                        <span>
-                          <strong>Timeline:</strong> {dayjs(project.timeline.startDate).format("DD MMM")} – {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
-                        </span>
-                      </div>
-                    </Col>
-                  </Row>
-                </Card>
-              )}
-            />
+
+                      <Row gutter={[0, 8]}>
+                        <Col span={24}>
+                          <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
+                            <ClockCircleOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
+                            <span><strong>Created:</strong> {dayjs(project.createdAt).format("DD MMM YYYY")}</span>
+                          </div>
+                        </Col>
+                        <Col span={24}>
+                          <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
+                            <CalendarOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
+                            <span>
+                              <strong>Timeline:</strong> {dayjs(project.timeline.startDate).format("DD MMM")} – {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
+                            </span>
+                          </div>
+                        </Col>
+                      </Row>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           <Table

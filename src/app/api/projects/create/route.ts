@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       }, {} as Record<string, boolean>),
       extraAddOns: data.extraAddOns || "",
       timeline: {
-        startDate: data.timeline?.[0] ? new Date(data.timeline[0]) : undefined,
-        endDate: data.timeline?.[1] ? new Date(data.timeline[1]) : undefined,
+        startDate: data.startDate ? new Date(data.startDate) : (data.timeline?.[0] ? new Date(data.timeline[0]) : undefined),
+        endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
       },
       createdBy: payload.userId,
     };

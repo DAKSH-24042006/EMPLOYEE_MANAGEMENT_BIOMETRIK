@@ -56,12 +56,14 @@ export default function LoginForm() {
           src={logo}
           alt="Logo"
           width={180}
-          height={150}
+          height={45}
           unoptimized
-          className="object-contain"
           style={{
             display: "block",
-            margin: "0 auto 15px"
+            margin: "0 auto 15px",
+            width: "180px",
+            height: "auto",
+            objectFit: "contain"
           }}
         />
         <Title level={3} style={{ margin: 0, marginBottom: 10 }}>Welcome Back</Title>

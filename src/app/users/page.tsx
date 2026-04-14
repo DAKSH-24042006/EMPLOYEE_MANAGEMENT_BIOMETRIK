@@ -18,6 +18,7 @@ import {
   Tooltip,
   Badge,
   Result,
+  Grid,
 } from "antd";
 import { Role } from "@/lib/constants";
 
@@ -64,6 +65,11 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentUser, setCurrentUser] = useState<{ role: Role } | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  const screens = Grid.useBreakpoint();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const isMobile = mounted && !screens.md;
 
 
   const fetchUsers = useCallback(async () => {
@@ -182,8 +188,11 @@ export default function UsersPage() {
       title: "Name",
       dataIndex: "name",
       key: "name",
-      render: (text) => (
-        <Space>
+      render: (text, record) => (
+        <Space
+          onClick={() => showModal(record)}
+          style={{ cursor: "pointer" }}
+        >
           <div style={{
             width: 32,
             height: 32,
@@ -198,7 +207,7 @@ export default function UsersPage() {
           }}>
             {text.charAt(0).toUpperCase()}
           </div>
-          <span style={{ fontWeight: 500, color: "#323338" }}>{text}</span>
+          <span style={{ fontWeight: 600, color: "#0073ea" }}>{text}</span>
         </Space>
       ),
     },
@@ -252,36 +261,48 @@ export default function UsersPage() {
     {
       title: "Actions",
       key: "actions",
-      fixed: 'right',
       width: 120,
-      render: (_, record) => (
-        <Space size="middle">
-          <Tooltip title="Edit User">
-            <Button
-              type="text"
-              icon={<Edit2 size={16} />}
-              onClick={() => showModal(record)}
-              style={{ color: "#0073ea" }}
-            />
-          </Tooltip>
-          <Tooltip title="Delete User">
-            <Popconfirm
-              title="Delete the user"
-              description="Are you sure to delete this user?"
-              onConfirm={() => handleDelete(record._id)}
-              okText="Yes"
-              cancelText="No"
-              okButtonProps={{ danger: true }}
-            >
+      render: (_, record) => {
+        const shouldForceClose = isModalVisible || (typeof window !== "undefined" && navigator.maxTouchPoints > 0);
+
+        const safeClick = (cb: () => void) => {
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          document.body.click();
+          cb();
+        };
+
+        return (
+          <Space size="middle">
+            <Tooltip title="Edit User" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
               <Button
                 type="text"
-                danger
-                icon={<Trash2 size={16} />}
+                icon={<Edit2 size={16} />}
+                onClick={() => safeClick(() => showModal(record))}
+                style={{ color: "#0073ea" }}
               />
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      ),
+            </Tooltip>
+            <Tooltip title="Delete User" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+              <Popconfirm
+                title="Delete the user"
+                description="Are you sure to delete this user?"
+                onConfirm={() => safeClick(() => handleDelete(record._id))}
+                okText="Yes"
+                cancelText="No"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<Trash2 size={16} />}
+                  onClick={() => safeClick(() => { })}
+                />
+              </Popconfirm>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -310,10 +331,10 @@ export default function UsersPage() {
   }
 
   return (
-    <div style={{ 
-      padding: "0", 
-      height: "100%", 
-      display: "flex", 
+    <div style={{
+      padding: "0",
+      height: "100%",
+      display: "flex",
       flexDirection: "column",
       overflow: "hidden"
     }}>
@@ -330,12 +351,12 @@ export default function UsersPage() {
           <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Users Management</Title>
           <Text type="secondary" style={{ fontSize: 14 }}>Manage your team members and their permissions.</Text>
         </div>
-        <Space>
+        <div style={{ display: 'flex', gap: 8, width: isMobile ? '100%' : 'auto' }}>
           <Button
             icon={<RefreshCcw size={16} className={loading ? "animate-spin" : ""} />}
             onClick={fetchUsers}
             disabled={loading}
-            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ flex: isMobile ? 1 : 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
           >
             Refresh
           </Button>
@@ -344,8 +365,10 @@ export default function UsersPage() {
             icon={<UserPlus size={16} />}
             onClick={() => showModal()}
             style={{
+              flex: isMobile ? 1 : 'unset',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 8,
               backgroundColor: '#0073ea',
               boxShadow: '0 4px 6px rgba(0, 115, 234, 0.2)'
@@ -353,7 +376,7 @@ export default function UsersPage() {
           >
             Add New User
           </Button>
-        </Space>
+        </div>
       </div>
 
       <Card
@@ -366,15 +389,17 @@ export default function UsersPage() {
           flexDirection: "column",
           overflow: "hidden"
         }}
-        styles={{ body: { 
-          padding: 0, 
-          flex: 1, 
-          display: "flex", 
-          flexDirection: "column",
-          overflow: "hidden"
-        } }}
+        styles={{
+          body: {
+            padding: 0,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden"
+          }
+        }}
       >
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ padding: '16px 0px', borderBottom: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -414,7 +439,7 @@ export default function UsersPage() {
             showSizeChanger: true,
             style: { paddingRight: 24 }
           }}
-          scroll={{ x: 800, y: 'calc(100vh - 380px)' }}
+          scroll={{ x: 'max-content', y: 'calc(100vh - 380px)' }}
         />
       </Card>
 
@@ -477,7 +502,7 @@ export default function UsersPage() {
               <Option value={Role.SALES}>Sales</Option>
             </Select>
           </Form.Item>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item
               name="phoneNumber"

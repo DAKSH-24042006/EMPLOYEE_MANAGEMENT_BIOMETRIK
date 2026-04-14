@@ -17,6 +17,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+
   // Verify JWT at the Edge
   const payload = await verifyJwt(token);
   console.log(`[Middleware] Token verification result: ${payload ? "Valid" : "Invalid"}`);
