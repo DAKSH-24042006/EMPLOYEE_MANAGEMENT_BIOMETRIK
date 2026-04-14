@@ -133,19 +133,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               marginBottom: 16,
             }}
           >
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
+            <div style={{
+              display: "flex",
+              alignItems: "center",
               justifyContent: "center",
               width: "100%",
               height: "100%",
               position: "relative"
             }}>
-              <Image 
-                src={logo} 
-                alt="Logo" 
-                width={isActuallyCollapsed ? 48 : 180} 
-                height={40} 
+              <Image
+                src={logo}
+                alt="Logo"
+                width={isActuallyCollapsed ? 48 : 180}
+                height={40}
                 priority
                 style={{
                   width: isActuallyCollapsed ? 48 : 180,
@@ -204,12 +204,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <Menu
             theme="light"
             mode="inline"
+            inlineCollapsed={isActuallyCollapsed}
             selectedKeys={[pathname]}
             items={menuItems}
             onClick={() => {
               if (isDrawer) setDrawerVisible(false);
             }}
-            style={{ 
+            style={{
               background: "transparent",
               borderRight: 0,
               marginTop: 8
@@ -258,7 +259,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       {mounted && !isMobile && (
         <Sider
           theme="light"
-          width={collapsed ? 80 : 260}
+          collapsible
+          trigger={null}
+          collapsed={collapsed}
+          collapsedWidth={80}
+          width={260}
           style={{
             position: "sticky",
             top: 0,
@@ -322,38 +327,38 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             />
 
           </div>
-          
+
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: 16 }}>
-            <Dropdown 
-              menu={{ 
+            <Dropdown
+              menu={{
                 items: [
-                  { key: "1", label: <Link href="/profile">Profile</Link> }, 
+                  { key: "1", label: <Link href="/profile">Profile</Link> },
                   { type: "divider" },
-                  { 
-                    key: "2", 
+                  {
+                    key: "2",
                     label: "Logout",
                     icon: <LogOut size={16} />,
                     danger: true,
                     onClick: handleLogout
                   }
-                ] 
-              }} 
+                ]
+              }}
               placement="bottomRight"
               trigger={["click"]}
             >
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "10px", 
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
                 cursor: "pointer",
                 padding: "4px 8px",
                 borderRadius: "8px",
                 transition: "background 0.3s"
               }} className="profile-trigger">
-                <Avatar 
-                  style={{ 
-                    backgroundColor: "#00897b", 
-                    color: "#fff", 
+                <Avatar
+                  style={{
+                    backgroundColor: "#00897b",
+                    color: "#fff",
                     fontWeight: 600,
                     width: 36,
                     height: 36,
@@ -385,7 +390,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             `}</style>
           </div>
         </Header>
-        
+
         <Content
           style={{
             margin: mounted && isMobile ? "0 8px 8px 8px" : "0 16px 16px 16px",
@@ -395,9 +400,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             flex: 1,
           }}
         >
-          <Breadcrumb 
-            items={breadcrumbItems} 
-            style={{ margin: mounted && isMobile ? '8px 0' : '12px 0', padding: '0 8px', flex: "0 0 auto" }} 
+          <Breadcrumb
+            items={breadcrumbItems}
+            style={{ margin: mounted && isMobile ? '8px 0' : '12px 0', padding: '0 8px', flex: "0 0 auto" }}
           />
           <div style={{
             padding: mounted && isMobile ? 12 : 20,
@@ -412,6 +417,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             {children}
           </div>
         </Content>
+        <Layout.Footer
+          style={{
+            textAlign: "center",
+            padding: "12px 20px",
+            background: "#fff",
+            borderTop: "1px solid #f0f0f0",
+            fontSize: "13px",
+            color: "#8c8c8c",
+            flexShrink: 0,
+            zIndex: 1,
+          }}
+        >
+          Made in India with{" "}
+          <span className="inline-block animate-pulse">❤️</span> by{" "}
+          <strong style={{ color: "#00897b" }}>
+            Biometrik® Systems
+          </strong>
+          . All rights reserved.
+        </Layout.Footer>
       </Layout>
     </Layout>
   );

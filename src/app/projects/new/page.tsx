@@ -1,16 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Typography, 
-  Form, 
-  Input, 
-  Button, 
-  Card, 
-  DatePicker, 
-  Row, 
-  Col, 
-  Skeleton, 
+import {
+  Typography,
+  Form,
+  Input,
+  Button,
+  Card,
+  DatePicker,
+  Row,
+  Col,
+  Skeleton,
   App,
   Space,
   Divider,
@@ -168,20 +168,20 @@ const FeatureItem: React.FC<FeatureItemProps> = ({ checked, onChange, label, des
       }}
       className="feature-item-hover"
     >
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center", 
-        width: 20, 
-        height: 20, 
-        borderRadius: 4, 
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 20,
+        height: 20,
+        borderRadius: 4,
         border: `1.5px solid ${isSelected ? PRIMARY_COLOR : "#d1d5db"}`,
         background: isSelected ? PRIMARY_COLOR : "transparent",
         transition: "all 0.2s ease"
       }}>
         {isSelected && <CheckOutlined style={{ color: "#fff", fontSize: 12 }} />}
       </div>
-      
+
       <div style={{ flex: 1, minWidth: 0 }}>
         <Text strong style={{ display: "block", fontSize: 14, color: isSelected ? "#111827" : "#374151" }}>
           {label}
@@ -211,7 +211,7 @@ export default function NewProjectPage() {
   const [submitting, setSubmitting] = useState(false);
   const [mounting, setMounting] = useState(true);
   const router = useRouter();
-  
+
   const { message } = App.useApp();
 
   useEffect(() => {
@@ -267,10 +267,10 @@ export default function NewProjectPage() {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* ── Header ── */}
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "space-between", 
-        alignItems: "flex-end", 
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
         marginBottom: 20,
         flexWrap: "wrap",
         gap: 16,
@@ -312,222 +312,242 @@ export default function NewProjectPage() {
               onPremise: false,
             }}
           >
-          {/* Section 1: Client Details */}
-          <Card 
-            variant="borderless" 
-            style={{ 
-              borderRadius: 16, 
-              marginBottom: 24, 
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              border: "1px solid #f0f0f0"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-              <div style={{ 
-                width: 36, 
-                height: 36, 
-                borderRadius: 8, 
-                background: "#eef2ff", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                color: PRIMARY_COLOR
-              }}>
-                <UserOutlined />
+            {/* Section 1: Client Details */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#eef2ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: PRIMARY_COLOR
+                }}>
+                  <UserOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Client Information</Title>
               </div>
-              <Title level={4} style={{ margin: 0 }}>Client Information</Title>
-            </div>
 
-            <Row gutter={24}>
-              <Col xs={24} md={6}>
-                <Form.Item
-                  name="companyName"
-                  label={<span style={{ fontWeight: 500 }}>Company Name</span>}
-                  rules={[{ required: true, message: "Please enter the company name" }]}
-                >
-                  <Input size="large" placeholder="E.g., Global Tech Inc." />
-                </Form.Item>
-              </Col>
-              
-              <Col xs={24} md={6}>
-                <Form.Item
-                  name="contactPerson"
-                  label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
-                  dependencies={['email']}
-                  rules={[contactValidator]}
-                >
-                  <Input size="large" placeholder="E.g., John Smith" />
-                </Form.Item>
-              </Col>
-              
-              <Col xs={24} md={6}>
-                <Form.Item
-                  name="email"
-                  label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
-                  dependencies={['contactPerson']}
-                  rules={[
-                    { type: "email", message: "Please enter a valid email address" },
-                    contactValidator
-                  ]}
-                >
-                  <Input size="large" placeholder="contact@company.com" />
-                </Form.Item>
-              </Col>
+              <Row gutter={24}>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="companyName"
+                    label={<span style={{ fontWeight: 500 }}>Company Name</span>}
+                    rules={[{ required: true, message: "Please enter the company name" }]}
+                  >
+                    <Input size="large" placeholder="E.g., Global Tech Inc." />
+                  </Form.Item>
+                </Col>
 
-              <Col xs={24} md={6}>
-                <Form.Item
-                  name="contactNumber"
-                  label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
-                  rules={[
-                    { pattern: /^[0-9]*$/, message: "Please enter only digits" },
-                    { len: 10, message: "Contact number must be exactly 10 digits" }
-                  ]}
-                >
-                  <Input 
-                    size="large" 
-                    placeholder="E.g., 9876543210" 
-                    maxLength={10}
-                    onKeyPress={(e) => {
-                      if (!/[0-9]/.test(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="contactPerson"
+                    label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
+                    dependencies={['email']}
+                    rules={[contactValidator]}
+                  >
+                    <Input size="large" placeholder="E.g., John Smith" />
+                  </Form.Item>
+                </Col>
 
-          {/* Section 2: Features Selection */}
-          <Card 
-            variant="borderless" 
-            style={{ 
-              borderRadius: 16, 
-              marginBottom: 24, 
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              border: "1px solid #f0f0f0"
-            }}
-            styles={{ body: { padding: "24px 32px" } }}
-          >
-            <div id="application-features" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <div style={{ 
-                width: 36, 
-                height: 36, 
-                borderRadius: 8, 
-                background: "#fdf2f8", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                color: "#db2777"
-              }}>
-                <AppstoreOutlined />
-              </div>
-              <Title level={4} style={{ margin: 0 }}>Application Features <span style={{ color: '#ef4444', fontSize: 14, fontWeight: 400 }}>* (Select at least one)</span></Title>
-            </div>
-            
-            <Text type="secondary" style={{ display: "block", marginBottom: 24, paddingLeft: 48 }}>
-              Check all the required features and modules for the application.
-            </Text>
-            
-            <Row gutter={[12, 12]}>
-              {FEATURES.map((feat) => (
-                <Col xs={24} sm={12} md={8} xl={6} key={feat.key}>
-                  <Form.Item name={feat.key} valuePropName="checked" style={{ margin: 0 }}>
-                    <FeatureItem 
-                      label={feat.label}
-                      description={feat.description}
-                      icon={feat.icon}
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="email"
+                    label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
+                    dependencies={['contactPerson']}
+                    rules={[
+                      { type: "email", message: "Please enter a valid email address" },
+                      contactValidator
+                    ]}
+                  >
+                    <Input size="large" placeholder="contact@company.com" />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="contactNumber"
+                    label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
+                    rules={[
+                      { pattern: /^[0-9]*$/, message: "Please enter only digits" },
+                      { len: 10, message: "Contact number must be exactly 10 digits" }
+                    ]}
+                  >
+                    <Input
+                      size="large"
+                      placeholder="E.g., 9876543210"
+                      maxLength={10}
+                      onKeyPress={(e) => {
+                        if (!/[0-9]/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
                     />
                   </Form.Item>
                 </Col>
-              ))}
-            </Row>
-          </Card>
+              </Row>
+            </Card>
 
-          {/* Section 3: Delivery Details */}
-          <Card 
-            variant="borderless" 
-            style={{ 
-              borderRadius: 16, 
-              marginBottom: 32, 
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              border: "1px solid #f0f0f0"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-              <div style={{ 
-                width: 36, 
-                height: 36, 
-                borderRadius: 8, 
-                background: "#fff7ed", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                color: "#ea580c"
-              }}>
-                <CalendarOutlined />
-              </div>
-              <Title level={4} style={{ margin: 0 }}>Project Roadmap</Title>
-            </div>
-            
-            <Row gutter={24}>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  name="timeline"
-                  label={<span style={{ fontWeight: 500 }}>Target Timeline</span>}
-                  rules={[{ required: true, message: "Please define the project duration" }]}
-                >
-                  <RangePicker size="large" style={{ width: "100%" }} />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Divider style={{ margin: "16px 0 24px" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <div style={{ 
-                width: 36, 
-                height: 36, 
-                borderRadius: 8, 
-                background: "#f0fdf4", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                color: "#16a34a"
-              }}>
-                <FileTextOutlined />
-              </div>
-              <span style={{ fontWeight: 600, fontSize: 16, color: "#374151" }}>Additional Requirements</span>
-            </div>
-
-            <Form.Item
-              name="extraAddOns"
-              noStyle
+            {/* Section 2: Features Selection */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+              styles={{ body: { padding: "24px 32px" } }}
             >
-              <TextArea 
-                rows={4} 
-                placeholder="Mention any custom integrations like payment gateways, email services, or special security requirements..." 
+              <div id="application-features" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#fdf2f8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#db2777"
+                }}>
+                  <AppstoreOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Application Features <span style={{ color: '#ef4444', fontSize: 14, fontWeight: 400 }}>* (Select at least one)</span></Title>
+              </div>
+
+              <Text type="secondary" style={{ display: "block", marginBottom: 24, paddingLeft: 48 }}>
+                Check all the required features and modules for the application.
+              </Text>
+
+              <Row gutter={[12, 12]}>
+                {FEATURES.map((feat) => (
+                  <Col xs={24} sm={12} md={8} xl={6} key={feat.key}>
+                    <Form.Item name={feat.key} valuePropName="checked" style={{ margin: 0 }}>
+                      <FeatureItem
+                        label={feat.label}
+                        description={feat.description}
+                        icon={feat.icon}
+                      />
+                    </Form.Item>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+
+            {/* Section 3: Delivery Details */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 32,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#fff7ed",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ea580c"
+                }}>
+                  <CalendarOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Project Roadmap</Title>
+              </div>
+
+              <Row gutter={24}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Target Timeline</span>}
+                    required
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="startDate"
+                          rules={[{ required: true, message: 'Select start date' }]}
+                        >
+                          <DatePicker format="DD-MM-YYYY" size="large" style={{ width: '100%' }} placeholder="Start date" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="endDate"
+                          rules={[{ required: true, message: 'Select end date' }]}
+                          dependencies={['startDate']}
+                        // Optional validation if you want end date to always be after start date
+                        // validator...
+                        >
+                          <DatePicker format="DD-MM-YYYY" size="large" style={{ width: '100%' }} placeholder="End date" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Divider style={{ margin: "16px 0 24px" }} />
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#f0fdf4",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#16a34a"
+                }}>
+                  <FileTextOutlined />
+                </div>
+                <span style={{ fontWeight: 600, fontSize: 16, color: "#374151" }}>Additional Requirements</span>
+              </div>
+
+              <Form.Item
+                name="extraAddOns"
+                noStyle
+              >
+                <TextArea
+                  rows={4}
+                  placeholder="Mention any custom integrations like payment gateways, email services, or special security requirements..."
+                  size="large"
+                  style={{ borderRadius: 12 }}
+                />
+              </Form.Item>
+            </Card>
+
+            {/* Footer Actions */}
+            <div className="footer-actions">
+              <Button
+                type="primary"
+                htmlType="submit"
                 size="large"
-                style={{ borderRadius: 12 }}
-              />
-            </Form.Item>
-          </Card>
-
-          {/* Footer Actions */}
-          <div className="footer-actions">
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              size="large" 
-              loading={submitting} 
-              className="action-btn primary"
-            >
-              Create Project
-            </Button>
-          </div>
-        </Form>
-      </Skeleton>
+                loading={submitting}
+                className="action-btn primary"
+              >
+                Create Project
+              </Button>
+            </div>
+          </Form>
+        </Skeleton>
+      </div>
     </div>
-  </div>
-);
+  );
 }

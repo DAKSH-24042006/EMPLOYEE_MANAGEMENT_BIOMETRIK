@@ -25,6 +25,7 @@ export default function RootLayout({
             <LayoutWrapper>
               {children}
             </LayoutWrapper>
+
           </ThemeProvider>
         </AntdRegistry>
       </body>

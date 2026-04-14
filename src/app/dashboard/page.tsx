@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  Typography, 
-  Card, 
-  Row, 
-  Col, 
+import {
+  Typography,
+  Card,
+  Row,
+  Col,
   Skeleton,
   App,
   Table,
@@ -19,12 +19,12 @@ import {
   SyncOutlined,
   CalendarOutlined,
 } from "@ant-design/icons";
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  Tooltip as ReTooltip, 
-  ResponsiveContainer 
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as ReTooltip,
+  ResponsiveContainer
 } from "recharts";
 
 const { Title, Text } = Typography;
@@ -63,7 +63,7 @@ interface TaskType {
 }
 
 const COLORS = [
-  "#00897b", "#3b82f6", "#f59e0b", "#10b981", 
+  "#00897b", "#3b82f6", "#f59e0b", "#10b981",
   "#8b5cf6", "#ec4899", "#06b6d4", "#f97316",
   "#6366f1", "#14b8a6"
 ];
@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<TaskType[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  
+
   const screens = useBreakpoint();
   const { message } = App.useApp();
 
@@ -93,7 +93,7 @@ export default function DashboardPage() {
       const today = new Date();
       const start = new Date(today.setHours(0, 0, 0, 0)).toISOString();
       const end = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-      
+
       const taskRes = await fetch(`/api/calendar-tasks?startDate=${start}&endDate=${end}`);
       const taskJson = await taskRes.json();
       if (taskRes.ok) {
@@ -130,10 +130,10 @@ export default function DashboardPage() {
     if (active && payload && payload.length) {
       const { name, status, timeline } = payload[0].payload;
       return (
-        <div style={{ 
-          background: "#fff", 
-          padding: "10px 14px", 
-          border: "1px solid #f0f0f0", 
+        <div style={{
+          background: "#fff",
+          padding: "10px 14px",
+          border: "1px solid #f0f0f0",
           borderRadius: 8,
           boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
         }}>
@@ -190,165 +190,169 @@ export default function DashboardPage() {
 
       <Skeleton loading={loading} active paragraph={{ rows: 4 }} style={{ flex: 1 }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-          {[
-            {
-              label: "Total Projects",
-              value: statusCounts.total,
-              color: "#00897b",
-              bg: "#f0fdfa",
-              icon: <ProjectOutlined style={{ fontSize: 22, color: "#00897b" }} />,
-            },
-            {
-              label: "Active",
-              value: statusCounts.active,
-              color: "#3b82f6",
-              bg: "#eff6ff",
-              icon: <SyncOutlined style={{ fontSize: 22, color: "#3b82f6" }} />,
-            },
-            {
-              label: "Pending",
-              value: statusCounts.pending,
-              color: "#f59e0b",
-              bg: "#fffbeb",
-              icon: <ClockCircleOutlined style={{ fontSize: 22, color: "#f59e0b" }} />,
-            },
-            {
-              label: "Completed",
-              value: statusCounts.completed,
-              color: "#10b981",
-              bg: "#ecfdf5",
-              icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
-            },
-          ].map((card) => (
-            <Col xs={12} sm={6} key={card.label}>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            {[
+              {
+                label: "Total Projects",
+                value: statusCounts.total,
+                color: "#00897b",
+                bg: "#f0fdfa",
+                icon: <ProjectOutlined style={{ fontSize: 22, color: "#00897b" }} />,
+              },
+              {
+                label: "Active",
+                value: statusCounts.active,
+                color: "#3b82f6",
+                bg: "#eff6ff",
+                icon: <SyncOutlined style={{ fontSize: 22, color: "#3b82f6" }} />,
+              },
+              {
+                label: "Pending",
+                value: statusCounts.pending,
+                color: "#f59e0b",
+                bg: "#fffbeb",
+                icon: <ClockCircleOutlined style={{ fontSize: 22, color: "#f59e0b" }} />,
+              },
+              {
+                label: "Completed",
+                value: statusCounts.completed,
+                color: "#10b981",
+                bg: "#ecfdf5",
+                icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
+              },
+            ].map((card) => (
+              <Col xs={12} sm={6} key={card.label}>
+                <Card
+                  variant="borderless"
+                  style={{
+                    borderRadius: 12,
+                    background: card.bg,
+                    border: `1px solid ${card.color}22`,
+                  }}
+                  styles={{ body: { padding: "12px 16px" } }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      {card.icon}
+                    </div>
+                    <div>
+                      <div
+                        style={{ fontSize: 22, fontWeight: 700, color: card.color, lineHeight: 1 }}
+                      >
+                        {card.value}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                        {card.label}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+
+          <Row gutter={[16, 16]} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Col xs={24} lg={10} style={{ height: isDesktop ? "100%" : "auto", marginBottom: isDesktop ? 0 : 16 }}>
               <Card
+                title={<span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}><ProjectOutlined /> Project Distribution</span>}
                 variant="borderless"
                 style={{
+                  height: isDesktop ? "100%" : 380,
                   borderRadius: 12,
-                  background: card.bg,
-                  border: `1px solid ${card.color}22`,
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #f0f0f0",
+                  display: "flex",
+                  flexDirection: "column"
                 }}
-                styles={{ body: { padding: "12px 16px" } }}
+                styles={{
+                  body: {
+                    flex: 1,
+                    padding: "20px 10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    position: "relative",
+                    minHeight: 280
+                  }
+                }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      background: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                    }}
-                  >
-                    {card.icon}
-                  </div>
-                  <div>
-                    <div
-                      style={{ fontSize: 22, fontWeight: 700, color: card.color, lineHeight: 1 }}
-                    >
-                      {card.value}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                      {card.label}
-                    </div>
+                <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 240, position: "relative" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={85}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ReTooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{
+                    textAlign: "center",
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    pointerEvents: "none"
+                  }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1 }}>{data.length}</div>
+                    <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 500, marginTop: 4 }}>Companies</div>
                   </div>
                 </div>
               </Card>
             </Col>
-          ))}
-        </Row>
 
-        <Row gutter={[16, 16]} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          <Col xs={24} lg={10} style={{ height: isDesktop ? "100%" : "auto", marginBottom: isDesktop ? 0 : 16 }}>
-            <Card 
-              title={<span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}><ProjectOutlined /> Project Distribution</span>}
-              variant="borderless"
-              style={{ 
-                height: isDesktop ? "100%" : 380, 
-                borderRadius: 12, 
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                border: "1px solid #f0f0f0",
-                display: "flex",
-                flexDirection: "column"
-              }}
-              styles={{ body: { 
-                flex: 1, 
-                padding: "20px 10px", 
-                display: "flex", 
-                flexDirection: "column", 
-                justifyContent: "center",
-                position: "relative",
-                minHeight: 280
-              } }}
-            >
-              <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 240, position: "relative" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={85}
-                      paddingAngle={5}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <ReTooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ 
-                  textAlign: "center", 
-                  position: "absolute", 
-                  top: "50%", 
-                  left: "50%", 
-                  transform: "translate(-50%, -50%)",
-                  pointerEvents: "none"
-                }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1 }}>{data.length}</div>
-                  <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 500, marginTop: 4 }}>Companies</div>
-                </div>
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={14} style={{ height: isDesktop ? "100%" : "auto" }}>
-            <Card 
-              title={<span style={{ fontSize: 14, fontWeight: 600 }}><CalendarOutlined /> Today's Schedule</span>}
-              variant="borderless"
-              style={{ 
-                height: isDesktop ? "100%" : 400, 
-                borderRadius: 12, 
-                background: "#fff",
-                boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
-                border: "1px solid #f0f0f0"
-              }}
-              styles={{ body: { 
-                flex: 1, 
-                padding: 0, 
-                overflow: "auto" 
-              } }}
-            >
-              <Table 
-                columns={columns} 
-                dataSource={tasks} 
-                pagination={false}
-                rowKey="_id"
-                size="small"
-                locale={{ emptyText: <Text type="secondary" style={{ fontSize: 12 }}>No tasks for today</Text> }}
-              />
-            </Card>
-          </Col>
-        </Row>
+            <Col xs={24} lg={14} style={{ height: isDesktop ? "100%" : "auto" }}>
+              <Card
+                title={<span style={{ fontSize: 14, fontWeight: 600 }}><CalendarOutlined /> Today's Schedule</span>}
+                variant="borderless"
+                style={{
+                  height: isDesktop ? "100%" : 400,
+                  borderRadius: 12,
+                  background: "#fff",
+                  boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
+                  border: "1px solid #f0f0f0"
+                }}
+                styles={{
+                  body: {
+                    flex: 1,
+                    padding: 0,
+                    overflow: "auto"
+                  }
+                }}
+              >
+                <Table
+                  columns={columns}
+                  dataSource={tasks}
+                  pagination={false}
+                  rowKey="_id"
+                  size="small"
+                  locale={{ emptyText: <Text type="secondary" style={{ fontSize: 12 }}>No tasks for today</Text> }}
+                />
+              </Card>
+            </Col>
+          </Row>
         </div>
       </Skeleton>
     </div>
