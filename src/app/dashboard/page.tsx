@@ -180,7 +180,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100%" }}>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <div>
           <Title level={3} style={{ margin: 0 }}>Dashboard Overview</Title>
@@ -189,8 +189,8 @@ export default function DashboardPage() {
       </div>
 
       <Skeleton loading={loading} active paragraph={{ rows: 4 }} style={{ flex: 1 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <Row gutter={[16, 16]}>
             {[
               {
                 label: "Total Projects",
@@ -221,7 +221,7 @@ export default function DashboardPage() {
                 icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
               },
             ].map((card) => (
-              <Col xs={12} sm={6} key={card.label}>
+              <Col xs={24} sm={12} lg={6} key={card.label}>
                 <Card
                   variant="borderless"
                   style={{
@@ -262,13 +262,14 @@ export default function DashboardPage() {
             ))}
           </Row>
 
-          <Row gutter={[16, 16]} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            <Col xs={24} lg={10} style={{ height: isDesktop ? "100%" : "auto", marginBottom: isDesktop ? 0 : 16 }}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={10} style={{ marginBottom: isDesktop ? 0 : 16 }}>
               <Card
                 title={<span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}><ProjectOutlined /> Project Distribution</span>}
                 variant="borderless"
                 style={{
-                  height: isDesktop ? "100%" : 380,
+                  height: "100%",
+                  minHeight: 380,
                   borderRadius: 12,
                   background: "#fff",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
@@ -288,8 +289,8 @@ export default function DashboardPage() {
                   }
                 }}
               >
-                <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 240, position: "relative" }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 300, position: "relative", minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
                         data={chartData}
@@ -323,12 +324,13 @@ export default function DashboardPage() {
               </Card>
             </Col>
 
-            <Col xs={24} lg={14} style={{ height: isDesktop ? "100%" : "auto" }}>
+            <Col xs={24} lg={14}>
               <Card
                 title={<span style={{ fontSize: 14, fontWeight: 600 }}><CalendarOutlined /> Today's Schedule</span>}
                 variant="borderless"
                 style={{
-                  height: isDesktop ? "100%" : 400,
+                  height: "100%",
+                  minHeight: 400,
                   borderRadius: 12,
                   background: "#fff",
                   boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
@@ -348,13 +350,14 @@ export default function DashboardPage() {
                   pagination={false}
                   rowKey="_id"
                   size="small"
+                  scroll={{ x: 'max-content' }}
                   locale={{ emptyText: <Text type="secondary" style={{ fontSize: 12 }}>No tasks for today</Text> }}
                 />
               </Card>
             </Col>
           </Row>
         </div>
-      </Skeleton>
-    </div>
+      </Skeleton >
+    </div >
   );
 }

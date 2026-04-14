@@ -27,13 +27,22 @@ export async function GET(req: Request) {
     let query: any = { createdBy: payload.userId };
 
     if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
+      const sDate = new Date(startDate);
+      const eDate = new Date(endDate);
+
+      if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+        query.date = {
+          $gte: sDate,
+          $lte: eDate,
+        };
+      } else {
+        console.warn("GET Calendar Tasks: Invalid date range provided", { startDate, endDate });
+      }
     }
 
+    console.log("GET Calendar Tasks Query:", query);
     const tasks = await CalendarTask.find(query).sort({ date: 1, createdAt: 1 });
+    console.log(`GET Calendar Tasks Success: Found ${tasks.length} tasks`);
 
     return NextResponse.json(tasks);
   } catch (error: any) {

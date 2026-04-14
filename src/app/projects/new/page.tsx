@@ -483,7 +483,13 @@ export default function NewProjectPage() {
                           name="startDate"
                           rules={[{ required: true, message: 'Select start date' }]}
                         >
-                          <DatePicker format="DD-MM-YYYY" size="large" style={{ width: '100%' }} placeholder="Start date" />
+                          <DatePicker
+                            format="DD/MM/YYYY"
+                            size="large"
+                            style={{ width: '100%' }}
+                            placeholder="Start date"
+                            inputReadOnly={true}
+                          />
                         </Form.Item>
                       </Col>
                       <Col span={12}>
@@ -491,10 +497,14 @@ export default function NewProjectPage() {
                           name="endDate"
                           rules={[{ required: true, message: 'Select end date' }]}
                           dependencies={['startDate']}
-                        // Optional validation if you want end date to always be after start date
-                        // validator...
                         >
-                          <DatePicker format="DD-MM-YYYY" size="large" style={{ width: '100%' }} placeholder="End date" />
+                          <DatePicker
+                            format="DD/MM/YYYY"
+                            size="large"
+                            style={{ width: '100%' }}
+                            placeholder="End date"
+                            inputReadOnly={true}
+                          />
                         </Form.Item>
                       </Col>
                     </Row>

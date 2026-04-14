@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, Grid, Drawer } from "antd";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Calendar,
@@ -29,6 +29,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (pathname === "/projects/new") {
+      setCollapsed(true);
+    }
+  }, [pathname]);
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -148,7 +156,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 height={40}
                 priority
                 style={{
-                  width: isActuallyCollapsed ? 48 : 180,
+                  width: isActuallyCollapsed ? "48px" : "180px",
                   height: "auto",
                   objectFit: "contain",
                   transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
@@ -158,47 +166,36 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: "1",
-                    label: <Link href="/projects/new">New Project</Link>,
-                    icon: <Plus size={14} />,
-                  },
-                ],
+            <button
+              onClick={() => {
+                if (isDrawer) setDrawerVisible(false);
+                router.push("/projects/new");
               }}
-              trigger={["click"]}
+              style={{
+                height: 48,
+                width: "100%",
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: isActuallyCollapsed ? "center" : "flex-start",
+                padding: isActuallyCollapsed ? "0" : "0 16px",
+                background: logoTeal,
+                border: "none",
+                color: "white",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.3s",
+              }}
             >
-              <button
-                style={{
-                  height: 48,
-                  width: "100%",
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: isActuallyCollapsed ? "center" : "space-between",
-                  padding: isActuallyCollapsed ? "0" : "0 16px",
-                  background: logoTeal,
-                  border: "none",
-                  color: "white",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.3s",
-                }}
-              >
-                {isActuallyCollapsed ? (
-                  <Plus size={20} />
-                ) : (
-                  <>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      Create New
-                    </span>
-                    <ChevronDown size={16} />
-                  </>
-                )}
-              </button>
-            </Dropdown>
+              {isActuallyCollapsed ? (
+                <Plus size={20} />
+              ) : (
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Plus size={16} />
+                  Create New
+                </span>
+              )}
+            </button>
           </div>
 
           <Menu
@@ -411,7 +408,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             borderRadius: borderRadiusLG,
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden",
+            overflowY: "auto",
+            overflowX: "hidden",
             minHeight: 0
           }}>
             {children}

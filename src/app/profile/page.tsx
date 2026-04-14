@@ -9,12 +9,12 @@ const { Title, Text } = Typography;
 export default function ProfilePage() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<{ 
-    name: string; 
-    email: string; 
-    role: string; 
-    phoneNumber?: string; 
-    location?: string; 
+  const [user, setUser] = useState<{
+    name: string;
+    email: string;
+    role: string;
+    phoneNumber?: string;
+    location?: string;
   } | null>(null);
   const [form] = Form.useForm();
 
@@ -75,7 +75,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flex: "0 0 auto" }}>
         <div>
           <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
@@ -91,7 +91,7 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8 }} className="hide-scrollbar">
+      <div style={{ paddingRight: 8 }}>
         <Row gutter={[24, 24]}>
           <Col xs={24} md={8}>
             <Card variant="borderless" style={{ textAlign: "center", padding: "24px 0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>

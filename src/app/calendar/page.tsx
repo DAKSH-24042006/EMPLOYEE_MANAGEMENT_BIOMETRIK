@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-  Typography, Card, Button, Drawer, Modal, Form, 
+import {
+  Typography, Card, Button, Drawer, Modal, Form,
   Input, DatePicker, Select, message, Tag, Spin, Space, Popconfirm, Row, Col, Grid
 } from "antd";
-import { 
-  LeftOutlined, RightOutlined, PlusOutlined, 
-  EditOutlined, DeleteOutlined, CalendarOutlined 
+import {
+  LeftOutlined, RightOutlined, PlusOutlined,
+  EditOutlined, DeleteOutlined, CalendarOutlined
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 
@@ -63,7 +63,7 @@ export default function CalendarPage() {
       // Fetch -1 month, current month, +1 month
       const start = date.subtract(1, 'month').startOf('month').toISOString();
       const end = date.add(1, 'month').endOf('month').toISOString();
-      
+
       const res = await fetch(`/api/calendar-tasks?startDate=${start}&endDate=${end}`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
@@ -119,7 +119,10 @@ export default function CalendarPage() {
       });
       if (!res.ok) throw new Error("Failed to delete task");
       messageApi.success("Task deleted");
-      fetchTasks(currentDate);
+      // Small delay to allow DB/Server to stabilize after delete before re-fetching
+      setTimeout(() => {
+        fetchTasks(currentDate);
+      }, 300);
     } catch (error) {
       messageApi.error("Could not delete task");
     }
@@ -130,7 +133,7 @@ export default function CalendarPage() {
       const isEdit = !!editingTask;
       const url = isEdit ? `/api/calendar-tasks/${editingTask._id}` : `/api/calendar-tasks`;
       const method = isEdit ? "PUT" : "POST";
-      
+
       const priorityObj = PRIORITIES.find(p => p.value === values.priority);
 
       const payload = {
@@ -146,7 +149,7 @@ export default function CalendarPage() {
       });
 
       if (!res.ok) throw new Error("Failed to save task");
-      
+
       messageApi.success(isEdit ? "Task updated" : "Task created");
       setModalVisible(false);
       fetchTasks(currentDate);
@@ -183,33 +186,47 @@ export default function CalendarPage() {
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "0" }}>
       {contextHolder}
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 16, flex: "0 0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16, flex: "0 0 auto" }}>
         <div>
           <Title level={3} style={{ margin: 0 }}>Calendar</Title>
           <Text type="secondary">Manage your daily tasks and schedule</Text>
         </div>
-        <Space style={{ flexWrap: "wrap" }}>
-          <Button onClick={handleToday}>Today</Button>
-          <Button icon={<LeftOutlined />} onClick={handlePrevMonth} />
-          <Title level={4} style={{ margin: "0 8px", minWidth: 150, textAlign: "center" }}>
-            {currentDate.format('MMMM YYYY')}
-          </Title>
-          <Button icon={<RightOutlined />} onClick={handleNextMonth} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => onAddTask()}>Add Task</Button>
-        </Space>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "nowrap", width: "100%", overflowX: "auto", paddingBottom: 4 }} className="hide-scrollbar">
+
+          {/* Left: Today */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-start", paddingRight: isMobile ? 4 : 16 }}>
+            <Button onClick={handleToday} size={isMobile ? "small" : "middle"} style={{ width: "100%", maxWidth: 160 }}>Today</Button>
+          </div>
+
+          {/* Center: Month Navigation */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flex: "0 0 auto" }}>
+            <Button icon={<LeftOutlined />} onClick={handlePrevMonth} size={isMobile ? "small" : "middle"} />
+            <Title level={isMobile ? 5 : 4} style={{ margin: "0", minWidth: isMobile ? 90 : 130, textAlign: "center", lineHeight: isMobile ? "24px" : "32px", whiteSpace: "nowrap" }}>
+              {currentDate.format(isMobile ? 'MMM YYYY' : 'MMMM YYYY')}
+            </Title>
+            <Button icon={<RightOutlined />} onClick={handleNextMonth} size={isMobile ? "small" : "middle"} />
+          </div>
+
+          {/* Right: Add Task */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", paddingLeft: isMobile ? 4 : 16 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => onAddTask()} size={isMobile ? "small" : "middle"} style={{ width: "100%", maxWidth: 160, whiteSpace: "nowrap" }}>Add Task</Button>
+          </div>
+
+        </div>
       </div>
 
       <Spin spinning={loading} classNames={{ root: "flex-1 overflow-hidden" }}>
-        <Card 
-          variant="borderless" 
-          style={{ 
-            padding: 0, 
-            borderRadius: 12, 
+        <Card
+          variant="borderless"
+          style={{
+            padding: 0,
+            borderRadius: 12,
             overflow: "hidden",
             flex: 1,
             display: "flex",
             flexDirection: "column"
-          }} 
+          }}
           styles={{ body: { padding: 0, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" } }}
         >
           <div style={{ overflow: "hidden", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
@@ -231,7 +248,7 @@ export default function CalendarPage() {
                   const dayTasks = getTasksForDate(date);
 
                   return (
-                    <div 
+                    <div
                       key={idx}
                       onClick={() => onDateClick(date)}
                       style={{
@@ -252,28 +269,28 @@ export default function CalendarPage() {
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: isMobile ? "center" : "space-between", alignItems: "center", marginBottom: isMobile ? 6 : 8 }}>
-                          <div style={{ 
-                            width: isMobile ? 24 : 28, 
-                            height: isMobile ? 24 : 28, 
-                            borderRadius: "50%", 
-                            display: "flex", 
-                            alignItems: "center", 
-                            justifyContent: "center",
-                            backgroundColor: isToday ? "#1677ff" : "transparent",
-                            color: isToday ? "#fff" : (isCurrentMonth ? "#262626" : "#bfbfbf"),
-                            fontWeight: isToday ? 600 : 400,
-                            fontSize: isMobile ? 12 : 14
-                          }}>
-                            {date.format('D')}
-                          </div>
+                        <div style={{
+                          width: isMobile ? 24 : 28,
+                          height: isMobile ? 24 : 28,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isToday ? "#1677ff" : "transparent",
+                          color: isToday ? "#fff" : (isCurrentMonth ? "#262626" : "#bfbfbf"),
+                          fontWeight: isToday ? 600 : 400,
+                          fontSize: isMobile ? 12 : 14
+                        }}>
+                          {date.format('D')}
+                        </div>
                       </div>
 
                       {/* Task Chips */}
                       <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start", gap: isMobile ? 3 : 4 }}>
                         {dayTasks.slice(0, isMobile ? 4 : 3).map(task => (
                           isMobile ? (
-                            <div 
-                              key={task._id} 
+                            <div
+                              key={task._id}
                               style={{
                                 width: 6,
                                 height: 6,
@@ -282,8 +299,8 @@ export default function CalendarPage() {
                               }}
                             />
                           ) : (
-                            <div 
-                              key={task._id} 
+                            <div
+                              key={task._id}
                               style={{
                                 backgroundColor: `${task.color}20`,
                                 color: task.color,
