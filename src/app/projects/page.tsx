@@ -148,10 +148,8 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         onPremise: project.features.onPremise,
         extraAddOns: project.extraAddOns || "",
         status: project.status,
-        timeline: [
-          dayjs(project.timeline.startDate),
-          dayjs(project.timeline.endDate),
-        ],
+        startDate: dayjs(project.timeline.startDate),
+        endDate: dayjs(project.timeline.endDate),
       });
     }
   }, [project, open, form]);
@@ -181,7 +179,10 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         onPremise: values.onPremise ?? false,
         extraAddOns: values.extraAddOns,
         status: values.status,
-        timeline: values.timeline?.map((d: dayjs.Dayjs) => d.toISOString()),
+        timeline: [
+          values.startDate?.toISOString(),
+          values.endDate?.toISOString(),
+        ],
       };
 
       const res = await fetch(`/api/projects/${project!._id}`, {
@@ -306,11 +307,36 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         <Row gutter={16}>
           <Col xs={24} md={14}>
             <Form.Item
-              name="timeline"
               label="Project Timeline"
-              rules={[{ required: true, message: "Timeline is required" }]}
+              required
+              style={{ marginBottom: 0 }}
             >
-              <RangePicker style={{ width: "100%" }} />
+              <Row gutter={8}>
+                <Col span={12}>
+                  <Form.Item
+                    name="startDate"
+                    rules={[{ required: true, message: "Start date is required" }]}
+                  >
+                    <DatePicker
+                      placeholder="Start Date"
+                      style={{ width: "100%" }}
+                      format="DD/MM/YYYY"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="endDate"
+                    rules={[{ required: true, message: "End date is required" }]}
+                  >
+                    <DatePicker
+                      placeholder="End Date"
+                      style={{ width: "100%" }}
+                      format="DD/MM/YYYY"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Form.Item>
           </Col>
           <Col xs={24} md={10}>
@@ -489,7 +515,7 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
                     <Text type="secondary" style={{ fontSize: 11 }}>Start Date</Text>
                     <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.startDate).format("DD MMM YYYY")}</div>
                   </div>
-                  <Divider type="vertical" style={{ height: 40 }} />
+                  <Divider orientation="vertical" style={{ height: 40 }} />
                   <div>
                     <Text type="secondary" style={{ fontSize: 11 }}>End Date</Text>
                     <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.endDate).format("DD MMM YYYY")}</div>
