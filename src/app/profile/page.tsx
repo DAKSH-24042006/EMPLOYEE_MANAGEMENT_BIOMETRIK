@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Typography, Card, Avatar, Row, Col, Divider, Button, Modal, Form, Input, message } from "antd";
+import { Typography, Card, Avatar, Row, Col, Divider, Button, Modal, Form, Input, message, Grid } from "antd";
 import { User, Mail, Phone, MapPin, Lock, KeyRound } from "lucide-react";
 
 const { Title, Text } = Typography;
@@ -17,6 +17,14 @@ export default function ProfilePage() {
     location?: string;
   } | null>(null);
   const [form] = Form.useForm();
+  const screens = Grid.useBreakpoint();
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isMobile = mounted && !screens.md;
 
   React.useEffect(() => {
     fetchUserData();
@@ -76,7 +84,15 @@ export default function ProfilePage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flex: "0 0 auto" }}>
+      <div style={{
+        marginBottom: 24,
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        justifyContent: "space-between",
+        alignItems: isMobile ? "stretch" : "flex-end",
+        gap: 16,
+        flex: "0 0 auto"
+      }}>
         <div>
           <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
           <Text type="secondary">Manage your personal information and preferences.</Text>
@@ -84,7 +100,13 @@ export default function ProfilePage() {
         <Button
           type="primary"
           icon={<Lock size={16} />}
-          style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
+          style={{
+            backgroundColor: "#00897b",
+            borderColor: "#00897b",
+            height: 40,
+            borderRadius: 8,
+            boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
+          }}
           onClick={showModal}
         >
           Change Password
@@ -92,21 +114,44 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ paddingRight: 8 }}>
-        <Row gutter={[24, 24]}>
+        <Row gutter={isMobile ? [16, 16] : [24, 24]}>
           <Col xs={24} md={8}>
-            <Card variant="borderless" style={{ textAlign: "center", padding: "24px 0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-              <Avatar size={100} style={{ backgroundColor: "#00897b", color: "#fff", fontSize: "32px", fontWeight: 600, marginBottom: 16 }}>
+            <Card
+              variant="borderless"
+              style={{
+                textAlign: "center",
+                padding: isMobile ? "16px 0" : "24px 0",
+                borderRadius: "12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                height: "100%"
+              }}
+            >
+              <Avatar
+                size={isMobile ? 80 : 100}
+                style={{
+                  backgroundColor: "#00897b",
+                  color: "#fff",
+                  fontSize: isMobile ? "24px" : "32px",
+                  fontWeight: 600,
+                  marginBottom: isMobile ? 12 : 16
+                }}
+              >
                 {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
               </Avatar>
-              <Title level={4} style={{ marginBottom: 4 }}>{user?.name || "Loading..."}</Title>
-              <Text type="secondary" style={{ textTransform: "uppercase", fontSize: "12px", letterSpacing: "1px", color: "#00897b", fontWeight: 600 }}>
+              <Title level={4} style={{ marginBottom: 4, fontSize: isMobile ? 18 : 20 }}>{user?.name || "Loading..."}</Title>
+              <Text type="secondary" style={{ textTransform: "uppercase", fontSize: isMobile ? "10px" : "12px", letterSpacing: "1px", color: "#00897b", fontWeight: 600 }}>
                 {user?.role?.replace("_", " ") || "USER"}
               </Text>
             </Card>
           </Col>
           <Col xs={24} md={16}>
-            <Card variant="borderless" title="Personal Details" style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Card
+              variant="borderless"
+              title="Personal Details"
+              style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", height: "100%" }}
+              styles={{ body: { padding: isMobile ? "16px" : "24px" } }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
                     <Mail size={18} color="#00897b" />
