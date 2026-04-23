@@ -24,7 +24,7 @@ export async function GET() {
     }
 
     await dbConnect();
-    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+    const users = await User.find({}).select("-password +faceReferenceImage").sort({ createdAt: -1 });
     return NextResponse.json(users);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,9 +39,9 @@ export async function POST(req: Request) {
 
     const { name, email, password, role, phoneNumber, location } = await req.json();
 
-    if (!name || !email || !password || !role || !phoneNumber || !location) {
+    if (!name || !email || !password || !role || !phoneNumber) {
       return NextResponse.json(
-        { error: "Please provide all required fields (including Phone Number and Location)" },
+        { error: "Please provide all required fields (including Phone Number)" },
         { status: 400 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       password: hashedPassword,
       role,
       phoneNumber,
-      location,
+      location: location || "",
     });
 
     const userResponse = await User.findById(user._id).select("-password");

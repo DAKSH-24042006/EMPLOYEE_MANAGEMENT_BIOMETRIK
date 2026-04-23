@@ -52,6 +52,7 @@ interface UserRecord {
   role: Role;
   phoneNumber?: string;
   location?: string;
+  faceReferenceImage?: string;
   createdAt: string;
 }
 
@@ -251,6 +252,16 @@ export default function UsersPage() {
       dataIndex: "location",
       key: "location",
       render: (loc) => <span style={{ color: "#676879" }}>{loc || "N/A"}</span>,
+    },
+    {
+      title: "Face Status",
+      key: "faceStatus",
+      render: (_, record) => (
+        <Badge
+          status={record.faceReferenceImage ? "success" : "default"}
+          text={record.faceReferenceImage ? "Registered" : "Not Registered"}
+        />
+      ),
     },
     {
       title: "Created At",
@@ -517,10 +528,9 @@ export default function UsersPage() {
 
             <Form.Item
               name="location"
-              label="Location"
-              rules={[{ required: true, message: "Please input the location!" }]}
+              label="Location (auto-filled during face registration)"
             >
-              <Input placeholder="City, Country" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
+              <Input placeholder="Captured when the user registers face" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
             </Form.Item>
           </div>
 

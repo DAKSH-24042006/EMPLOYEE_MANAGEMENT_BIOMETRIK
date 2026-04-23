@@ -8,6 +8,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password?: string;
+  faceReferenceImage?: string;
   role: Role;
   phoneNumber: string;
   location: string;
@@ -32,6 +33,10 @@ const UserSchema: Schema = new Schema(
       required: [true, "Please provide a password"],
       select: false,
     },
+    faceReferenceImage: {
+      type: String,
+      select: false,
+    },
     role: {
       type: String,
       enum: Object.values(Role),
@@ -49,7 +54,7 @@ const UserSchema: Schema = new Schema(
     },
     location: {
       type: String,
-      required: [true, "Location is required"],
+      default: "",
     },
   },
   {
