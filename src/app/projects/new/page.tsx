@@ -31,6 +31,7 @@ import {
   FileTextOutlined,
   CheckCircleFilled,
   CheckOutlined,
+  PlusOutlined,
   IdcardOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
@@ -153,52 +154,66 @@ const FeatureItem: React.FC<FeatureItemProps> = ({ checked, onChange, label, des
       style={{
         display: "flex",
         alignItems: "center",
-        padding: "16px 20px",
+        padding: "10px 12px",
         borderRadius: 12,
         border: `1.5px solid ${isSelected ? PRIMARY_COLOR : "#f3f4f6"}`,
-        background: isSelected ? "#f0fdfa" : "#fff",
+        background: isSelected ? "#f0fdfa" : "#fafafa",
         cursor: "pointer",
         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        gap: 16,
-        boxShadow: isSelected ? "0 4px 12px rgba(0, 137, 123, 0.12)" : "none",
+        gap: 8,
         height: "100%",
-        minHeight: 70,
+        minHeight: 56,
         position: "relative",
         overflow: "hidden"
       }}
       className="feature-item-hover"
     >
+      <div style={{ 
+        fontSize: 22, 
+        color: isSelected ? PRIMARY_COLOR : "#374151", 
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0
+      }}>
+        {icon}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text strong style={{ 
+          display: "block", 
+          fontSize: 12, 
+          color: "#111827",
+          lineHeight: 1.2,
+          wordBreak: "break-word"
+        }}>
+          {label}
+        </Text>
+      </div>
+
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 20,
-        height: 20,
-        borderRadius: 4,
-        border: `1.5px solid ${isSelected ? PRIMARY_COLOR : "#d1d5db"}`,
+        width: 24,
+        height: 24,
+        borderRadius: "50%",
         background: isSelected ? PRIMARY_COLOR : "transparent",
-        transition: "all 0.2s ease"
+        color: isSelected ? "#fff" : "#9ca3af",
+        transition: "all 0.2s ease",
+        flexShrink: 0
       }}>
-        {isSelected && <CheckOutlined style={{ color: "#fff", fontSize: 12 }} />}
-      </div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Text strong style={{ display: "block", fontSize: 14, color: isSelected ? "#111827" : "#374151" }}>
-          {label}
-        </Text>
-        <Text type="secondary" style={{ fontSize: 11, display: "block", opacity: 0.8 }}>
-          {description}
-        </Text>
-      </div>
-
-      <div style={{ fontSize: 20, color: isSelected ? PRIMARY_COLOR : "#9ca3af", opacity: 0.6 }}>
-        {icon}
+        {isSelected ? (
+          <CheckOutlined style={{ fontSize: 12 }} />
+        ) : (
+          <PlusOutlined style={{ fontSize: 16 }} />
+        )}
       </div>
 
       <style jsx>{`
         .feature-item-hover:hover {
-          border-color: ${isSelected ? PRIMARY_COLOR : "#99f6e4"};
-          background: ${isSelected ? "#f0fdfa" : "#f0fdfa"};
+          border-color: ${PRIMARY_COLOR};
+          background: #f0fdfa;
         }
       `}</style>
     </div>
@@ -407,7 +422,7 @@ export default function NewProjectPage() {
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 border: "1px solid #f0f0f0"
               }}
-              styles={{ body: { padding: "24px 32px" } }}
+              styles={{ body: { padding: "16px 12px" } }}
             >
               <div id="application-features" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
                 <div style={{
@@ -429,9 +444,9 @@ export default function NewProjectPage() {
                 Check all the required features and modules for the application.
               </Text>
 
-              <Row gutter={[12, 12]}>
+              <Row gutter={[8, 8]}>
                 {FEATURES.map((feat) => (
-                  <Col xs={24} sm={12} md={8} xl={6} key={feat.key}>
+                  <Col xs={12} sm={12} md={8} xl={6} key={feat.key}>
                     <Form.Item name={feat.key} valuePropName="checked" style={{ margin: 0 }}>
                       <FeatureItem
                         label={feat.label}

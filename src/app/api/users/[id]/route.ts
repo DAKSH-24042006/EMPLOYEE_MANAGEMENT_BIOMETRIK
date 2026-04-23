@@ -35,9 +35,9 @@ export async function PATCH(
       );
     }
 
-    if (phoneNumber === "" || location === "") {
+    if (phoneNumber === "") {
       return NextResponse.json(
-        { error: "Phone number and location cannot be empty" },
+        { error: "Phone number cannot be empty" },
         { status: 400 }
       );
     }

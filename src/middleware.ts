@@ -10,6 +10,10 @@ export async function middleware(req: NextRequest) {
 
   console.log(`[Middleware] Path: ${pathname}, Token present: ${!!token}`);
 
+  if (pathname.startsWith("/.well-known/")) {
+    return NextResponse.next();
+  }
+
   if (!token) {
     console.log(`[Middleware] No token found, redirecting to login with callback: ${pathname}`);
     const loginUrl = new URL("/auth/login", req.url);
@@ -46,6 +50,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - auth/login (our public login route)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|auth/login).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|auth/login|\\.well-known).*)",
   ],
 };
