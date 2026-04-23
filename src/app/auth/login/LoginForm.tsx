@@ -232,7 +232,7 @@ export default function LoginForm() {
 
       <div style={{ textAlign: "center", marginTop: 24 }}>
         <Text type="secondary" style={{ fontStyle: "italic", fontSize: 13 }}>
-          "There are no traffic jams at the extra mile !"
+          &quot;There are no traffic jams at the extra mile !&quot;
         </Text>
       </div>
     </Card>

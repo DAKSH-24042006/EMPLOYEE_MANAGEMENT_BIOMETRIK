@@ -38,7 +38,12 @@ export async function POST(req: Request) {
     const targetImage = prepareImage(faceImage);
 
     const apiUrl = process.env.FACE_VERIFY_API_URL;
-    const apiKey = process.env["X-API-Key"];
+    const apiKey = process.env["X-API-Key"] as string;
+
+    if (!apiUrl) {
+      console.error("[FaceVerify] FACE_VERIFY_API_URL is not defined in environment variables.");
+      return NextResponse.json({ error: "Configuration error" }, { status: 500 });
+    }
 
     console.log(`[FaceVerify] Calling external API for ${email}...`);
 
