@@ -23,11 +23,26 @@ export async function GET() {
     // Fetch projects sorted by newest first
     const projects = await Project.find({})
       .sort({ createdAt: -1 })
-      // Since it's a client endpoint, we might lean to not populate the user entirely or just pick name
       .exec();
 
+    // Query open blocker count for each project
+    const ProjectBlocker = (await import("@/lib/models/ProjectBlocker")).ProjectBlocker;
+    const enrichedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const openBlockersCount = await ProjectBlocker.countDocuments({
+          projectId: project._id,
+          status: { $in: ["Open", "In Progress"] },
+        });
+        const projObj = project.toObject();
+        return {
+          ...projObj,
+          openBlockersCount,
+        };
+      })
+    );
+
     return NextResponse.json(
-      { data: projects },
+      { data: enrichedProjects },
       { status: 200 }
     );
   } catch (error: any) {

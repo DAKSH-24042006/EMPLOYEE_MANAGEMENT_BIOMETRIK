@@ -22,6 +22,7 @@ export async function POST(req: Request) {
 
     // Data restructuring to map exactly against Schema constraints
     const newProject = {
+      title: data.title || "",
       clientDetails: {
         companyName: data.companyName,
         contactPerson: data.contactPerson || "",
@@ -33,6 +34,13 @@ export async function POST(req: Request) {
         return acc;
       }, {} as Record<string, boolean>),
       extraAddOns: data.extraAddOns || "",
+      useCase: data.useCase || "",
+      targetUsers: data.targetUsers || "",
+      functionalRequirements: data.functionalRequirements || "",
+      nonFunctionalRequirements: data.nonFunctionalRequirements || "",
+      budget: data.budget || "",
+      integrations: data.integrations || "",
+      priority: data.priority || "Medium",
       timeline: {
         startDate: data.startDate ? new Date(data.startDate) : (data.timeline?.[0] ? new Date(data.timeline[0]) : undefined),
         endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
@@ -41,6 +49,13 @@ export async function POST(req: Request) {
     };
 
     // Basic Validation Strategy
+    if (!newProject.title) {
+      return NextResponse.json(
+        { error: "Project Title is required." },
+        { status: 400 }
+      );
+    }
+
     if (!newProject.clientDetails.companyName || !newProject.clientDetails.email) {
       return NextResponse.json(
         { error: "Company Name and Email are required." },

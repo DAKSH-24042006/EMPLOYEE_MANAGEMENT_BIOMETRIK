@@ -1,9 +1,6 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 import { Role } from "../constants";
 
-
-
-
 export interface IUser extends Document {
   name: string;
   email: string;
