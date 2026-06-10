@@ -1,15 +1,26 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/marketing_dashboard";
+//const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/requirement_dashboard";
+const MONGODB_URI = process.env.MONGODB_URI as string;
 
 if (!MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable inside .env.local");
 }
 
-let cached = (global as any).mongoose;
+interface MongooseCache {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+}
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+declare global {
+  // eslint-disable-next-line no-var
+  var mongoose: MongooseCache | undefined;
+}
+
+const cached: MongooseCache = globalThis.mongoose ?? { conn: null, promise: null };
+
+if (!globalThis.mongoose) {
+  globalThis.mongoose = cached;
 }
 
 async function dbConnect() {
@@ -21,15 +32,13 @@ async function dbConnect() {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of default 30s
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => m);
   }
-  
+
   try {
     cached.conn = await cached.promise;
   } catch (e) {

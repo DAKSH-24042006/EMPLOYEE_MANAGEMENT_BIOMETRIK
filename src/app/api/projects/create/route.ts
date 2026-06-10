@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
-import { Project } from "@/lib/models/Project";
+import { Project, FEATURE_KEYS } from "@/lib/models/Project";
 import { verifyJwt } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -26,18 +26,16 @@ export async function POST(req: Request) {
         companyName: data.companyName,
         contactPerson: data.contactPerson || "",
         email: data.email,
+        contactNumber: data.contactNumber || "",
       },
-      features: {
-        dashboard: data.dashboard || false,
-        webApp: data.webApp || false,
-        androidApp: data.androidApp || false,
-        iosApp: data.iosApp || false,
-        adminPanel: data.adminPanel || false,
-      },
+      features: FEATURE_KEYS.reduce((acc, key) => {
+        acc[key] = !!data[key];
+        return acc;
+      }, {} as Record<string, boolean>),
       extraAddOns: data.extraAddOns || "",
       timeline: {
-        startDate: data.timeline?.[0] ? new Date(data.timeline[0]) : undefined,
-        endDate: data.timeline?.[1] ? new Date(data.timeline[1]) : undefined,
+        startDate: data.startDate ? new Date(data.startDate) : (data.timeline?.[0] ? new Date(data.timeline[0]) : undefined),
+        endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
       },
       createdBy: payload.userId,
     };

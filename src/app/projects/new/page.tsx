@@ -1,51 +1,250 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Typography, 
-  Form, 
-  Input, 
-  Button, 
-  Card, 
-  DatePicker, 
-  Switch, 
-  Row, 
-  Col, 
-  Skeleton, 
-  App 
+import {
+  Typography,
+  Form,
+  Input,
+  Button,
+  Card,
+  DatePicker,
+  Row,
+  Col,
+  Skeleton,
+  App,
+  Space,
+  Divider,
+  Breadcrumb,
+  ConfigProvider,
+  theme,
+  Checkbox
 } from "antd";
+import {
+  ArrowLeftOutlined,
+  DesktopOutlined,
+  CloudServerOutlined,
+  AppleOutlined,
+  AndroidOutlined,
+  AppstoreOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  FileTextOutlined,
+  CheckCircleFilled,
+  CheckOutlined,
+  PlusOutlined,
+  IdcardOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
+  GlobalOutlined,
+  VideoCameraOutlined,
+  SecurityScanOutlined,
+  CloudOutlined,
+  DisconnectOutlined,
+  HddOutlined
+} from "@ant-design/icons";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
-interface ProjectFormValues {
-  companyName: string;
-  contactPerson: string;
-  email: string;
-  dashboard: boolean;
-  webApp: boolean;
-  androidApp: boolean;
-  iosApp: boolean;
-  adminPanel: boolean;
-  extraAddOns: string;
-  timeline: any;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PRIMARY_COLOR = "#00897b"; // Official Brand Teal
+const SECONDARY_COLOR = "#f0fdfa"; // Ultra-light Teal
+
+const FEATURES = [
+  {
+    key: "visitorManagement",
+    label: "Visitor Mgmt",
+    description: "Visitor System",
+    icon: <IdcardOutlined />
+  },
+  {
+    key: "attendanceManagement",
+    label: "Attendance Mgmt",
+    description: "Team Attendance",
+    icon: <TeamOutlined />
+  },
+  {
+    key: "digilockerAuthentication",
+    label: "Digilocker",
+    description: "Secure Auth",
+    icon: <SafetyCertificateOutlined />
+  },
+  {
+    key: "webApp",
+    label: "Web App",
+    description: "Cloud-based portal",
+    icon: <GlobalOutlined />
+  },
+  {
+    key: "androidApp",
+    label: "Android App",
+    description: "Native Play Store",
+    icon: <AndroidOutlined />
+  },
+  {
+    key: "iosApp",
+    label: "iOS App",
+    description: "Native App Store",
+    icon: <AppleOutlined />
+  },
+  {
+    key: "videoKYC",
+    label: "Video KYC",
+    description: "Remote Identity",
+    icon: <VideoCameraOutlined />
+  },
+  {
+    key: "rbac",
+    label: "RBAC System",
+    description: "Role-based Access",
+    icon: <SecurityScanOutlined />
+  },
+  {
+    key: "adminPanel",
+    label: "Admin Panel",
+    description: "Management portal",
+    icon: <AppstoreOutlined />
+  },
+  {
+    key: "online",
+    label: "Online",
+    description: "Active Intenet",
+    icon: <CloudOutlined />
+  },
+  {
+    key: "offline",
+    label: "Offline",
+    description: "Local Storage",
+    icon: <DisconnectOutlined />
+  },
+  {
+    key: "cloud",
+    label: "Cloud",
+    description: "Azure / AWS",
+    icon: <CloudServerOutlined />
+  },
+  {
+    key: "onPremise",
+    label: "On Premise",
+    description: "Local Servers",
+    icon: <HddOutlined />
+  },
+];
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+interface FeatureItemProps {
+  checked?: boolean;
+  onChange?: (val: boolean) => void;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
 }
 
+const FeatureItem: React.FC<FeatureItemProps> = ({ checked, onChange, label, description, icon }) => {
+  const isSelected = !!checked;
+
+  return (
+    <div
+      onClick={() => onChange?.(!isSelected)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: `1.5px solid ${isSelected ? PRIMARY_COLOR : "#f3f4f6"}`,
+        background: isSelected ? "#f0fdfa" : "#fafafa",
+        cursor: "pointer",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        gap: 8,
+        height: "100%",
+        minHeight: 56,
+        position: "relative",
+        overflow: "hidden"
+      }}
+      className="feature-item-hover"
+    >
+      <div style={{ 
+        fontSize: 22, 
+        color: isSelected ? PRIMARY_COLOR : "#374151", 
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0
+      }}>
+        {icon}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text strong style={{ 
+          display: "block", 
+          fontSize: 12, 
+          color: "#111827",
+          lineHeight: 1.2,
+          wordBreak: "break-word"
+        }}>
+          {label}
+        </Text>
+      </div>
+
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: "50%",
+        background: isSelected ? PRIMARY_COLOR : "transparent",
+        color: isSelected ? "#fff" : "#9ca3af",
+        transition: "all 0.2s ease",
+        flexShrink: 0
+      }}>
+        {isSelected ? (
+          <CheckOutlined style={{ fontSize: 12 }} />
+        ) : (
+          <PlusOutlined style={{ fontSize: 16 }} />
+        )}
+      </div>
+
+      <style jsx>{`
+        .feature-item-hover:hover {
+          border-color: ${PRIMARY_COLOR};
+          background: #f0fdfa;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+
 export default function NewProjectPage() {
-  const [form] = Form.useForm<ProjectFormValues>();
+  const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [mounting, setMounting] = useState(true);
-  
+  const router = useRouter();
+
   const { message } = App.useApp();
 
-  // Fake a loading state on mount (400ms) to display our pristine skeleton UX
   useEffect(() => {
     const timer = setTimeout(() => setMounting(false), 400);
     return () => clearTimeout(timer);
   }, []);
 
-  const onFinish = async (values: ProjectFormValues) => {
+  const onFinish = async (values: any) => {
+    // Check if at least one feature is selected
+    const selectedFeatures = FEATURES.map(f => values[f.key]);
+    const hasAtLeastOneFeature = selectedFeatures.some(v => v === true);
+
+    if (!hasAtLeastOneFeature) {
+      message.error("Please select at least one Application Feature to proceed.");
+      document.getElementById('application-features')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -59,7 +258,7 @@ export default function NewProjectPage() {
 
       if (response.ok) {
         message.success("Project created successfully!");
-        form.resetFields();
+        router.push("/projects");
       } else {
         message.error(data.error || "Failed to create project");
       }
@@ -71,7 +270,6 @@ export default function NewProjectPage() {
     }
   };
 
-  // Custom Validator binding ContactPerson -> Email dependencies securely
   const contactValidator = () => ({
     validator(_: any, value: string) {
       if (form.getFieldValue('contactPerson') || form.getFieldValue('email')) {
@@ -82,154 +280,299 @@ export default function NewProjectPage() {
   });
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ marginBottom: 32 }}>
-        <Title level={3} style={{ margin: 0 }}>Client Project</Title>
-        <Text type="secondary">Detail the project specifications thoroughly for the pipeline processing.</Text>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* ── Header ── */}
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        marginBottom: 20,
+        flexWrap: "wrap",
+        gap: 16,
+        flex: "0 0 auto"
+      }}>
+        <div>
+          <Title level={2} style={{ margin: 0, fontWeight: 700, fontSize: 24 }}>
+            Create New Project
+          </Title>
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Set up building the client details and select required application features.
+          </Text>
+        </div>
+        <Link href="/projects">
+          <Button icon={<ArrowLeftOutlined />} size="small">Back to list</Button>
+        </Link>
       </div>
 
-      <Skeleton active loading={mounting} paragraph={{ rows: 20 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          requiredMark={false}
-          initialValues={{
-            dashboard: false,
-            webApp: false,
-            androidApp: false,
-            iosApp: false,
-            adminPanel: false,
-          }}
-        >
-          <Card variant="borderless" style={{ borderRadius: 12, marginBottom: 24 }}>
-            <Title level={5} style={{ marginBottom: 24 }}>1. Client Details</Title>
-            <Row gutter={24}>
-              <Col xs={24} md={8}>
-                <Form.Item
-                  name="companyName"
-                  label={<span style={{ fontWeight: 500 }}>Company Name</span>}
-                  rules={[{ required: true, message: "Please enter the company name" }]}
-                >
-                  <Input size="large" placeholder="E.g., Acme Corp" />
-                </Form.Item>
-              </Col>
-              
-              <Col xs={24} md={8}>
-                {/* Contact Person triggers a re-validation of email dependency */}
-                <Form.Item
-                  name="contactPerson"
-                  label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
-                  dependencies={['email']}
-                  rules={[contactValidator]}
-                >
-                  <Input size="large" placeholder="E.g., Jane Doe" />
-                </Form.Item>
-              </Col>
-              
-              <Col xs={24} md={8}>
-                <Form.Item
-                  name="email"
-                  label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
-                  dependencies={['contactPerson']}
-                  rules={[
-                    { type: "email", message: "Please enter a valid email address" },
-                    contactValidator
-                  ]}
-                >
-                  <Input size="large" placeholder="jane@acme.com" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          <Card variant="borderless" style={{ borderRadius: 12, marginBottom: 24 }}>
-            <Title level={5} style={{ marginBottom: 8 }}>2. Application Features</Title>
-            <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
-              Toggle the requested feature sets below.
-            </Text>
-            
-            <Row gutter={[24, 24]}>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item name="dashboard" valuePropName="checked" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Text style={{ fontWeight: 500 }}>Dashboard</Text>
-                    <Switch />
-                  </div>
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item name="webApp" valuePropName="checked" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Text style={{ fontWeight: 500 }}>Web App</Text>
-                    <Switch />
-                  </div>
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item name="androidApp" valuePropName="checked" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Text style={{ fontWeight: 500 }}>Android App</Text>
-                    <Switch />
-                  </div>
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item name="iosApp" valuePropName="checked" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Text style={{ fontWeight: 500 }}>iOS App</Text>
-                    <Switch />
-                  </div>
-                </Form.Item>
-              </Col>
-              <Col xs={12} sm={8} md={4}>
-                <Form.Item name="adminPanel" valuePropName="checked" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Text style={{ fontWeight: 500 }}>Admin Panel</Text>
-                    <Switch />
-                  </div>
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          <Card variant="borderless" style={{ borderRadius: 12, marginBottom: 24 }}>
-            <Title level={5} style={{ marginBottom: 24 }}>3. Details & Logistics</Title>
-            
-            <Row gutter={24}>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  name="timeline"
-                  label={<span style={{ fontWeight: 500 }}>Project Timeline</span>}
-                  rules={[{ required: true, message: "A timeline is required" }]}
-                >
-                  <RangePicker size="large" style={{ width: "100%" }} />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item
-              name="extraAddOns"
-              label={<span style={{ fontWeight: 500 }}>Extra Add-ons & Notes</span>}
+      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, paddingBottom: 40 }} className="hide-scrollbar">
+        <Skeleton active loading={mounting} paragraph={{ rows: 15 }}>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onFinish}
+            requiredMark={false}
+            initialValues={{
+              visitorManagement: false,
+              attendanceManagement: false,
+              digilockerAuthentication: false,
+              webApp: false,
+              androidApp: false,
+              iosApp: false,
+              videoKYC: false,
+              rbac: false,
+              adminPanel: false,
+              online: false,
+              offline: false,
+              cloud: false,
+              onPremise: false,
+            }}
+          >
+            {/* Section 1: Client Details */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
             >
-              <TextArea 
-                rows={5} 
-                placeholder="Are there any custom third-party integrations needed (e.g., Stripe, SendGrid)?" 
-                size="large"
-              />
-            </Form.Item>
-          </Card>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#eef2ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: PRIMARY_COLOR
+                }}>
+                  <UserOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Client Information</Title>
+              </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 16 }}>
-            <Button size="large" onClick={() => form.resetFields()}>
-              Clear Form
-            </Button>
-            <Button type="primary" htmlType="submit" size="large" loading={submitting} style={{ padding: "0 32px" }}>
-              Create Project
-            </Button>
-          </div>
-        </Form>
-      </Skeleton>
+              <Row gutter={24}>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="companyName"
+                    label={<span style={{ fontWeight: 500 }}>Company Name</span>}
+                    rules={[{ required: true, message: "Please enter the company name" }]}
+                  >
+                    <Input size="large" placeholder="E.g., Global Tech Inc." />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="contactPerson"
+                    label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
+                    dependencies={['email']}
+                    rules={[contactValidator]}
+                  >
+                    <Input size="large" placeholder="E.g., John Smith" />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="email"
+                    label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
+                    dependencies={['contactPerson']}
+                    rules={[
+                      { type: "email", message: "Please enter a valid email address" },
+                      contactValidator
+                    ]}
+                  >
+                    <Input size="large" placeholder="contact@company.com" />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="contactNumber"
+                    label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
+                    rules={[
+                      { pattern: /^[0-9]*$/, message: "Please enter only digits" },
+                      { len: 10, message: "Contact number must be exactly 10 digits" }
+                    ]}
+                  >
+                    <Input
+                      size="large"
+                      placeholder="E.g., 9876543210"
+                      maxLength={10}
+                      onKeyPress={(e) => {
+                        if (!/[0-9]/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Section 2: Features Selection */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+              styles={{ body: { padding: "16px 12px" } }}
+            >
+              <div id="application-features" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#fdf2f8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#db2777"
+                }}>
+                  <AppstoreOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Application Features <span style={{ color: '#ef4444', fontSize: 14, fontWeight: 400 }}>* (Select at least one)</span></Title>
+              </div>
+
+              <Text type="secondary" style={{ display: "block", marginBottom: 24, paddingLeft: 48 }}>
+                Check all the required features and modules for the application.
+              </Text>
+
+              <Row gutter={[8, 8]}>
+                {FEATURES.map((feat) => (
+                  <Col xs={12} sm={12} md={8} xl={6} key={feat.key}>
+                    <Form.Item name={feat.key} valuePropName="checked" style={{ margin: 0 }}>
+                      <FeatureItem
+                        label={feat.label}
+                        description={feat.description}
+                        icon={feat.icon}
+                      />
+                    </Form.Item>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+
+            {/* Section 3: Delivery Details */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 32,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#fff7ed",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ea580c"
+                }}>
+                  <CalendarOutlined />
+                </div>
+                <Title level={4} style={{ margin: 0 }}>Project Roadmap</Title>
+              </div>
+
+              <Row gutter={24}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Target Timeline</span>}
+                    required
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="startDate"
+                          rules={[{ required: true, message: 'Select start date' }]}
+                        >
+                          <DatePicker
+                            format="DD/MM/YYYY"
+                            size="large"
+                            style={{ width: '100%' }}
+                            placeholder="Start date"
+                            inputReadOnly={true}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="endDate"
+                          rules={[{ required: true, message: 'Select end date' }]}
+                          dependencies={['startDate']}
+                        >
+                          <DatePicker
+                            format="DD/MM/YYYY"
+                            size="large"
+                            style={{ width: '100%' }}
+                            placeholder="End date"
+                            inputReadOnly={true}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Divider style={{ margin: "16px 0 24px" }} />
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: "#f0fdf4",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#16a34a"
+                }}>
+                  <FileTextOutlined />
+                </div>
+                <span style={{ fontWeight: 600, fontSize: 16, color: "#374151" }}>Additional Requirements</span>
+              </div>
+
+              <Form.Item
+                name="extraAddOns"
+                noStyle
+              >
+                <TextArea
+                  rows={4}
+                  placeholder="Mention any custom integrations like payment gateways, email services, or special security requirements..."
+                  size="large"
+                  style={{ borderRadius: 12 }}
+                />
+              </Form.Item>
+            </Card>
+
+            {/* Footer Actions */}
+            <div className="footer-actions">
+              <Button
+                type="primary"
+                htmlType="submit"
+                size="large"
+                loading={submitting}
+                className="action-btn primary"
+              >
+                Create Project
+              </Button>
+            </div>
+          </Form>
+        </Skeleton>
+      </div>
     </div>
   );
 }

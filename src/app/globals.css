@@ -6,6 +6,8 @@
 :root {
   --background: #f4f8f7;
   --foreground: #171717;
+  --primary-teal: #00897b;
+  --secondary-teal: #f0fdfa;
 }
 
 html,
@@ -27,4 +29,13 @@ a {
 
 * {
   box-sizing: border-box;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

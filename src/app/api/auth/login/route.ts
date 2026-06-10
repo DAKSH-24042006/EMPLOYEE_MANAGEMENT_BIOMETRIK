@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
+
     await dbConnect();
 
     // In a real system, you'd find a user. For mocked environment, we can fallback dynamically
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
         name: isSales ? "Sales Mock User" : "Admin Mock User",
         email,
         password: hashedPassword,
-        role: isSales ? "SALES_TEAM" : "ADMIN",
+        role: isSales ? "SALES" : "ADMIN",
       });
     }
     // ----------------------------------------
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
 
     // Generate JWT
     const token = await signJwt({ userId: user.id || user._id.toString(), role: user.role });
+    console.log(`[Login API] Token generated for user: ${user.email} (${user.role})`);
 
     // Build the response and Set-Cookie
     const response = NextResponse.json(
@@ -57,11 +59,11 @@ export async function POST(req: Request) {
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24, // 24 hours
       path: "/",
       sameSite: "lax",
     });
 
+    console.log(`[Login API] Cookie set for token`);
     return response;
   } catch (error: any) {
     return NextResponse.json(

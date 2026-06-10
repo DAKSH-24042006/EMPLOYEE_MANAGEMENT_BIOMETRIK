@@ -1,30 +1,34 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  Typography, 
-  Card, 
-  Row, 
-  Col, 
-  Statistic, 
-  Table, 
-  Tag, 
-  Select, 
-  Button, 
-  Drawer, 
-  Descriptions, 
-  Input,
-  Space,
+import {
+  Typography,
+  Card,
+  Row,
+  Col,
   Skeleton,
-  App
+  App,
+  Table,
+  Tag,
+  Grid
 } from "antd";
-import { ArrowUpRight, Users, Activity, BarChart2, Search, Eye, CheckCircle, Clock, AlertCircle } from "lucide-react";
-import type { TableProps } from "antd";
-
-type ColumnsType<T> = TableProps<T>["columns"];
-type ColumnType<T> = NonNullable<TableProps<T>["columns"]>[number];
+import {
+  ProjectOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  SyncOutlined,
+  CalendarOutlined,
+} from "@ant-design/icons";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as ReTooltip,
+  ResponsiveContainer
+} from "recharts";
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 interface ProjectType {
   _id: string;
@@ -45,304 +49,315 @@ interface ProjectType {
     startDate: string;
     endDate: string;
   };
-  status: "Pending" | "Active" | "Completed" | "Reviewed" | "Approved";
+  status: "Pending" | "Active" | "Completed";
   createdAt: string;
 }
 
+interface TaskType {
+  _id: string;
+  title: string;
+  date: string;
+  priority: "Low" | "Medium" | "High" | "Urgent";
+  status: "Todo" | "In Progress" | "Done" | "Cancelled";
+  color: string;
+}
+
+const COLORS = [
+  "#00897b", "#3b82f6", "#f59e0b", "#10b981",
+  "#8b5cf6", "#ec4899", "#06b6d4", "#f97316",
+  "#6366f1", "#14b8a6"
+];
+
 export default function DashboardPage() {
   const [data, setData] = useState<ProjectType[]>([]);
+  const [tasks, setTasks] = useState<TaskType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedProject, setSelectedReq] = useState<ProjectType | null>(null);
-  
-  // Destructure context-aware instances from App
+  const [mounted, setMounted] = useState(false);
+
+  const screens = useBreakpoint();
   const { message } = App.useApp();
 
-  const fetchProjects = async () => {
+  const isDesktop = mounted && screens.lg;
+
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/projects");
-      const json = await res.json();
-      if (res.ok) {
-        setData(json.data);
+      // Fetch Projects
+      const projRes = await fetch("/api/projects");
+      const projJson = await projRes.json();
+      if (projRes.ok) {
+        setData(projJson.data);
+      }
+
+      // Fetch Today's Tasks
+      const today = new Date();
+      const start = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+      const end = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+
+      const taskRes = await fetch(`/api/calendar-tasks?startDate=${start}&endDate=${end}`);
+      const taskJson = await taskRes.json();
+      if (taskRes.ok) {
+        setTasks(taskJson);
       }
     } catch (e) {
-      message.error("Failed to load records");
+      message.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   };
 
-  const stats = {
-    completed: data.filter(p => p.status === "Completed").length,
-    active: data.filter(p => p.status === "Active" && new Date(p.timeline.endDate) >= new Date()).length,
-    pending: data.filter(p => p.status === "Pending" && new Date(p.timeline.endDate) >= new Date()).length,
-    overdue: data.filter(p => p.status !== "Completed" && new Date(p.timeline.endDate) < new Date()).length,
-  };
-
   useEffect(() => {
-    fetchProjects();
+    setMounted(true);
+    fetchData();
   }, []);
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    try {
-      const res = await fetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        message.success("Status updated!");
-        setData(prev => 
-          prev.map(item => item._id === id ? { ...item, status: newStatus as any } : item)
-        );
-      } else {
-        message.error("Failed to update status");
-      }
-    } catch (error) {
-      message.error("Status update error");
-    }
+  const statusCounts = {
+    total: data.length,
+    active: data.filter((p) => p.status === "Active").length,
+    pending: data.filter((p) => p.status === "Pending").length,
+    completed: data.filter((p) => p.status === "Completed").length,
   };
 
-  const getCustomFilterProps = (dataIndex: string): ColumnType<ProjectType> => ({
-    filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
-      <div style={{ padding: 8 }}>
-        <Input
-          placeholder={`Search Company`}
-          value={selectedKeys[0] as string}
-          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-          onPressEnter={() => confirm()}
-          style={{ marginBottom: 8, display: 'block' }}
-        />
-        <Space>
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            icon={<Search size={14} />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
-          <Button
-            onClick={() => {
-              clearFilters && clearFilters();
-              confirm();
-            }}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Reset
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered) => (
-      <Search size={16} color={filtered ? '#0073ea' : undefined} />
-    ),
-    onFilter: (value, record) =>
-      record.clientDetails.companyName.toLowerCase().includes((value as string).toLowerCase()),
-  });
+  const chartData = data.map((p, index) => ({
+    name: p.clientDetails.companyName,
+    value: 1,
+    status: p.status,
+    timeline: `${new Date(p.timeline.startDate).toLocaleDateString()} - ${new Date(p.timeline.endDate).toLocaleDateString()}`,
+    color: COLORS[index % COLORS.length],
+  }));
 
-  const columns: ColumnsType<ProjectType> = [
-    {
-      title: "Company Name",
-      dataIndex: ["clientDetails", "companyName"],
-      key: "companyName",
-      ...getCustomFilterProps("companyName"),
-      render: (text) => <span style={{ fontWeight: 600 }}>{text}</span>,
-    },
-    {
-      title: "Email",
-      dataIndex: ["clientDetails", "email"],
-      key: "email",
-    },
-    {
-      title: "Requested Features",
-      key: "features",
-      render: (_, record) => {
-        const feats = record.features;
-        const requested = Object.entries(feats)
-          .filter(([_, value]) => value === true)
-          .map(([key]) => key.replace(/([A-Z])/g, ' $1').trim());
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const { name, status, timeline } = payload[0].payload;
+      return (
+        <div style={{
+          background: "#fff",
+          padding: "10px 14px",
+          border: "1px solid #f0f0f0",
+          borderRadius: 8,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+        }}>
+          <div style={{ fontWeight: 600, color: "#111827", marginBottom: 4 }}>{name}</div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            <span style={{ fontWeight: 500 }}>Status:</span> {status}
+          </div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            <span style={{ fontWeight: 500 }}>Timeline:</span> {timeline}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
-        if (requested.length === 0) return <Tag color="error">None</Tag>;
-        return requested.map((feat, i) => (
-          <Tag color="success" key={i} style={{ textTransform: "capitalize", marginBottom: 4 }}>
-            {feat}
-          </Tag>
-        ));
-      },
+  const columns = [
+    {
+      title: "Task",
+      dataIndex: "title",
+      key: "title",
+      render: (text: string) => <Text strong style={{ fontSize: 13 }}>{text}</Text>,
     },
     {
-      title: "Timeline",
-      key: "timeline",
-      sorter: (a, b) => new Date(a.timeline.startDate).getTime() - new Date(b.timeline.startDate).getTime(),
-      render: (_, record) => {
-        if (!record.timeline?.startDate) return "N/A";
-        const start = new Date(record.timeline.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        const end = new Date(record.timeline.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        return <Text>{`${start} — ${end}`}</Text>;
+      title: "Priority",
+      dataIndex: "priority",
+      key: "priority",
+      width: 100,
+      render: (priority: string) => {
+        const colors: any = { Low: "blue", Medium: "orange", High: "volcano", Urgent: "red" };
+        return <Tag color={colors[priority]}>{priority}</Tag>;
       },
     },
     {
       title: "Status",
-      key: "status",
       dataIndex: "status",
-      render: (status, record) => (
-        <Select
-          defaultValue={status}
-          style={{ width: 120 }}
-          variant="borderless"
-          className="report-status-select"
-          onChange={(val) => handleStatusChange(record._id, val)}
-          options={[
-            { value: "Pending", label: <Tag color="default">Pending</Tag> },
-            { value: "Active", label: <Tag color="processing">Active</Tag> },
-            { value: "Completed", label: <Tag color="success">Completed</Tag> },
-          ]}
-        />
-      ),
-    },
-    {
-      title: "Action",
-      key: "action",
-      render: (_, record) => (
-        <Button 
-          type="text" 
-          icon={<Eye size={18} />} 
-          onClick={() => {
-            setSelectedReq(record);
-            setDrawerVisible(true);
-          }}
-        >
-          Report
-        </Button>
-      ),
+      key: "status",
+      width: 110,
+      render: (status: string) => {
+        const colors: any = { Todo: "default", "In Progress": "processing", Done: "success", Cancelled: "error" };
+        return <Tag color={colors[status]}>{status}</Tag>;
+      },
     },
   ];
 
   return (
-    <>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Dashboard</Title>
-        <Text type="secondary">Welcome back. Here is your overview.</Text>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100%" }}>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div>
+          <Title level={3} style={{ margin: 0 }}>Dashboard Overview</Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>Welcome back. Here is your overview.</Text>
+        </div>
       </div>
 
-      <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card variant="borderless" style={{ borderRadius: 12 }}>
-            <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic 
-                title="Completed" 
-                value={stats.completed} 
-                prefix={<CheckCircle size={20} color="#52c41a" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#52c41a" }} 
-              />
-            </Skeleton>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card variant="borderless" style={{ borderRadius: 12 }}>
-            <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic 
-                title="Active" 
-                value={stats.active} 
-                prefix={<Activity size={20} color="#1890ff" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#1890ff" }} 
-              />
-            </Skeleton>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card variant="borderless" style={{ borderRadius: 12 }}>
-            <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic 
-                title="Pending" 
-                value={stats.pending} 
-                prefix={<Clock size={20} color="#8c8c8c" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#8c8c8c" }} 
-              />
-            </Skeleton>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card variant="borderless" style={{ borderRadius: 12 }}>
-            <Skeleton loading={loading} active paragraph={{ rows: 1 }}>
-              <Statistic 
-                title="Overdue" 
-                value={stats.overdue} 
-                prefix={<AlertCircle size={20} color="#ff4d4f" style={{ marginRight: 8 }} />} 
-                valueStyle={{ fontWeight: 600, color: "#ff4d4f" }} 
-              />
-            </Skeleton>
-          </Card>
-        </Col>
-      </Row>
+      <Skeleton loading={loading} active paragraph={{ rows: 4 }} style={{ flex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <Row gutter={[16, 16]}>
+            {[
+              {
+                label: "Total Projects",
+                value: statusCounts.total,
+                color: "#00897b",
+                bg: "#f0fdfa",
+                icon: <ProjectOutlined style={{ fontSize: 22, color: "#00897b" }} />,
+              },
+              {
+                label: "Active",
+                value: statusCounts.active,
+                color: "#3b82f6",
+                bg: "#eff6ff",
+                icon: <SyncOutlined style={{ fontSize: 22, color: "#3b82f6" }} />,
+              },
+              {
+                label: "Pending",
+                value: statusCounts.pending,
+                color: "#f59e0b",
+                bg: "#fffbeb",
+                icon: <ClockCircleOutlined style={{ fontSize: 22, color: "#f59e0b" }} />,
+              },
+              {
+                label: "Completed",
+                value: statusCounts.completed,
+                color: "#10b981",
+                bg: "#ecfdf5",
+                icon: <CheckCircleOutlined style={{ fontSize: 22, color: "#10b981" }} />,
+              },
+            ].map((card) => (
+              <Col xs={24} sm={12} lg={6} key={card.label}>
+                <Card
+                  variant="borderless"
+                  style={{
+                    borderRadius: 12,
+                    background: card.bg,
+                    border: `1px solid ${card.color}22`,
+                  }}
+                  styles={{ body: { padding: "12px 16px" } }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      {card.icon}
+                    </div>
+                    <div>
+                      <div
+                        style={{ fontSize: 22, fontWeight: 700, color: card.color, lineHeight: 1 }}
+                      >
+                        {card.value}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                        {card.label}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
 
-      <Card variant="borderless" style={{ borderRadius: 12, padding: 0 }} styles={{ body: { padding: '0 24px 24px' } }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 0 16px' }}>
-          <Title level={5} style={{ margin: 0 }}>Recent Client Projects</Title>
-        </div>
-        <Skeleton loading={loading} active paragraph={{ rows: 6 }}>
-          <Table 
-            columns={columns} 
-            dataSource={data} 
-            rowKey="_id" 
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 1000 }}
-          />
-        </Skeleton>
-      </Card>
-
-      <Drawer
-        title={
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 32 }}>
-            <span>Project Report</span>
-            <Button size="small" type="primary" onClick={() => window.print()}>Print</Button>
-          </div>
-        }
-        width={600}
-        onClose={() => setDrawerVisible(false)}
-        open={drawerVisible}
-        destroyOnClose
-      >
-        {selectedProject && (
-          <div className="report-printable-area">
-            <Typography.Title level={4}>{selectedProject.clientDetails.companyName}</Typography.Title>
-            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-              Status: <Tag color={selectedProject.status === 'Completed' ? 'success' : selectedProject.status === 'Active' ? 'processing' : 'default'}>{selectedProject.status}</Tag>
-            </Typography.Text>
-
-            <Descriptions title="Client Summary" bordered column={1} style={{ marginBottom: 32 }}>
-              <Descriptions.Item label="Contact Person">{selectedProject.clientDetails.contactPerson || "N/A"}</Descriptions.Item>
-              <Descriptions.Item label="Email Address">{selectedProject.clientDetails.email}</Descriptions.Item>
-              <Descriptions.Item label="Project Timeline">
-                {selectedProject.timeline?.startDate ? `${new Date(selectedProject.timeline.startDate).toLocaleDateString()} to ${new Date(selectedProject.timeline.endDate).toLocaleDateString()}` : "N/A"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Record Created">
-                {new Date(selectedProject.createdAt).toLocaleString()}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions title="Feature Matrix" bordered column={1} style={{ marginBottom: 32 }}>
-              <Descriptions.Item label="Dashboard">{selectedProject.features.dashboard ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>}</Descriptions.Item>
-              <Descriptions.Item label="Web Application">{selectedProject.features.webApp ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>}</Descriptions.Item>
-              <Descriptions.Item label="Android Mobile App">{selectedProject.features.androidApp ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>}</Descriptions.Item>
-              <Descriptions.Item label="iOS Mobile App">{selectedProject.features.iosApp ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>}</Descriptions.Item>
-              <Descriptions.Item label="Admin Panel">{selectedProject.features.adminPanel ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>}</Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions title="Extra Add-ons & Notes" bordered column={1}>
-              <Descriptions.Item label="Notes">
-                <div style={{ whiteSpace: "pre-wrap", padding: 8 }}>
-                  {selectedProject.extraAddOns || <Text type="secondary">No additional notes provided.</Text>}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={10} style={{ marginBottom: isDesktop ? 0 : 16 }}>
+              <Card
+                title={<span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}><ProjectOutlined /> Project Distribution</span>}
+                variant="borderless"
+                style={{
+                  height: "100%",
+                  minHeight: 380,
+                  borderRadius: 12,
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #f0f0f0",
+                  display: "flex",
+                  flexDirection: "column"
+                }}
+                styles={{
+                  body: {
+                    flex: 1,
+                    padding: "20px 10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    position: "relative",
+                    minHeight: 280
+                  }
+                }}
+              >
+                <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 300, position: "relative", minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={85}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ReTooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{
+                    textAlign: "center",
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    pointerEvents: "none"
+                  }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1 }}>{data.length}</div>
+                    <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 500, marginTop: 4 }}>Companies</div>
+                  </div>
                 </div>
-              </Descriptions.Item>
-            </Descriptions>
-          </div>
-        )}
-      </Drawer>
-    </>
+              </Card>
+            </Col>
+
+            <Col xs={24} lg={14}>
+              <Card
+                title={<span style={{ fontSize: 14, fontWeight: 600 }}><CalendarOutlined /> Today's Schedule</span>}
+                variant="borderless"
+                style={{
+                  height: "100%",
+                  minHeight: 400,
+                  borderRadius: 12,
+                  background: "#fff",
+                  boxShadow: "0 1px 10px rgba(0,0,0,0.05)",
+                  border: "1px solid #f0f0f0"
+                }}
+                styles={{
+                  body: {
+                    flex: 1,
+                    padding: 0,
+                    overflow: "auto"
+                  }
+                }}
+              >
+                <Table
+                  columns={columns}
+                  dataSource={tasks}
+                  pagination={false}
+                  rowKey="_id"
+                  size="small"
+                  scroll={{ x: 'max-content' }}
+                  locale={{ emptyText: <Text type="secondary" style={{ fontSize: 12 }}>No tasks for today</Text> }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </div>
+      </Skeleton >
+    </div >
   );
 }

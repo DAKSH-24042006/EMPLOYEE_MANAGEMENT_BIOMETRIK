@@ -2,42 +2,41 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyJwt } from "@/lib/auth";
 
-// Define which routes to protect.
-// Here we protect /dashboard and /requirement
-const protectedPaths = ["/dashboard", "/projects", "/history"];
-
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  // Extract pathname for logging
+  const pathname = new URL(req.url).pathname;
+  const tokenCookie = req.cookies.get("token");
+  const token = tokenCookie?.value;
 
-  // Check if we strictly match a protected route
-  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
+  console.log(`[Middleware] Path: ${pathname}, Token present: ${!!token}`);
 
-  if (isProtectedPath) {
-    // Attempt to extract the JWT token from cookies
-    const tokenCookie = req.cookies.get("token");
-    const token = tokenCookie?.value;
-
-    if (!token) {
-      const loginUrl = new URL("/auth/login", req.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Verify JWT at the Edge
-    const payload = await verifyJwt(token);
-
-    if (!payload) {
-      // Invalid/Expired token
-      const loginUrl = new URL("/auth/login", req.url);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Optionally: Route specific Role-Based Access Control
-    // e.g. if (pathname.startsWith("/requirement") && payload.role !== "ADMIN") return NextResponse.redirect("/unauthorized")
-
+  if (pathname.startsWith("/.well-known/")) {
     return NextResponse.next();
   }
 
+  if (!token) {
+    console.log(`[Middleware] No token found, redirecting to login with callback: ${pathname}`);
+    const loginUrl = new URL("/auth/login", req.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+
+  // Verify JWT at the Edge
+  const payload = await verifyJwt(token);
+  console.log(`[Middleware] Token verification result: ${payload ? "Valid" : "Invalid"}`);
+
+  if (!payload) {
+    // Invalid/Expired token
+    console.log(`[Middleware] Invalid token, redirecting to login`);
+    const loginUrl = new URL("/auth/login", req.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Optionally: Route specific Role-Based Access Control
+  // e.g. if (pathname.startsWith("/requirement") && payload.role !== "ADMIN") return NextResponse.redirect("/unauthorized")
+
+  console.log(`[Middleware] User authorized: ${payload.userId} (${payload.role})`);
   return NextResponse.next();
 }
 
@@ -51,6 +50,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - auth/login (our public login route)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|auth/login).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|auth/login|\\.well-known).*)",
   ],
 };
