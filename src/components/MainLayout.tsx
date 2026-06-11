@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, Grid, Drawer } from "antd";
+import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, Grid, Drawer, ConfigProvider, Badge, List, message, Card } from "antd";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,11 +15,137 @@ import {
   Briefcase,
   Menu as MenuIcon,
   LogOut,
+  Check,
+  Bell,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
 import logo from '../../public/Biometrik_New_Logo.png'
 
+// Notification Dropdown Component
+function NotificationDropdown() {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
+  const fetchNotifications = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/notifications");
+      const json = await res.json();
+      if (res.ok) {
+        setNotifications(json.data);
+        setUnreadCount(json.data.filter((n: any) => !n.read).length);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Poll notifications every 60 seconds
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkAsRead = async (id: string, projectId?: string) => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: id }),
+      });
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n._id === id ? { ...n, read: true } : n))
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+        if (projectId) {
+          router.push(`/projects/${projectId}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        setUnreadCount(0);
+        message.success("All notifications marked as read");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const notificationMenu = (
+    <Card
+      title="Notifications"
+      extra={
+        <Button type="link" size="small" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
+          Mark all as read
+        </Button>
+      }
+      variant="borderless"
+      styles={{ body: { padding: 0 } }}
+      style={{ width: 350, maxHeight: 400, overflowY: "auto", boxShadow: "0 6px 16px rgba(0,0,0,0.15)", borderRadius: 8 }}
+    >
+      <List
+        loading={loading}
+        dataSource={notifications}
+        locale={{ emptyText: "No notifications" }}
+        renderItem={(item) => (
+          <List.Item
+            onClick={() => handleMarkAsRead(item._id, item.projectId)}
+            style={{
+              padding: "12px 16px",
+              cursor: "pointer",
+              backgroundColor: item.read ? "transparent" : "#f0f7ff",
+              borderBottom: "1px solid #f0f0f0",
+              transition: "background 0.3s",
+            }}
+            className="hover:bg-gray-50"
+          >
+            <List.Item.Meta
+              title={
+                <span style={{ fontWeight: item.read ? 400 : 600, fontSize: 13, color: "#222" }}>
+                  {item.title}
+                </span>
+              }
+              description={
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 12, color: "#666" }}>{item.message}</span>
+                  <span style={{ fontSize: 10, color: "#aaa" }}>
+                    {new Date(item.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    </Card>
+  );
+
+  return (
+    <Dropdown dropdownRender={() => notificationMenu} trigger={["click"]} placement="bottomRight">
+      <Badge count={unreadCount} size="small" offset={[-2, 4]} style={{ cursor: "pointer" }}>
+        <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
+      </Badge>
+    </Dropdown>
+  );
+}
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -99,7 +225,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
     return true;
   });
-
 
   // Breadcrumb generator mapping URL tokens naturally
   const pathSnippets = pathname.split("/").filter((i) => i);
@@ -322,10 +447,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 marginRight: 8,
               }}
             />
-
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginLeft: 16 }}>
+            {/* Notification Bell Dropdown */}
+            <NotificationDropdown />
+
             <Dropdown
               menu={{
                 items: [
@@ -375,7 +502,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     <span style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.45)", textTransform: "capitalize" }}>
                       {user?.role === Role.SALES ? "Sales" : (user?.role?.toLowerCase().replace("_", " ") || "User")}
                     </span>
-
                   </div>
                 )}
               </div>

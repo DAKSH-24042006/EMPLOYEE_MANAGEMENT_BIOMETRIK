@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { Typography, Card, Avatar, Row, Col, Divider, Button, Modal, Form, Input, message, Grid } from "antd";
-import { User, Mail, Phone, MapPin, Lock, KeyRound } from "lucide-react";
+import React, { useState, useEffect, Suspense } from "react";
+import { Typography, Card, Avatar, Row, Col, Divider, Button, Modal, Form, Input, message, Grid, Tag, Space } from "antd";
+import { User, Mail, Phone, MapPin, Lock, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
 
-export default function ProfilePage() {
+function ProfileContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<{
@@ -20,15 +23,39 @@ export default function ProfilePage() {
   const screens = Grid.useBreakpoint();
   const [mounted, setMounted] = useState(false);
 
-  React.useEffect(() => {
+  // Google Calendar Integration states
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState("");
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  // Edit Profile states
+  const [editProfileForm] = Form.useForm();
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [profileUpdating, setProfileUpdating] = useState(false);
+
+  useEffect(() => {
     setMounted(true);
+    fetchUserData();
   }, []);
 
   const isMobile = mounted && !screens.md;
 
-  React.useEffect(() => {
-    fetchUserData();
-  }, []);
+  // Check URL parameters for OAuth status callbacks
+  useEffect(() => {
+    const connected = searchParams.get("google_connected");
+    const error = searchParams.get("google_error");
+
+    if (connected === "true") {
+      message.success("Google Calendar successfully connected!");
+      router.replace("/profile");
+    } else if (error) {
+      message.error(`Google Calendar connection failed: ${error}`);
+      router.replace("/profile");
+    }
+
+    checkGoogleStatus();
+  }, [searchParams, router]);
 
   const fetchUserData = async () => {
     try {
@@ -39,6 +66,96 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error("Failed to fetch user data:", error);
+    }
+  };
+
+  const showEditModal = () => {
+    if (user) {
+      editProfileForm.setFieldsValue({
+        name: user.name,
+        phoneNumber: user.phoneNumber || "",
+        location: user.location || "",
+      });
+    }
+    setIsEditModalVisible(true);
+  };
+
+  const handleEditCancel = () => {
+    setIsEditModalVisible(false);
+    editProfileForm.resetFields();
+  };
+
+  const onUpdateProfile = async (values: any) => {
+    setProfileUpdating(true);
+    try {
+      const response = await fetch("/api/user/me", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: values.name,
+          phoneNumber: values.phoneNumber,
+          location: values.location,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        message.success("Profile updated successfully!");
+        setIsEditModalVisible(false);
+        fetchUserData(); // Reload profile details
+      } else {
+        message.error(data.error || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Update profile error:", error);
+      message.error("Something went wrong. Please try again later.");
+    } finally {
+      setProfileUpdating(false);
+    }
+  };
+
+  const checkGoogleStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const res = await fetch("/api/auth/google/status");
+      const data = await res.json();
+      if (res.ok && data.connected) {
+        setGoogleConnected(true);
+        setGoogleEmail(data.email);
+      } else {
+        setGoogleConnected(false);
+        setGoogleEmail("");
+      }
+    } catch (error) {
+      console.error("Failed to fetch Google OAuth status", error);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  const handleConnect = () => {
+    window.location.href = "/api/auth/google/connect";
+  };
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/auth/google/disconnect", { method: "POST" });
+      if (res.ok) {
+        message.success("Google Calendar successfully disconnected!");
+        setGoogleConnected(false);
+        setGoogleEmail("");
+      } else {
+        const data = await res.json();
+        message.error(data.error || "Failed to disconnect Google Calendar");
+      }
+    } catch (error) {
+      message.error("An error occurred during disconnection");
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -97,23 +214,35 @@ export default function ProfilePage() {
           <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
           <Text type="secondary">Manage your personal information and preferences.</Text>
         </div>
-        <Button
-          type="primary"
-          icon={<Lock size={16} />}
-          style={{
-            backgroundColor: "#00897b",
-            borderColor: "#00897b",
-            height: 40,
-            borderRadius: 8,
-            boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
-          }}
-          onClick={showModal}
-        >
-          Change Password
-        </Button>
+        <Space size={12}>
+          <Button
+            icon={<User size={16} />}
+            onClick={showEditModal}
+            style={{
+              height: 40,
+              borderRadius: 8,
+            }}
+          >
+            Edit Profile
+          </Button>
+          <Button
+            type="primary"
+            icon={<Lock size={16} />}
+            style={{
+              backgroundColor: "#00897b",
+              borderColor: "#00897b",
+              height: 40,
+              borderRadius: 8,
+              boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
+            }}
+            onClick={showModal}
+          >
+            Change Password
+          </Button>
+        </Space>
       </div>
 
-      <div style={{ paddingRight: 8 }}>
+      <div style={{ paddingRight: 8, overflowY: "auto", flex: "1 1 auto" }}>
         <Row gutter={isMobile ? [16, 16] : [24, 24]}>
           <Col xs={24} md={8}>
             <Card
@@ -144,69 +273,163 @@ export default function ProfilePage() {
               </Text>
             </Card>
           </Col>
+
           <Col xs={24} md={16}>
-            <Card
-              variant="borderless"
-              title="Personal Details"
-              style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", height: "100%" }}
-              styles={{ body: { padding: isMobile ? "16px" : "24px" } }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                    <Mail size={18} color="#00897b" />
+            <Space direction="vertical" size={24} style={{ width: "100%" }}>
+              <Card variant="borderless" title="Personal Details" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Mail size={18} color="#676879" />
+                    <Text>{user?.email}</Text>
                   </div>
-                  <div>
-                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Email Address</Text>
-                    <Text strong>{user?.email || "..."}</Text>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Phone size={18} color="#676879" />
+                    <Text>{user?.phoneNumber || "Not specified"}</Text>
                   </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                    <Phone size={18} color="#00897b" />
-                  </div>
-                  <div>
-                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Phone Number</Text>
-                    <Text strong>{user?.phoneNumber || "Not provided"}</Text>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <MapPin size={18} color="#676879" />
+                    <Text>{user?.location || "Not specified"}</Text>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-                    <MapPin size={18} color="#00897b" />
-                  </div>
-                  <div>
-                    <Text type="secondary" style={{ display: "block", fontSize: "12px" }}>Location</Text>
-                    <Text strong>{user?.location || "Not provided"}</Text>
-                  </div>
+                <Divider />
+                <Title level={5}>Bio</Title>
+                <Text>Lead {user?.role?.toLowerCase().replace("_", " ") || "user"} for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.</Text>
+              </Card>
+
+              <Card 
+                variant="borderless" 
+                title={
+                  <Space>
+                    <Calendar size={18} color="#00897b" />
+                    <span>Google Calendar Integration</span>
+                  </Space>
+                }
+                style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <Text>
+                    Sync your tasks, clarification deadlines, and milestones directly to your Google Calendar.
+                  </Text>
+                  
+                  {checkingStatus ? (
+                    <Text type="secondary">Checking connection status...</Text>
+                  ) : googleConnected ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <CheckCircle2 size={20} color="#52c41a" />
+                        <Text style={{ fontWeight: 500 }}>
+                          Status: <Tag color="success">Connected</Tag>
+                        </Text>
+                      </div>
+                      <Text type="secondary" style={{ marginLeft: 32 }}>
+                        Linked to: <strong>{googleEmail}</strong>
+                      </Text>
+                      <div>
+                        <Button 
+                          danger 
+                          onClick={handleDisconnect} 
+                          loading={disconnecting}
+                          style={{ marginLeft: 32 }}
+                        >
+                          Disconnect Calendar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <XCircle size={20} color="#ff4d4f" />
+                        <Text style={{ fontWeight: 500 }}>
+                          Status: <Tag color="default">Not Connected</Tag>
+                        </Text>
+                      </div>
+                      <div>
+                        <Button 
+                          type="primary" 
+                          onClick={handleConnect} 
+                          style={{ backgroundColor: "#0073ea", border: "none", marginLeft: 32 }}
+                        >
+                          Connect Google Calendar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <Divider />
-            </Card>
+              </Card>
+            </Space>
           </Col>
         </Row>
       </div>
 
       <Modal
-        title={
-          <div style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: 10 }}>
-            <div style={{ backgroundColor: "#f0fdfa", padding: "8px", borderRadius: "8px" }}>
-              <KeyRound size={20} color="#00897b" />
-            </div>
-            <span>Change Password</span>
+        title="Edit Profile"
+        open={isEditModalVisible}
+        onCancel={handleEditCancel}
+        footer={null}
+        destroyOnClose
+        style={{ borderRadius: 12, overflow: "hidden" }}
+      >
+        <Form
+          form={editProfileForm}
+          layout="vertical"
+          onFinish={onUpdateProfile}
+          requiredMark={false}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item
+            name="name"
+            label="Full Name"
+            rules={[{ required: true, message: "Please enter your name" }]}
+          >
+            <Input placeholder="Enter your full name" />
+          </Form.Item>
+
+          <Form.Item
+            name="phoneNumber"
+            label="Phone Number"
+            rules={[
+              { required: true, message: "Please enter your phone number" },
+              { pattern: /^[0-9]+$/, message: "Phone number must contain only digits" }
+            ]}
+          >
+            <Input placeholder="Enter your phone number" />
+          </Form.Item>
+
+          <Form.Item
+            name="location"
+            label="Location"
+          >
+            <Input placeholder="Enter your location (e.g. Noida, Delhi)" />
+          </Form.Item>
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
+            <Button onClick={handleEditCancel}>Cancel</Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={profileUpdating}
+              style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
+            >
+              Save Changes
+            </Button>
           </div>
-        }
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Change Password"
         open={isModalVisible}
         onCancel={handleCancel}
         footer={null}
-        centered
-        width={400}
-        styles={{ body: { paddingTop: 16 } }}
+        destroyOnClose
+        style={{ borderRadius: 12, overflow: "hidden" }}
       >
         <Form
           form={form}
           layout="vertical"
           onFinish={onFinish}
           requiredMark={false}
+          style={{ marginTop: 16 }}
         >
           <Form.Item
             name="currentPassword"
@@ -260,5 +483,13 @@ export default function ProfilePage() {
         </Form>
       </Modal>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div>Loading profile...</div>}>
+      <ProfileContent />
+    </Suspense>
   );
 }

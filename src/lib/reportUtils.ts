@@ -118,98 +118,153 @@ export const generateProjectPDF = async (project: any) => {
     doc.text(`Company:`, 20, 85);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails.companyName}`, 55, 85);
+    doc.text(`${project.clientDetails?.companyName || "N/A"}`, 55, 85);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`Contact:`, 20, 93);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails.contactPerson || "Not Provided"}`, 55, 93);
+    doc.text(`${project.clientDetails?.contactPerson || "Not Provided"}`, 55, 93);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`Email:`, 20, 101);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails.email}`, 55, 101);
+    doc.text(`${project.clientDetails?.email || "Not Provided"}`, 55, 101);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(75, 85, 99);
+    doc.text(`Contact No:`, 20, 109);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`${project.clientDetails?.contactNumber || "Not Provided"}`, 55, 109);
 
     // Project Status & Timeline
     doc.setFontSize(16);
     doc.setTextColor(31, 41, 55);
     doc.setFont("helvetica", "bold");
-    doc.text("2. Logistics & Timeline", 15, 118);
+    doc.text("2. Logistics & Timeline", 15, 126);
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
-    doc.text(`Current Status:`, 20, 128);
+    doc.text(`Current Status:`, 20, 136);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 137, 123);
-    doc.text(`${project.status.toUpperCase()}`, 55, 128);
+    doc.text(`${(project.status || "Pending").toUpperCase()}`, 55, 136);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
-    doc.text(`Start Date:`, 20, 136);
+    doc.text(`Start Date:`, 20, 144);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${dayjs(project.timeline.startDate).format("DD MMMM YYYY")}`, 55, 136);
+    doc.text(`${project.timeline?.startDate ? dayjs(project.timeline.startDate).format("DD MMMM YYYY") : "N/A"}`, 55, 144);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
-    doc.text(`End Date:`, 20, 144);
+    doc.text(`End Date:`, 20, 152);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${dayjs(project.timeline.endDate).format("DD MMMM YYYY")}`, 55, 144);
+    doc.text(`${project.timeline?.endDate ? dayjs(project.timeline.endDate).format("DD MMMM YYYY") : "N/A"}`, 55, 152);
 
-    // Features Section
-    doc.setFontSize(16);
-    doc.setTextColor(31, 41, 55);
-    doc.setFont("helvetica", "bold");
-    doc.text("3. Selected Requirements", 15, 161);
-    
-    let currentY = 171;
-    const selectedFeatures = Object.entries(project.features)
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(75, 85, 99);
+    doc.text(`Est. Budget:`, 20, 160);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`${project.budget || "Not Specified"}`, 55, 160);
+
+    let currentY = 175;
+
+    // Helper to check for page break
+    const checkPageBreak = (neededHeight: number) => {
+      if (currentY + neededHeight > pageHeight - 20) {
+        doc.addPage();
+        addWatermark(doc);
+        currentY = 25;
+        return true;
+      }
+      return false;
+    };
+
+    // Helper to print section header
+    const printSectionHeader = (title: string) => {
+      checkPageBreak(15);
+      doc.setFontSize(14);
+      doc.setTextColor(31, 41, 55);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, 15, currentY);
+      currentY += 8;
+    };
+
+    // Helper to print body text block
+    const printBodyText = (text: string) => {
+      if (!text) {
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(156, 163, 175);
+        checkPageBreak(7);
+        doc.text("Not specified", 20, currentY);
+        currentY += 10;
+        return;
+      }
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(55, 65, 81);
+      const splitText = doc.splitTextToSize(text, pageWidth - 35);
+      for (const line of splitText) {
+        checkPageBreak(7);
+        doc.text(line, 20, currentY);
+        currentY += 7;
+      }
+      currentY += 6; // Spacing after block
+    };
+
+    // 3. Use Case / Core Objective
+    printSectionHeader("3. Use Case / Core Objective");
+    printBodyText(project.useCase);
+
+    // 4. Target Users
+    printSectionHeader("4. Target Users");
+    printBodyText(project.targetUsers);
+
+    // 5. Selected Scope & Deliverables
+    printSectionHeader("5. Selected Scope & Deliverables");
+    const selectedFeatures = Object.entries(project.features || {})
       .filter(([_, val]) => val)
       .map(([key, _]) => FEATURE_LABELS[key] || key);
 
     if (selectedFeatures.length > 0) {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(31, 41, 55);
+      doc.setTextColor(55, 65, 81);
       
       selectedFeatures.forEach((feature) => {
-        if (currentY > pageHeight - 30) {
-          doc.addPage();
-          addWatermark(doc);
-          currentY = 25;
-        }
+        checkPageBreak(7);
         doc.text(`• ${feature}`, 22, currentY);
-        currentY += 8;
+        currentY += 7;
       });
+      currentY += 6;
     } else {
       doc.setFontSize(11);
-      doc.setTextColor(107, 114, 128);
-      doc.text("No specific features selected for this project.", 22, 171);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(156, 163, 175);
+      checkPageBreak(7);
+      doc.text("No specific features selected.", 20, currentY);
       currentY += 10;
     }
 
-    // Additional Notes
-    if (project.extraAddOns) {
-      if (currentY > pageHeight - 50) {
-        doc.addPage();
-        addWatermark(doc);
-        currentY = 25;
-      }
-      
-      doc.setFontSize(16);
-      doc.setTextColor(31, 41, 55);
-      doc.setFont("helvetica", "bold");
-      doc.text("4. Additional Notes", 15, currentY + 10);
-      
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(55, 65, 81);
-      
-      const splitNotes = doc.splitTextToSize(project.extraAddOns, pageWidth - 35);
-      doc.text(splitNotes, 20, currentY + 22);
-    }
+    // 6. Functional Requirements
+    printSectionHeader("6. Functional Requirements");
+    printBodyText(project.functionalRequirements);
+
+    // 7. Non-Functional Requirements
+    printSectionHeader("7. Non-Functional Requirements");
+    printBodyText(project.nonFunctionalRequirements);
+
+    // 8. Integrations Needed
+    printSectionHeader("8. Integrations Needed");
+    printBodyText(project.integrations);
+
+    // 9. Extra Add-ons / Client Notes
+    printSectionHeader("9. Extra Add-ons / Client Notes");
+    printBodyText(project.extraAddOns);
 
     // Footer with Page Number
     const pageCount = (doc as any).internal.getNumberOfPages();
@@ -226,7 +281,7 @@ export const generateProjectPDF = async (project: any) => {
     }
 
     // Return the doc instead of saving directly for preview functionality
-    const filename = `Report_${project.clientDetails.companyName.replace(/\s+/g, "_")}.pdf`;
+    const filename = `Report_${(project.clientDetails?.companyName || "Project").replace(/\s+/g, "_")}.pdf`;
     return { doc, filename };
     
   } catch (error) {

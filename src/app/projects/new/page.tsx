@@ -17,7 +17,8 @@ import {
   Breadcrumb,
   ConfigProvider,
   theme,
-  Checkbox
+  Select,
+  Upload
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -40,12 +41,13 @@ import {
   SecurityScanOutlined,
   CloudOutlined,
   DisconnectOutlined,
-  HddOutlined
+  HddOutlined,
 } from "@ant-design/icons";
+import { Paperclip } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
@@ -112,7 +114,7 @@ const FEATURES = [
   {
     key: "online",
     label: "Online",
-    description: "Active Intenet",
+    description: "Active Internet",
     icon: <CloudOutlined />
   },
   {
@@ -220,13 +222,12 @@ const FeatureItem: React.FC<FeatureItemProps> = ({ checked, onChange, label, des
   );
 };
 
-
 export default function NewProjectPage() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [mounting, setMounting] = useState(true);
+  const [fileList, setFileList] = useState<any[]>([]);
   const router = useRouter();
-
   const { message } = App.useApp();
 
   useEffect(() => {
@@ -248,6 +249,7 @@ export default function NewProjectPage() {
     setSubmitting(true);
 
     try {
+      // 1. Create the project
       const response = await fetch("/api/projects/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,12 +258,44 @@ export default function NewProjectPage() {
 
       const data = await response.json();
 
-      if (response.ok) {
-        message.success("Project created successfully!");
-        router.push("/projects");
-      } else {
+      if (!response.ok) {
         message.error(data.error || "Failed to create project");
+        setSubmitting(false);
+        return;
       }
+
+      const projectId = data.data?._id || data._id;
+
+      // 2. Upload attachments sequentially if selected
+      if (fileList.length > 0) {
+        message.loading({ content: "Uploading file attachments...", key: "uploading" });
+        
+        let uploadCount = 0;
+        for (const fileObj of fileList) {
+          const formData = new FormData();
+          formData.append("file", fileObj.originFileObj || fileObj);
+
+          try {
+            const uploadRes = await fetch(`/api/projects/${projectId}/attachments`, {
+              method: "POST",
+              body: formData,
+            });
+            if (uploadRes.ok) {
+              uploadCount++;
+            }
+          } catch (err) {
+            console.error("Failed to upload file during creation", err);
+          }
+        }
+        
+        message.success({ content: `Project created and ${uploadCount} attachments uploaded!`, key: "uploading" });
+      } else {
+        message.success("Project created successfully!");
+      }
+
+      form.resetFields();
+      setFileList([]);
+      router.push(`/projects/${projectId}`);
     } catch (error) {
       console.error(error);
       message.error("Something went wrong. Please try again later.");
@@ -296,7 +330,7 @@ export default function NewProjectPage() {
             Create New Project
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
-            Set up building the client details and select required application features.
+            Set up the client details, roadmap timeline, and select required application features.
           </Text>
         </div>
         <Link href="/projects">
@@ -325,9 +359,10 @@ export default function NewProjectPage() {
               offline: false,
               cloud: false,
               onPremise: false,
+              priority: "Medium",
             }}
           >
-            {/* Section 1: Client Details */}
+            {/* Section 1: Project Identity & Client Details */}
             <Card
               variant="borderless"
               style={{
@@ -350,11 +385,20 @@ export default function NewProjectPage() {
                 }}>
                   <UserOutlined />
                 </div>
-                <Title level={4} style={{ margin: 0 }}>Client Information</Title>
+                <Title level={4} style={{ margin: 0 }}>Client & Project Identity</Title>
               </div>
 
+              <Form.Item
+                name="title"
+                label={<span style={{ fontWeight: 500 }}>Requirement / Project Title</span>}
+                rules={[{ required: true, message: "Requirement title is required" }]}
+                style={{ marginBottom: 24 }}
+              >
+                <Input size="large" placeholder="E.g., Android Rider Delivery App" />
+              </Form.Item>
+
               <Row gutter={24}>
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="companyName"
                     label={<span style={{ fontWeight: 500 }}>Company Name</span>}
@@ -364,7 +408,7 @@ export default function NewProjectPage() {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="contactPerson"
                     label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
@@ -375,7 +419,7 @@ export default function NewProjectPage() {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="email"
                     label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
@@ -388,8 +432,10 @@ export default function NewProjectPage() {
                     <Input size="large" placeholder="contact@company.com" />
                   </Form.Item>
                 </Col>
+              </Row>
 
-                <Col xs={24} md={6}>
+              <Row gutter={24} style={{ marginTop: 16 }}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="contactNumber"
                     label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
@@ -459,12 +505,12 @@ export default function NewProjectPage() {
               </Row>
             </Card>
 
-            {/* Section 3: Delivery Details */}
+            {/* Section 3: Delivery Details & Scope Specifications */}
             <Card
               variant="borderless"
               style={{
                 borderRadius: 16,
-                marginBottom: 32,
+                marginBottom: 24,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 border: "1px solid #f0f0f0"
               }}
@@ -482,54 +528,48 @@ export default function NewProjectPage() {
                 }}>
                   <CalendarOutlined />
                 </div>
-                <Title level={4} style={{ margin: 0 }}>Project Roadmap</Title>
+                <Title level={4} style={{ margin: 0 }}>Project Roadmap & Scope</Title>
               </div>
 
               <Row gutter={24}>
                 <Col xs={24} md={12}>
                   <Form.Item
-                    label={<span style={{ fontWeight: 500 }}>Target Timeline</span>}
-                    required
-                    style={{ marginBottom: 0 }}
+                    name="timeline"
+                    label={<span style={{ fontWeight: 500 }}>Target Timeline Range</span>}
+                    rules={[{ required: true, message: "Timeline range is required" }]}
                   >
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Item
-                          name="startDate"
-                          rules={[{ required: true, message: 'Select start date' }]}
-                        >
-                          <DatePicker
-                            format="DD/MM/YYYY"
-                            size="large"
-                            style={{ width: '100%' }}
-                            placeholder="Start date"
-                            inputReadOnly={true}
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item
-                          name="endDate"
-                          rules={[{ required: true, message: 'Select end date' }]}
-                          dependencies={['startDate']}
-                        >
-                          <DatePicker
-                            format="DD/MM/YYYY"
-                            size="large"
-                            style={{ width: '100%' }}
-                            placeholder="End date"
-                            inputReadOnly={true}
-                          />
-                        </Form.Item>
-                      </Col>
-                    </Row>
+                    <RangePicker size="large" style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="priority"
+                    label={<span style={{ fontWeight: 500 }}>Priority Level</span>}
+                    rules={[{ required: true }]}
+                  >
+                    <Select size="large" options={[
+                      { label: "Low", value: "Low" },
+                      { label: "Medium", value: "Medium" },
+                      { label: "High", value: "High" },
+                      { label: "Critical", value: "Critical" },
+                    ]} />
                   </Form.Item>
                 </Col>
               </Row>
+            </Card>
 
-              <Divider style={{ margin: "16px 0 24px" }} />
-
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            {/* Section 4: Deep Specifications & Requirements */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
                 <div style={{
                   width: 36,
                   height: 36,
@@ -542,30 +582,111 @@ export default function NewProjectPage() {
                 }}>
                   <FileTextOutlined />
                 </div>
-                <span style={{ fontWeight: 600, fontSize: 16, color: "#374151" }}>Additional Requirements</span>
+                <Title level={4} style={{ margin: 0 }}>Requirements & Use Cases</Title>
               </div>
 
               <Form.Item
-                name="extraAddOns"
-                noStyle
+                name="useCase"
+                label={<span style={{ fontWeight: 500 }}>Use Case & Core Objective</span>}
+                style={{ marginBottom: 20 }}
               >
-                <TextArea
-                  rows={4}
-                  placeholder="Mention any custom integrations like payment gateways, email services, or special security requirements..."
-                  size="large"
-                  style={{ borderRadius: 12 }}
-                />
+                <TextArea rows={3} placeholder="Describe the business problem, target audience, and primary workflow objectives..." size="large" style={{ borderRadius: 12 }} />
+              </Form.Item>
+
+              <Form.Item
+                name="targetUsers"
+                label={<span style={{ fontWeight: 500 }}>Target User Personas</span>}
+                style={{ marginBottom: 20 }}
+              >
+                <TextArea rows={2} placeholder="e.g., Warehouse staff, administrators, third-party delivery agents..." size="large" style={{ borderRadius: 12 }} />
+              </Form.Item>
+
+              <Row gutter={24}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="functionalRequirements"
+                    label={<span style={{ fontWeight: 500 }}>Functional Requirements</span>}
+                  >
+                    <TextArea rows={4} placeholder="List explicit user actions (e.g. login, payment gateway, tracking...)" size="large" style={{ borderRadius: 12 }} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="nonFunctionalRequirements"
+                    label={<span style={{ fontWeight: 500 }}>Non-Functional Requirements</span>}
+                  >
+                    <TextArea rows={4} placeholder="Performance metrics, speed constraints, security requirements..." size="large" style={{ borderRadius: 12 }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={24} style={{ marginTop: 12 }}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="budget"
+                    label={<span style={{ fontWeight: 500 }}>Budget Constraint</span>}
+                  >
+                    <Input placeholder="e.g. $20,000 - $30,000" size="large" style={{ borderRadius: 12 }} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="integrations"
+                    label={<span style={{ fontWeight: 500 }}>System Integrations</span>}
+                  >
+                    <Input placeholder="e.g. Razorpay, SendGrid, SAP ERP, OAuth" size="large" style={{ borderRadius: 12 }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Form.Item
+                name="extraAddOns"
+                label={<span style={{ fontWeight: 500 }}>Extra Deliverables & Scope Add-ons</span>}
+                style={{ marginTop: 12 }}
+              >
+                <TextArea rows={2} placeholder="Any details not captured by the above fields..." size="large" style={{ borderRadius: 12 }} />
               </Form.Item>
             </Card>
 
+            {/* Section 5: Attachments */}
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 16,
+                marginBottom: 32,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "1px solid #f0f0f0"
+              }}
+            >
+              <Title level={5} style={{ marginBottom: 12 }}>Initial File Attachments</Title>
+              <Paragraph type="secondary">Upload client specification PDFs, scope emails, or mockups.</Paragraph>
+              
+              <Upload
+                beforeUpload={(file) => {
+                  setFileList((prev) => [...prev, file]);
+                  return false;
+                }}
+                onRemove={(file) => {
+                  setFileList((prev) => prev.filter((f) => f.uid !== file.uid));
+                }}
+                fileList={fileList}
+                multiple
+              >
+                <Button icon={<Paperclip size={14} />} size="large">Add Document Draft</Button>
+              </Upload>
+            </Card>
+
             {/* Footer Actions */}
-            <div className="footer-actions">
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 16 }}>
+              <Button size="large" onClick={() => { form.resetFields(); setFileList([]); }}>
+                Clear Form
+              </Button>
               <Button
                 type="primary"
                 htmlType="submit"
                 size="large"
                 loading={submitting}
-                className="action-btn primary"
+                style={{ padding: "0 32px", backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }}
               >
                 Create Project
               </Button>

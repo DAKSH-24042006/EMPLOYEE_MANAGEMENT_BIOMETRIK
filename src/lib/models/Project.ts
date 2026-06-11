@@ -31,9 +31,17 @@ export interface ITimeline {
 }
 
 export interface IProject extends Document {
+  title: string;
   clientDetails: IClientDetails;
   features: IFeatures;
   extraAddOns?: string;
+  useCase?: string;
+  targetUsers?: string;
+  functionalRequirements?: string;
+  nonFunctionalRequirements?: string;
+  budget?: string;
+  integrations?: string;
+  priority: "Low" | "Medium" | "High" | "Critical";
   timeline: ITimeline;
   status: "Pending" | "Active" | "Completed";
   createdBy: mongoose.Types.ObjectId;
@@ -43,6 +51,10 @@ export interface IProject extends Document {
 
 const ProjectSchema: Schema = new Schema(
   {
+    title: {
+      type: String,
+      default: "",
+    },
     clientDetails: {
       companyName: {
         type: String,
@@ -73,6 +85,35 @@ const ProjectSchema: Schema = new Schema(
     extraAddOns: {
       type: String,
       default: "",
+    },
+    useCase: {
+      type: String,
+      default: "",
+    },
+    targetUsers: {
+      type: String,
+      default: "",
+    },
+    functionalRequirements: {
+      type: String,
+      default: "",
+    },
+    nonFunctionalRequirements: {
+      type: String,
+      default: "",
+    },
+    budget: {
+      type: String,
+      default: "",
+    },
+    integrations: {
+      type: String,
+      default: "",
+    },
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Critical"],
+      default: "Medium",
     },
     timeline: {
       startDate: { type: Date, required: [true, "Start Date is required"] },
