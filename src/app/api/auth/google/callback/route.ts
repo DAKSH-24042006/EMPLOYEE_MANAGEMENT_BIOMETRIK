@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import { verifyJwt } from "@/lib/auth";
 import { GoogleToken } from "@/lib/models/GoogleToken";
+import { Task } from "@/lib/models/Task";
+import { Project } from "@/lib/models/Project";
+import { createCalendarEvent } from "@/lib/googleCalendar";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -65,6 +68,46 @@ export async function GET(req: Request) {
       },
       { upsert: true, new: true }
     );
+
+    // Retroactive sync of existing pending tasks assigned to this user
+    try {
+      const pendingTasks = await Task.find({
+        assignedTo: payload.userId,
+        status: "Pending",
+        googleCalendarEventId: { $exists: false },
+      });
+
+      const origin = new URL(req.url).origin;
+      for (const task of pendingTasks) {
+        try {
+          const project = await Project.findById(task.projectId);
+          if (project) {
+            const dashboardUrl = `${origin}/projects/${task.projectId}`;
+            const summary = `[${project.clientDetails.companyName}] Task: ${task.title}`;
+            const desc = task.description || "No description provided.";
+
+            const eventId = await createCalendarEvent(payload.userId, {
+              summary,
+              description: desc,
+              dueDate: task.dueDate,
+              dashboardUrl,
+            });
+
+            if (eventId) {
+              task.googleCalendarEventId = eventId;
+              task.syncToGoogleCalendar = true;
+              task.syncStatus = "Synced";
+              task.syncError = undefined;
+              await task.save();
+            }
+          }
+        } catch (taskErr) {
+          console.error(`Failed retroactive sync for task ${task._id}:`, taskErr);
+        }
+      }
+    } catch (syncErr) {
+      console.error("Failed to run retroactive tasks sync:", syncErr);
+    }
 
     return NextResponse.redirect(new URL("/profile?google_connected=true", req.url));
   } catch (error) {

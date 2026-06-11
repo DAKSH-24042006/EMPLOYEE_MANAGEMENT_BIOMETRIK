@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { createCalendarEvent } from "@/lib/googleCalendar";
 import { Notification } from "@/lib/models/Notification";
+import { GoogleToken } from "@/lib/models/GoogleToken";
 
 export async function GET(
   req: Request,
@@ -76,6 +77,9 @@ export async function POST(
       return NextResponse.json({ error: "Assignee not found" }, { status: 404 });
     }
 
+    const hasGoogleToken = await GoogleToken.findOne({ userId: assignedTo });
+    const shouldSync = !!hasGoogleToken;
+
     // Create the task in DB
     const task = new Task({
       projectId: id,
@@ -83,12 +87,12 @@ export async function POST(
       description: description || "",
       dueDate: new Date(dueDate),
       assignedTo,
-      syncToGoogleCalendar: !!syncToGoogleCalendar,
+      syncToGoogleCalendar: shouldSync,
       createdBy: payload.userId,
       syncStatus: "Not synced",
     });
 
-    if (syncToGoogleCalendar) {
+    if (shouldSync) {
       const origin = req.headers.get("origin") || "http://localhost:3000";
       const dashboardUrl = `${origin}/projects/${id}`;
       const summary = `[${project.clientDetails.companyName}] Task: ${title}`;

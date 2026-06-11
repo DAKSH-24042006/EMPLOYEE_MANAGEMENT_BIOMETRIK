@@ -25,6 +25,7 @@ import {
   message,
   Popconfirm,
   Badge,
+  Skeleton,
 } from "antd";
 import {
   ArrowLeft,
@@ -44,6 +45,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
+import { FilePdfOutlined } from "@ant-design/icons";
+import { generateProjectPDF } from "@/lib/reportUtils";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -70,6 +73,30 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [blockers, setBlockers] = useState<any[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [versions, setVersions] = useState<any[]>([]);
+
+  // PDF report states & handler
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFilename, setPreviewFilename] = useState("");
+
+  const handleGeneratePDF = async () => {
+    if (!project) return;
+    setGeneratingPDF(true);
+    try {
+      const { doc, filename } = await generateProjectPDF(project);
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewFilename(filename);
+      setPreviewOpen(true);
+    } catch (err) {
+      console.error(err);
+      message.error("Failed to generate PDF report.");
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
 
   // Forms
   const [editForm] = Form.useForm();
@@ -113,11 +140,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
           companyName: json.data.clientDetails.companyName,
           contactPerson: json.data.clientDetails.contactPerson,
           email: json.data.clientDetails.email,
-          dashboard: json.data.features.dashboard,
-          webApp: json.data.features.webApp,
-          androidApp: json.data.features.androidApp,
-          iosApp: json.data.features.iosApp,
-          adminPanel: json.data.features.adminPanel,
+          visitorManagement: !!json.data.features.visitorManagement,
+          attendanceManagement: !!json.data.features.attendanceManagement,
+          digilockerAuthentication: !!json.data.features.digilockerAuthentication,
+          webApp: !!json.data.features.webApp,
+          androidApp: !!json.data.features.androidApp,
+          iosApp: !!json.data.features.iosApp,
+          videoKYC: !!json.data.features.videoKYC,
+          rbac: !!json.data.features.rbac,
+          adminPanel: !!json.data.features.adminPanel,
+          online: !!json.data.features.online,
+          offline: !!json.data.features.offline,
+          cloud: !!json.data.features.cloud,
+          onPremise: !!json.data.features.onPremise,
           extraAddOns: json.data.extraAddOns,
           useCase: json.data.useCase,
           targetUsers: json.data.targetUsers,
@@ -212,11 +247,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
           email: values.email,
         },
         features: {
-          dashboard: values.dashboard,
-          webApp: values.webApp,
-          androidApp: values.androidApp,
-          iosApp: values.iosApp,
-          adminPanel: values.adminPanel,
+          visitorManagement: !!values.visitorManagement,
+          attendanceManagement: !!values.attendanceManagement,
+          digilockerAuthentication: !!values.digilockerAuthentication,
+          webApp: !!values.webApp,
+          androidApp: !!values.androidApp,
+          iosApp: !!values.iosApp,
+          videoKYC: !!values.videoKYC,
+          rbac: !!values.rbac,
+          adminPanel: !!values.adminPanel,
+          online: !!values.online,
+          offline: !!values.offline,
+          cloud: !!values.cloud,
+          onPremise: !!values.onPremise,
         },
         extraAddOns: values.extraAddOns,
         useCase: values.useCase,
@@ -261,7 +304,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
           description: values.description,
           dueDate: values.dueDate.toISOString(),
           assignedTo: values.assignedTo,
-          syncToGoogleCalendar: !!values.syncToGoogleCalendar,
         }),
       });
 
@@ -539,9 +581,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
           <Text type="secondary">Company: {project.clientDetails.companyName} | Created by: {project.createdBy?.name || "Unknown"}</Text>
         </Space>
         
-        <Button type="primary" onClick={() => setIsEditModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
-          Edit Specifications
-        </Button>
+        <Space>
+          <Button
+            icon={<FilePdfOutlined />}
+            loading={generatingPDF}
+            onClick={handleGeneratePDF}
+            style={{ color: "#00897b", borderColor: "#00897b" }}
+          >
+            Generate PDF
+          </Button>
+          <Button type="primary" onClick={() => setIsEditModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
+            Edit Specifications
+          </Button>
+        </Space>
       </div>
 
       {/* Main Tabs */}
@@ -623,11 +675,28 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
                       <Card title="Scope & Platform Deliverables" size="small" styles={{ body: { padding: 16 } }} style={{ borderRadius: 8, background: "#fafafa" }}>
                         <Space direction="vertical" style={{ width: "100%" }}>
-                          <Checkbox checked={project.features.dashboard} disabled>Dashboard Interface</Checkbox>
-                          <Checkbox checked={project.features.webApp} disabled>Web Application</Checkbox>
-                          <Checkbox checked={project.features.androidApp} disabled>Android App</Checkbox>
-                          <Checkbox checked={project.features.iosApp} disabled>iOS App</Checkbox>
-                          <Checkbox checked={project.features.adminPanel} disabled>Admin Control Panel</Checkbox>
+                          {Object.entries({
+                            visitorManagement: "Visitor Mgmt",
+                            attendanceManagement: "Attendance Mgmt",
+                            digilockerAuthentication: "Digilocker",
+                            webApp: "Web App",
+                            androidApp: "Android App",
+                            iosApp: "iOS App",
+                            videoKYC: "Video KYC",
+                            rbac: "RBAC System",
+                            adminPanel: "Admin Panel",
+                            online: "Online",
+                            offline: "Offline",
+                            cloud: "Cloud",
+                            onPremise: "On Premise",
+                          }).filter(([key]) => !!project.features?.[key]).map(([key, label]) => (
+                            <Checkbox key={key} checked disabled>
+                              {label}
+                            </Checkbox>
+                          ))}
+                          {Object.values(project.features || {}).every(v => !v) && (
+                            <Text type="secondary" style={{ fontStyle: "italic" }}>No deliverables selected</Text>
+                          )}
                         </Space>
                       </Card>
 
@@ -1127,12 +1196,20 @@ function ProjectDetailsClient({ id }: { id: string }) {
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item label="Features Scope">
-                <div style={{ display: "flex", gap: 20 }}>
-                  <Form.Item name="dashboard" valuePropName="checked" noStyle><Checkbox>Dashboard</Checkbox></Form.Item>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "10px 15px" }}>
+                  <Form.Item name="visitorManagement" valuePropName="checked" noStyle><Checkbox>Visitor Mgmt</Checkbox></Form.Item>
+                  <Form.Item name="attendanceManagement" valuePropName="checked" noStyle><Checkbox>Attendance Mgmt</Checkbox></Form.Item>
+                  <Form.Item name="digilockerAuthentication" valuePropName="checked" noStyle><Checkbox>Digilocker</Checkbox></Form.Item>
                   <Form.Item name="webApp" valuePropName="checked" noStyle><Checkbox>Web App</Checkbox></Form.Item>
                   <Form.Item name="androidApp" valuePropName="checked" noStyle><Checkbox>Android App</Checkbox></Form.Item>
                   <Form.Item name="iosApp" valuePropName="checked" noStyle><Checkbox>iOS App</Checkbox></Form.Item>
+                  <Form.Item name="videoKYC" valuePropName="checked" noStyle><Checkbox>Video KYC</Checkbox></Form.Item>
+                  <Form.Item name="rbac" valuePropName="checked" noStyle><Checkbox>RBAC System</Checkbox></Form.Item>
                   <Form.Item name="adminPanel" valuePropName="checked" noStyle><Checkbox>Admin Panel</Checkbox></Form.Item>
+                  <Form.Item name="online" valuePropName="checked" noStyle><Checkbox>Online</Checkbox></Form.Item>
+                  <Form.Item name="offline" valuePropName="checked" noStyle><Checkbox>Offline</Checkbox></Form.Item>
+                  <Form.Item name="cloud" valuePropName="checked" noStyle><Checkbox>Cloud</Checkbox></Form.Item>
+                  <Form.Item name="onPremise" valuePropName="checked" noStyle><Checkbox>On Premise</Checkbox></Form.Item>
                 </div>
               </Form.Item>
             </Col>
@@ -1211,9 +1288,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <Select placeholder="Select team member" options={users.map((u) => ({ label: `${u.name} (${u.role})`, value: u._id }))} />
           </Form.Item>
 
-          <Form.Item name="syncToGoogleCalendar" valuePropName="checked">
-            <Checkbox>Sync automatically to Google Calendar (of assignee)</Checkbox>
-          </Form.Item>
+          <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 8, color: "#666" }}>
+            <CalendarIcon size={14} color="#00897b" />
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Tasks will sync automatically if the assignee has connected their Google Calendar.
+            </Text>
+          </div>
 
           <div style={{ textAlign: "right" }}>
             <Button onClick={() => setIsTaskModalOpen(false)} style={{ marginRight: 8 }}>Cancel</Button>
@@ -1306,7 +1386,78 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </div>
         </Form>
       </Modal>
+
+      {/* Report Preview Modal */}
+      <ReportPreviewModal
+        open={previewOpen}
+        url={previewUrl}
+        filename={previewFilename}
+        onClose={() => {
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+          setPreviewOpen(false);
+        }}
+      />
     </div>
+  );
+}
+
+interface ReportPreviewModalProps {
+  open: boolean;
+  url: string | null;
+  filename: string;
+  onClose: () => void;
+}
+
+function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModalProps) {
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      title={
+        <Space>
+          <FilePdfOutlined style={{ color: "#ef4444" }} />
+          <span style={{ fontWeight: 600 }}>Report Preview</span>
+          <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+            — {filename}
+          </Text>
+        </Space>
+      }
+      width={1000}
+      styles={{ body: { padding: 0, height: "75vh", overflow: "hidden" } }}
+      footer={[
+        <Button key="close" onClick={onClose}>
+          Cancel
+        </Button>,
+        <Button
+          key="download"
+          type="primary"
+          icon={<FilePdfOutlined />}
+          style={{ background: "#00897b", borderColor: "#00897b" }}
+          onClick={() => {
+            const link = document.createElement("a");
+            link.href = url!;
+            link.download = filename;
+            link.click();
+            onClose();
+          }}
+        >
+          Download PDF
+        </Button>,
+      ]}
+    >
+      {url ? (
+        <iframe
+          src={`${url}#toolbar=0`}
+          style={{ width: "100%", height: "100%", border: "none" }}
+          title="PDF Preview"
+        />
+      ) : (
+        <div style={{ padding: 40, textAlign: "center" }}>
+          <Skeleton active />
+        </div>
+      )}
+    </Modal>
   );
 }
 

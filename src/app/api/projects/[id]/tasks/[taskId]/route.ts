@@ -5,6 +5,7 @@ import { Task } from "@/lib/models/Task";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/googleCalendar";
+import { GoogleToken } from "@/lib/models/GoogleToken";
 
 export async function PATCH(
   req: Request,
@@ -48,16 +49,21 @@ export async function PATCH(
     if (description !== undefined) task.description = description;
     if (dueDate !== undefined) task.dueDate = new Date(dueDate);
     if (assignedTo !== undefined) task.assignedTo = assignedTo;
-    if (syncToGoogleCalendar !== undefined) task.syncToGoogleCalendar = !!syncToGoogleCalendar;
+    if (body.status !== undefined) task.status = body.status;
 
     const currentAssignee = task.assignedTo.toString();
+    const hasGoogleToken = await GoogleToken.findOne({ userId: currentAssignee });
+    const shouldSync = !!hasGoogleToken;
+    task.syncToGoogleCalendar = shouldSync;
+
     const origin = req.headers.get("origin") || "http://localhost:3000";
     const dashboardUrl = `${origin}/projects/${id}`;
-    const summary = `[${project.clientDetails.companyName}] Task: ${task.title}`;
+    const statusPrefix = task.status === "Completed" ? "[COMPLETED] " : task.status === "Cancelled" ? "[CANCELLED] " : "";
+    const summary = `${statusPrefix}[${project.clientDetails.companyName}] Task: ${task.title}`;
     const desc = task.description || "No description provided.";
 
     // Logic for Google Calendar Sync
-    if (task.syncToGoogleCalendar) {
+    if (shouldSync) {
       // Case 1: Was synced, but assignee changed
       if (prevSync && prevEventId && prevAssignee !== currentAssignee) {
         // Delete event from previous assignee's calendar

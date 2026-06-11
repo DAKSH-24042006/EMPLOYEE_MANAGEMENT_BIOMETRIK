@@ -74,12 +74,20 @@ export async function PATCH(
     }
     if (body.features !== undefined) {
       existingProject.features = {
-        dashboard: body.features.dashboard ?? existingProject.features.dashboard,
-        webApp: body.features.webApp ?? existingProject.features.webApp,
-        androidApp: body.features.androidApp ?? existingProject.features.androidApp,
-        iosApp: body.features.iosApp ?? existingProject.features.iosApp,
-        adminPanel: body.features.adminPanel ?? existingProject.features.adminPanel,
-      };
+        visitorManagement: body.features.visitorManagement !== undefined ? body.features.visitorManagement : existingProject.features.visitorManagement,
+        attendanceManagement: body.features.attendanceManagement !== undefined ? body.features.attendanceManagement : existingProject.features.attendanceManagement,
+        digilockerAuthentication: body.features.digilockerAuthentication !== undefined ? body.features.digilockerAuthentication : existingProject.features.digilockerAuthentication,
+        webApp: body.features.webApp !== undefined ? body.features.webApp : existingProject.features.webApp,
+        androidApp: body.features.androidApp !== undefined ? body.features.androidApp : existingProject.features.androidApp,
+        iosApp: body.features.iosApp !== undefined ? body.features.iosApp : existingProject.features.iosApp,
+        videoKYC: body.features.videoKYC !== undefined ? body.features.videoKYC : existingProject.features.videoKYC,
+        rbac: body.features.rbac !== undefined ? body.features.rbac : existingProject.features.rbac,
+        adminPanel: body.features.adminPanel !== undefined ? body.features.adminPanel : existingProject.features.adminPanel,
+        online: body.features.online !== undefined ? body.features.online : existingProject.features.online,
+        offline: body.features.offline !== undefined ? body.features.offline : existingProject.features.offline,
+        cloud: body.features.cloud !== undefined ? body.features.cloud : existingProject.features.cloud,
+        onPremise: body.features.onPremise !== undefined ? body.features.onPremise : existingProject.features.onPremise,
+      } as any;
     }
     if (body.extraAddOns !== undefined) existingProject.extraAddOns = body.extraAddOns;
     if (body.useCase !== undefined) existingProject.useCase = body.useCase;

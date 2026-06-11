@@ -29,6 +29,11 @@ function ProfileContent() {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  // Edit Profile states
+  const [editProfileForm] = Form.useForm();
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [profileUpdating, setProfileUpdating] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     fetchUserData();
@@ -61,6 +66,54 @@ function ProfileContent() {
       }
     } catch (error) {
       console.error("Failed to fetch user data:", error);
+    }
+  };
+
+  const showEditModal = () => {
+    if (user) {
+      editProfileForm.setFieldsValue({
+        name: user.name,
+        phoneNumber: user.phoneNumber || "",
+        location: user.location || "",
+      });
+    }
+    setIsEditModalVisible(true);
+  };
+
+  const handleEditCancel = () => {
+    setIsEditModalVisible(false);
+    editProfileForm.resetFields();
+  };
+
+  const onUpdateProfile = async (values: any) => {
+    setProfileUpdating(true);
+    try {
+      const response = await fetch("/api/user/me", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: values.name,
+          phoneNumber: values.phoneNumber,
+          location: values.location,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        message.success("Profile updated successfully!");
+        setIsEditModalVisible(false);
+        fetchUserData(); // Reload profile details
+      } else {
+        message.error(data.error || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Update profile error:", error);
+      message.error("Something went wrong. Please try again later.");
+    } finally {
+      setProfileUpdating(false);
     }
   };
 
@@ -161,23 +214,35 @@ function ProfileContent() {
           <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
           <Text type="secondary">Manage your personal information and preferences.</Text>
         </div>
-        <Button
-          type="primary"
-          icon={<Lock size={16} />}
-          style={{
-            backgroundColor: "#00897b",
-            borderColor: "#00897b",
-            height: 40,
-            borderRadius: 8,
-            boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
-          }}
-          onClick={showModal}
-        >
-          Change Password
-        </Button>
+        <Space size={12}>
+          <Button
+            icon={<User size={16} />}
+            onClick={showEditModal}
+            style={{
+              height: 40,
+              borderRadius: 8,
+            }}
+          >
+            Edit Profile
+          </Button>
+          <Button
+            type="primary"
+            icon={<Lock size={16} />}
+            style={{
+              backgroundColor: "#00897b",
+              borderColor: "#00897b",
+              height: 40,
+              borderRadius: 8,
+              boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
+            }}
+            onClick={showModal}
+          >
+            Change Password
+          </Button>
+        </Space>
       </div>
 
-      <div style={{ paddingRight: 8 }}>
+      <div style={{ paddingRight: 8, overflowY: "auto", flex: "1 1 auto" }}>
         <Row gutter={isMobile ? [16, 16] : [24, 24]}>
           <Col xs={24} md={8}>
             <Card
@@ -295,6 +360,61 @@ function ProfileContent() {
           </Col>
         </Row>
       </div>
+
+      <Modal
+        title="Edit Profile"
+        open={isEditModalVisible}
+        onCancel={handleEditCancel}
+        footer={null}
+        destroyOnClose
+        style={{ borderRadius: 12, overflow: "hidden" }}
+      >
+        <Form
+          form={editProfileForm}
+          layout="vertical"
+          onFinish={onUpdateProfile}
+          requiredMark={false}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item
+            name="name"
+            label="Full Name"
+            rules={[{ required: true, message: "Please enter your name" }]}
+          >
+            <Input placeholder="Enter your full name" />
+          </Form.Item>
+
+          <Form.Item
+            name="phoneNumber"
+            label="Phone Number"
+            rules={[
+              { required: true, message: "Please enter your phone number" },
+              { pattern: /^[0-9]+$/, message: "Phone number must contain only digits" }
+            ]}
+          >
+            <Input placeholder="Enter your phone number" />
+          </Form.Item>
+
+          <Form.Item
+            name="location"
+            label="Location"
+          >
+            <Input placeholder="Enter your location (e.g. Noida, Delhi)" />
+          </Form.Item>
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
+            <Button onClick={handleEditCancel}>Cancel</Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={profileUpdating}
+              style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
+            >
+              Save Changes
+            </Button>
+          </div>
+        </Form>
+      </Modal>
 
       <Modal
         title="Change Password"

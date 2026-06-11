@@ -751,12 +751,9 @@ export default function ProjectsPage() {
       sorter: (a, b) =>
         a.clientDetails.companyName.localeCompare(b.clientDetails.companyName),
       render: (name: string, record) => (
-        <div
-          onClick={() => openDetails(record)}
-          style={{ cursor: "pointer" }}
-        >
-          <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13 }}>{name}</div>
-        </div>
+        <Link href={`/projects/${record._id}`}>
+          <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13, cursor: "pointer" }}>{name}</div>
+        </Link>
       ),
     },
     {
@@ -829,12 +826,13 @@ export default function ProjectsPage() {
               open={shouldForceClose ? false : undefined}
               destroyOnHidden
             >
-              <Button
-                type="text"
-                icon={<EyeOutlined />}
-                onClick={() => handleSafeClick(() => openDetails(record))}
-                style={{ color: "#6366f1" }}
-              />
+              <Link href={`/projects/${record._id}`}>
+                <Button
+                  type="text"
+                  icon={<EyeOutlined />}
+                  style={{ color: "#6366f1" }}
+                />
+              </Link>
             </Tooltip>
 
             <Tooltip
@@ -969,7 +967,9 @@ export default function ProjectsPage() {
                       styles={{ body: { padding: "12px 16px" } }}
                       actions={[
                         <Tooltip title="View" key="view" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
-                          <EyeOutlined onClick={() => safeClick(() => openDetails(project))} style={{ color: "#6366f1" }} />
+                          <Link href={`/projects/${project._id}`} style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%" }}>
+                            <EyeOutlined style={{ color: "#6366f1" }} />
+                          </Link>
                         </Tooltip>,
                         <Tooltip title="Edit" key="edit" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
                           <EditOutlined onClick={() => safeClick(() => openEdit(project))} style={{ color: "#00897b" }} />
