@@ -26,7 +26,7 @@ export async function GET() {
   }
 
   const scope = encodeURIComponent(
-    "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email"
+    "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email"
   );
   
   // State holds the user's JWT token for callbacks to authenticate

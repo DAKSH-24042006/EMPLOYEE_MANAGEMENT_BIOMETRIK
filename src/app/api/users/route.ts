@@ -17,14 +17,24 @@ async function isAdmin() {
   return decoded && decoded.role === Role.ADMIN;
 }
 
+async function isAuthenticated() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+
+  if (!token) return false;
+
+  const decoded = await verifyJwt(token);
+  return !!(decoded && decoded.userId);
+}
+
 export async function GET() {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 403 });
+    if (!(await isAuthenticated())) {
+      return NextResponse.json({ error: "Unauthorized: Session required" }, { status: 401 });
     }
 
     await dbConnect();
-    const users = await User.find({}).select("-password +faceReferenceImage").sort({ createdAt: -1 });
+    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
     return NextResponse.json(users);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -187,7 +187,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const isMobile = mounted && (!screens.md && (screens.xs || screens.sm));
+  const isMobile = mounted && !screens.md;
 
   // Branding colors from logo
   const logoTeal = "#00897b";
@@ -414,7 +414,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </Drawer>
       )}
 
-      <Layout style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+      <Layout style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
         <Header
           style={{
             padding: "0 16px",
@@ -521,6 +521,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             flexDirection: "column",
             overflow: "hidden",
             flex: 1,
+            minWidth: 0,
+            maxWidth: "100%"
           }}
         >
           <Breadcrumb
@@ -536,7 +538,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             flexDirection: "column",
             overflowY: "auto",
             overflowX: "hidden",
-            minHeight: 0
+            minHeight: 0,
+            minWidth: 0,
+            maxWidth: "100%"
           }}>
             {children}
           </div>

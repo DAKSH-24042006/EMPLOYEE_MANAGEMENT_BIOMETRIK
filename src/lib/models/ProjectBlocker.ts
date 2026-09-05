@@ -19,6 +19,9 @@ export interface IProjectBlocker extends Document {
   priority: "Low" | "Medium" | "High" | "Critical";
   ownerId: mongoose.Types.ObjectId;
   dueDate?: Date;
+  workItemId?: mongoose.Types.ObjectId;
+  sprintId?: mongoose.Types.ObjectId;
+  impact?: "Low" | "Medium" | "High" | "Blocker" | "Critical";
   createdBy: mongoose.Types.ObjectId;
   resolvedBy?: mongoose.Types.ObjectId;
   resolvedAt?: Date;
@@ -71,6 +74,19 @@ const ProjectBlockerSchema: Schema = new Schema(
       required: true,
     },
     dueDate: Date,
+    workItemId: {
+      type: Schema.Types.ObjectId,
+      ref: "WorkItem",
+    },
+    sprintId: {
+      type: Schema.Types.ObjectId,
+      ref: "Sprint",
+    },
+    impact: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Blocker", "Critical"],
+      default: "Medium",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

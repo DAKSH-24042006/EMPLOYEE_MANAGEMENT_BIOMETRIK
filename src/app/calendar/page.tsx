@@ -183,7 +183,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "0" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "0", minWidth: 0, maxWidth: "100%" }}>
       {contextHolder}
       {/* Header */}
       {/* Header */}
@@ -432,8 +432,8 @@ export default function CalendarPage() {
             <Input placeholder="e.g. Call client regarding new specs" />
           </Form.Item>
 
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="date"
                 label="Date"
@@ -442,7 +442,7 @@ export default function CalendarPage() {
                 <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="priority"
                 label="Priority"
