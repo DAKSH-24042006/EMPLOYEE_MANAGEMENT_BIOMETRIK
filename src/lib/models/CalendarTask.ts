@@ -8,6 +8,9 @@ export interface ICalendarTask extends Document {
   status: "Todo" | "In Progress" | "Done" | "Cancelled";
   color: string;
   createdBy: mongoose.Types.ObjectId;
+  googleCalendarEventId?: string;
+  syncStatus: "Not synced" | "Synced" | "Sync failed";
+  syncError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +50,19 @@ const CalendarTaskSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    googleCalendarEventId: {
+      type: String,
+      default: undefined,
+    },
+    syncStatus: {
+      type: String,
+      enum: ["Not synced", "Synced", "Sync failed"],
+      default: "Not synced",
+    },
+    syncError: {
+      type: String,
+      default: undefined,
     },
   },
   {

@@ -3,4 +3,5 @@ export enum Role {
   SALES = "SALES",
   SALES_TEAM = "SALES_TEAM",
   TECH_TEAM = "TECH_TEAM",
+  TECH_MANAGER = "TECH_MANAGER",
 }

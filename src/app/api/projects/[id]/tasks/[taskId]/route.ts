@@ -52,8 +52,10 @@ export async function PATCH(
     if (body.status !== undefined) task.status = body.status;
 
     const currentAssignee = task.assignedTo.toString();
+    console.log(`[TaskUpdate] Updating task: "${task.title}" assigned to: "${currentAssignee}"`);
     const hasGoogleToken = await GoogleToken.findOne({ userId: currentAssignee });
     const shouldSync = !!hasGoogleToken;
+    console.log(`[TaskUpdate] Assignee connected to Google Calendar: ${shouldSync}`);
     task.syncToGoogleCalendar = shouldSync;
 
     const origin = req.headers.get("origin") || "http://localhost:3000";
@@ -63,72 +65,86 @@ export async function PATCH(
     const desc = task.description || "No description provided.";
 
     // Logic for Google Calendar Sync
-    if (shouldSync) {
-      // Case 1: Was synced, but assignee changed
-      if (prevSync && prevEventId && prevAssignee !== currentAssignee) {
-        // Delete event from previous assignee's calendar
-        await deleteCalendarEvent(prevAssignee, prevEventId);
-        
-        // Create event in new assignee's calendar
-        const newEventId = await createCalendarEvent(currentAssignee, {
-          summary,
-          description: desc,
-          dueDate: task.dueDate,
-          dashboardUrl,
-        });
+    try {
+      if (shouldSync) {
+        // Case 1: Was synced, but assignee changed
+        if (prevSync && prevEventId && prevAssignee !== currentAssignee) {
+          // Delete event from previous assignee's calendar
+          try {
+            await deleteCalendarEvent(prevAssignee, prevEventId);
+          } catch (delErr) {
+            console.error("Failed to delete previous assignee event:", delErr);
+          }
+          
+          // Create event in new assignee's calendar
+          const newEventId = await createCalendarEvent(currentAssignee, {
+            summary,
+            description: desc,
+            dueDate: task.dueDate,
+            dashboardUrl,
+          });
 
-        if (newEventId) {
-          task.googleCalendarEventId = newEventId;
-          task.syncStatus = "Synced";
-          task.syncError = undefined;
-        } else {
+          if (newEventId) {
+            task.googleCalendarEventId = newEventId;
+            task.syncStatus = "Synced";
+            task.syncError = undefined;
+          } else {
+            task.googleCalendarEventId = undefined;
+            task.syncStatus = "Sync failed";
+            task.syncError = "Failed to create event on new assignee calendar";
+          }
+        }
+        // Case 2: Was synced, and assignee is same -> Update calendar
+        else if (prevSync && prevEventId) {
+          const ok = await updateCalendarEvent(currentAssignee, prevEventId, {
+            summary,
+            description: desc,
+            dueDate: task.dueDate,
+            dashboardUrl,
+          });
+          if (ok) {
+            task.syncStatus = "Synced";
+            task.syncError = undefined;
+          } else {
+            task.syncStatus = "Sync failed";
+            task.syncError = "Failed to update Google calendar event";
+          }
+        }
+        // Case 3: Wasn't synced (or sync failed) -> Create event
+        else {
+          const newEventId = await createCalendarEvent(currentAssignee, {
+            summary,
+            description: desc,
+            dueDate: task.dueDate,
+            dashboardUrl,
+          });
+
+          if (newEventId) {
+            task.googleCalendarEventId = newEventId;
+            task.syncStatus = "Synced";
+            task.syncError = undefined;
+          } else {
+            task.syncStatus = "Sync failed";
+            task.syncError = "Failed to create Google calendar event";
+          }
+        }
+      } else {
+        // Case 4: Sync toggled off -> Delete existing calendar event if present
+        if (prevEventId) {
+          try {
+            await deleteCalendarEvent(prevAssignee, prevEventId);
+          } catch (delErr) {
+            console.error("Failed to delete event on sync turn-off:", delErr);
+          }
           task.googleCalendarEventId = undefined;
-          task.syncStatus = "Sync failed";
-          task.syncError = "New assignee has not connected Google Calendar or token expired";
         }
+        task.syncStatus = "Not synced";
+        task.syncError = undefined;
       }
-      // Case 2: Was synced, and assignee is same -> Update calendar
-      else if (prevSync && prevEventId) {
-        const ok = await updateCalendarEvent(currentAssignee, prevEventId, {
-          summary,
-          description: desc,
-          dueDate: task.dueDate,
-          dashboardUrl,
-        });
-        if (ok) {
-          task.syncStatus = "Synced";
-          task.syncError = undefined;
-        } else {
-          task.syncStatus = "Sync failed";
-          task.syncError = "Update failed, token expired or event deleted";
-        }
-      }
-      // Case 3: Wasn't synced (or sync failed) -> Create event
-      else {
-        const newEventId = await createCalendarEvent(currentAssignee, {
-          summary,
-          description: desc,
-          dueDate: task.dueDate,
-          dashboardUrl,
-        });
-
-        if (newEventId) {
-          task.googleCalendarEventId = newEventId;
-          task.syncStatus = "Synced";
-          task.syncError = undefined;
-        } else {
-          task.syncStatus = "Sync failed";
-          task.syncError = "Assignee has not connected Google Calendar or token expired";
-        }
-      }
-    } else {
-      // Case 4: Sync toggled off -> Delete existing calendar event if present
-      if (prevEventId) {
-        await deleteCalendarEvent(prevAssignee, prevEventId);
-        task.googleCalendarEventId = undefined;
-      }
-      task.syncStatus = "Not synced";
-      task.syncError = undefined;
+    } catch (syncErr: any) {
+      console.error("Google Calendar Sync error during update:", syncErr);
+      task.syncStatus = "Sync failed";
+      task.syncError = syncErr.message || "Google Calendar sync failed during update";
     }
 
     await task.save();

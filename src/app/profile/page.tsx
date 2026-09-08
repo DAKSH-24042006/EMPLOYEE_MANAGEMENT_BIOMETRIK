@@ -200,7 +200,7 @@ function ProfileContent() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
       <div style={{
         marginBottom: 24,
         display: "flex",

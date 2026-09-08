@@ -4,6 +4,9 @@ import dbConnect from "@/lib/db";
 import { CalendarTask } from "@/lib/models/CalendarTask";
 import { verifyJwt } from "@/lib/auth";
 
+import { GoogleToken } from "@/lib/models/GoogleToken";
+import { createCalendarEvent } from "@/lib/googleCalendar";
+
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -71,11 +74,45 @@ export async function POST(req: Request) {
     await dbConnect();
     const body = await req.json();
 
-    const newTask = await CalendarTask.create({
+    const hasGoogleToken = await GoogleToken.findOne({ userId: payload.userId });
+    const shouldSync = !!hasGoogleToken;
+
+    const newTask = new CalendarTask({
       ...body,
       createdBy: payload.userId,
+      syncStatus: "Not synced",
     });
 
+    if (shouldSync) {
+      const origin = req.headers.get("origin") || "http://localhost:3000";
+      const dashboardUrl = `${origin}/calendar`;
+      const statusPrefix = body.status === "Done" ? "[COMPLETED] " : body.status === "Cancelled" ? "[CANCELLED] " : "";
+      const summary = `${statusPrefix}Task: ${body.title}`;
+      const desc = body.description || "No description provided.";
+
+      try {
+        const eventId = await createCalendarEvent(payload.userId, {
+          summary,
+          description: desc,
+          dueDate: new Date(body.date),
+          dashboardUrl,
+        });
+
+        if (eventId) {
+          newTask.googleCalendarEventId = eventId;
+          newTask.syncStatus = "Synced";
+        } else {
+          newTask.syncStatus = "Sync failed";
+          newTask.syncError = "Failed to create Google calendar event";
+        }
+      } catch (syncErr: any) {
+        console.error("Google Calendar Sync Error:", syncErr);
+        newTask.syncStatus = "Sync failed";
+        newTask.syncError = syncErr.message || "Failed to create Google calendar event";
+      }
+    }
+
+    await newTask.save();
     return NextResponse.json(newTask, { status: 201 });
   } catch (error: any) {
     console.error("POST Calendar Task Error:", error);

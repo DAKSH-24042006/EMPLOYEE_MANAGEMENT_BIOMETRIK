@@ -60,49 +60,54 @@ export async function createCalendarEvent(
     dashboardUrl?: string;
   }
 ): Promise<string | null> {
+  console.log(`[GoogleCalendar] Creating calendar event for user ID: "${userId}". Title: "${eventDetails.summary}"`);
   const accessToken = await getValidAccessToken(userId);
-  if (!accessToken) return null;
+  if (!accessToken) {
+    throw new Error("Assignee has not connected Google Calendar or token expired");
+  }
 
   const start = eventDetails.dueDate;
-  const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour event
+  const year = start.getFullYear();
+  const month = String(start.getMonth() + 1).padStart(2, "0");
+  const day = String(start.getDate()).padStart(2, "0");
+  const startDateStr = `${year}-${month}-${day}`;
+
+  const nextDay = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const nextYear = nextDay.getFullYear();
+  const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
+  const nextDayVal = String(nextDay.getDate()).padStart(2, "0");
+  const endDateStr = `${nextYear}-${nextMonth}-${nextDayVal}`;
 
   const body = {
     summary: eventDetails.summary,
     description: `${eventDetails.description}\n\nLink back to Dashboard: ${eventDetails.dashboardUrl || ""}`,
     start: {
-      dateTime: start.toISOString(),
-      timeZone: "UTC",
+      date: startDateStr,
     },
     end: {
-      dateTime: end.toISOString(),
-      timeZone: "UTC",
+      date: endDateStr,
     },
   };
 
-  try {
-    const res = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      }
-    );
-
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("Failed to create Google calendar event", data);
-      return null;
+  const res = await fetch(
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     }
+  );
 
-    return data.id;
-  } catch (error) {
-    console.error("Error creating Google calendar event", error);
-    return null;
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Failed to create Google calendar event", data);
+    throw new Error(data.error?.message || "Failed to create Google calendar event");
   }
+
+  return data.id;
 }
 
 /**
@@ -119,48 +124,52 @@ export async function updateCalendarEvent(
   }
 ): Promise<boolean> {
   const accessToken = await getValidAccessToken(userId);
-  if (!accessToken) return false;
+  if (!accessToken) {
+    throw new Error("Assignee has not connected Google Calendar or token expired");
+  }
 
   const start = eventDetails.dueDate;
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const year = start.getFullYear();
+  const month = String(start.getMonth() + 1).padStart(2, "0");
+  const day = String(start.getDate()).padStart(2, "0");
+  const startDateStr = `${year}-${month}-${day}`;
+
+  const nextDay = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const nextYear = nextDay.getFullYear();
+  const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
+  const nextDayVal = String(nextDay.getDate()).padStart(2, "0");
+  const endDateStr = `${nextYear}-${nextMonth}-${nextDayVal}`;
 
   const body = {
     summary: eventDetails.summary,
     description: `${eventDetails.description}\n\nLink back to Dashboard: ${eventDetails.dashboardUrl || ""}`,
     start: {
-      dateTime: start.toISOString(),
-      timeZone: "UTC",
+      date: startDateStr,
     },
     end: {
-      dateTime: end.toISOString(),
-      timeZone: "UTC",
+      date: endDateStr,
     },
   };
 
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      }
-    );
-
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("Failed to update Google calendar event", data);
-      return false;
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     }
+  );
 
-    return true;
-  } catch (error) {
-    console.error("Error updating Google calendar event", error);
-    return false;
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Failed to update Google calendar event", data);
+    throw new Error(data.error?.message || "Failed to update Google calendar event");
   }
+
+  return true;
 }
 
 /**
@@ -171,28 +180,25 @@ export async function deleteCalendarEvent(
   eventId: string
 ): Promise<boolean> {
   const accessToken = await getValidAccessToken(userId);
-  if (!accessToken) return false;
-
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (!res.ok && res.status !== 410 && res.status !== 404) {
-      const data = await res.json();
-      console.error("Failed to delete Google calendar event", data);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Error deleting Google calendar event", error);
-    return false;
+  if (!accessToken) {
+    throw new Error("Assignee has not connected Google Calendar or token expired");
   }
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!res.ok && res.status !== 410 && res.status !== 404) {
+    const data = await res.json().catch(() => ({}));
+    console.error("Failed to delete Google calendar event", data);
+    throw new Error(data.error?.message || "Failed to delete Google calendar event");
+  }
+
+  return true;
 }

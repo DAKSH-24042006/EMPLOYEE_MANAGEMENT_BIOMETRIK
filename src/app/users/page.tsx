@@ -347,7 +347,9 @@ export default function UsersPage() {
       height: "100%",
       display: "flex",
       flexDirection: "column",
-      overflow: "hidden"
+      overflow: "hidden",
+      minWidth: 0,
+      maxWidth: "100%"
     }}>
 
       <div style={{
@@ -514,25 +516,29 @@ export default function UsersPage() {
             </Select>
           </Form.Item>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Form.Item
-              name="phoneNumber"
-              label="Phone Number"
-              rules={[
-                { required: true, message: "Please input the phone number!" },
-                { pattern: /^[0-9]+$/, message: "Phone number must contain only digits!" }
-              ]}
-            >
-              <Input placeholder="Enter phone number (digits only)" prefix={<Phone size={14} color="#676879" style={{ marginRight: 4 }} />} />
-            </Form.Item>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="phoneNumber"
+                label="Phone Number"
+                rules={[
+                  { required: true, message: "Please input the phone number!" },
+                  { pattern: /^[0-9]+$/, message: "Phone number must contain only digits!" }
+                ]}
+              >
+                <Input placeholder="Enter phone number (digits only)" prefix={<Phone size={14} color="#676879" style={{ marginRight: 4 }} />} />
+              </Form.Item>
+            </Col>
 
-            <Form.Item
-              name="location"
-              label="Location (auto-filled during face registration)"
-            >
-              <Input placeholder="Captured when the user registers face" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
-            </Form.Item>
-          </div>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="location"
+                label="Location (auto-filled during face registration)"
+              >
+                <Input placeholder="Captured when the user registers face" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

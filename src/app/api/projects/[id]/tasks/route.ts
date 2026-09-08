@@ -77,8 +77,10 @@ export async function POST(
       return NextResponse.json({ error: "Assignee not found" }, { status: 404 });
     }
 
+    console.log(`[TaskCreate] Creating task: "${title}" assigned to: "${assignedTo}"`);
     const hasGoogleToken = await GoogleToken.findOne({ userId: assignedTo });
     const shouldSync = !!hasGoogleToken;
+    console.log(`[TaskCreate] Assignee connected to Google Calendar: ${shouldSync}`);
 
     // Create the task in DB
     const task = new Task({
@@ -98,19 +100,25 @@ export async function POST(
       const summary = `[${project.clientDetails.companyName}] Task: ${title}`;
       const desc = description || "No description provided.";
 
-      const eventId = await createCalendarEvent(assignedTo, {
-        summary,
-        description: desc,
-        dueDate: new Date(dueDate),
-        dashboardUrl,
-      });
+      try {
+        const eventId = await createCalendarEvent(assignedTo, {
+          summary,
+          description: desc,
+          dueDate: new Date(dueDate),
+          dashboardUrl,
+        });
 
-      if (eventId) {
-        task.googleCalendarEventId = eventId;
-        task.syncStatus = "Synced";
-      } else {
+        if (eventId) {
+          task.googleCalendarEventId = eventId;
+          task.syncStatus = "Synced";
+        } else {
+          task.syncStatus = "Sync failed";
+          task.syncError = "Failed to create Google calendar event";
+        }
+      } catch (syncErr: any) {
+        console.error("Google Calendar Sync Error:", syncErr);
         task.syncStatus = "Sync failed";
-        task.syncError = "Assignee has not connected Google Calendar or token expired";
+        task.syncError = syncErr.message || "Failed to create Google calendar event";
       }
     }
 

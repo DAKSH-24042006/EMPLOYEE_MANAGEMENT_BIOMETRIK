@@ -52,6 +52,7 @@ const { Option } = Select;
 
 interface IProject {
   _id: string;
+  title: string;
   clientDetails: {
     companyName: string;
     contactPerson?: string;
@@ -78,8 +79,27 @@ interface IProject {
     startDate: string;
     endDate: string;
   };
-  status: "Pending" | "Active" | "Completed";
+  status: string;
   createdAt: string;
+  updatedAt: string;
+  
+  // Enriched fields
+  createdBy?: {
+    name: string;
+    email: string;
+    role: string;
+  };
+  techOwner?: {
+    name: string;
+    email: string;
+    role: string;
+  };
+  openBlockersCount?: number;
+  progressPercent?: number;
+  overdueWorkItemsCount?: number;
+  activeSprint?: string;
+  requirementCompletenessScore?: number;
+  pendingSignoff?: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -88,12 +108,22 @@ const STATUS_CONFIG: Record<
   string,
   { color: string; icon: React.ReactNode }
 > = {
+  "Requirement Created": { color: "blue", icon: <ClockCircleOutlined /> },
+  "Submitted for Tech Review": { color: "cyan", icon: <SyncOutlined /> },
+  "Clarification Required": { color: "orange", icon: <ExclamationCircleOutlined /> },
+  "Technically Approved": { color: "purple", icon: <CheckCircleOutlined /> },
+  "Planning": { color: "geekblue", icon: <SyncOutlined /> },
+  "Development": { color: "indigo", icon: <SyncOutlined /> },
+  "Testing/UAT": { color: "warning", icon: <SyncOutlined /> },
+  "Signoff Pending": { color: "magenta", icon: <SyncOutlined /> },
+  "Delivered": { color: "success", icon: <CheckCircleOutlined /> },
+  "Closed": { color: "default", icon: <CheckCircleOutlined /> },
   Pending: { color: "orange", icon: <ClockCircleOutlined /> },
   Active: { color: "blue", icon: <SyncOutlined /> },
   Completed: { color: "green", icon: <CheckCircleOutlined /> }
 };
 
-const FEATURE_LABELS: Record<keyof IProject["features"], string> = {
+const FEATURE_LABELS: Record<string, string> = {
   visitorManagement: "Visitor Mgmt",
   attendanceManagement: "Attendance Mgmt",
   digilockerAuthentication: "Digilocker",
@@ -312,10 +342,11 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
               style={{ marginBottom: 0 }}
             >
               <Row gutter={8}>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item
                     name="startDate"
                     rules={[{ required: true, message: "Start date is required" }]}
+                    style={{ marginBottom: 8 }}
                   >
                     <DatePicker
                       placeholder="Start Date"
@@ -324,10 +355,11 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
                     />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item
                     name="endDate"
                     rules={[{ required: true, message: "End date is required" }]}
+                    style={{ marginBottom: 8 }}
                   >
                     <DatePicker
                       placeholder="End Date"
@@ -745,15 +777,30 @@ export default function ProjectsPage() {
 
   const columns: ColumnsType<IProject> = [
     {
-      title: "Company",
-      dataIndex: ["clientDetails", "companyName"],
-      key: "company",
-      sorter: (a, b) =>
-        a.clientDetails.companyName.localeCompare(b.clientDetails.companyName),
-      render: (name: string, record) => (
-        <Link href={`/projects/${record._id}`}>
-          <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13, cursor: "pointer" }}>{name}</div>
-        </Link>
+      title: "Project & Client",
+      key: "project_client",
+      sorter: (a, b) => a.title.localeCompare(b.title),
+      render: (_, record) => (
+        <div>
+          <Link href={`/projects/${record._id}`}>
+            <div style={{ fontWeight: 600, color: "#00897b", fontSize: 13, cursor: "pointer" }}>
+              {record.title || "Unnamed Project"}
+            </div>
+          </Link>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Client: {record.clientDetails.companyName}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Owners",
+      key: "owners",
+      render: (_, record) => (
+        <div style={{ fontSize: 11 }}>
+          <div><span style={{ color: "#6b7280" }}>Sales: </span>{record.createdBy?.name || "N/A"}</div>
+          <div><span style={{ color: "#6b7280" }}>Tech: </span>{record.techOwner?.name || "None"}</div>
+        </div>
       ),
     },
     {
@@ -773,27 +820,74 @@ export default function ProjectsPage() {
       ),
     },
     {
-      title: "Status",
+      title: "Current Stage",
       dataIndex: "status",
       key: "status",
       filters: Object.keys(STATUS_CONFIG).map((s) => ({ text: s, value: s })),
       onFilter: (value, record) => record.status === value,
-      render: (status: string) => {
+      render: (status: string, record) => {
         const cfg = STATUS_CONFIG[status] || { color: "default", icon: null };
         return (
-          <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "0px 8px", fontSize: 12, margin: 0 }}>
-            {status}
-          </Tag>
+          <Space direction="vertical" size={4} style={{ width: "100%" }}>
+            <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "0px 8px", fontSize: 11, margin: 0 }}>
+              {status}
+            </Tag>
+            {record.pendingSignoff && (
+              <Tag color="error" style={{ borderRadius: 12, padding: "0px 8px", fontSize: 10, margin: 0 }}>
+                Signoff Pending
+              </Tag>
+            )}
+          </Space>
         );
       },
     },
     {
-      title: "Created",
-      dataIndex: "createdAt",
-      key: "createdAt",
+      title: "Metrics",
+      key: "metrics",
+      render: (_, record) => (
+        <div style={{ fontSize: 11 }}>
+          <div>
+            <span style={{ color: "#6b7280" }}>Req. Completeness: </span>
+            <span style={{ fontWeight: 600 }}>{record.requirementCompletenessScore || 0}%</span>
+          </div>
+          <div>
+            <span style={{ color: "#6b7280" }}>Progress: </span>
+            <span style={{ fontWeight: 600 }}>{record.progressPercent || 0}%</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Sprint & Blockers",
+      key: "sprint_blockers",
+      render: (_, record) => (
+        <div style={{ fontSize: 11 }}>
+          <div>
+            <span style={{ color: "#6b7280" }}>Sprint: </span>
+            <span style={{ fontWeight: 500 }}>{record.activeSprint || "None"}</span>
+          </div>
+          <Space size={4} style={{ marginTop: 2 }}>
+            {record.openBlockersCount ? (
+              <Tag color="red" style={{ fontSize: 10, margin: 0, padding: "0 4px" }}>
+                {record.openBlockersCount} Blockers
+              </Tag>
+            ) : null}
+            {record.overdueWorkItemsCount ? (
+              <Tag color="volcano" style={{ fontSize: 10, margin: 0, padding: "0 4px" }}>
+                {record.overdueWorkItemsCount} Overdue
+              </Tag>
+            ) : null}
+          </Space>
+        </div>
+      ),
+    },
+    {
+      title: "Last Updated",
+      dataIndex: "updatedAt",
+      key: "updatedAt",
       responsive: ["md"] as any,
       sorter: (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
       render: (date: string) => (
         <Tooltip title={dayjs(date).format("DD MMM YYYY, hh:mm A")}>
           <Text style={{ fontSize: 11, color: "#6b7280" }}>
@@ -810,11 +904,10 @@ export default function ProjectsPage() {
         const shouldForceClose = anyModalOpen || isTouchDevice;
 
         const handleSafeClick = (cb: () => void) => {
-          // ✅ FIX: remove hover/focus state completely
           if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
           }
-          document.body.click(); // existing logic
+          document.body.click();
           cb();
         };
 
@@ -871,7 +964,7 @@ export default function ProjectsPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
       {/* ── Header ── */}
       <div
         style={{
@@ -921,7 +1014,9 @@ export default function ProjectsPage() {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden"
+          overflow: "hidden",
+          minWidth: 0,
+          maxWidth: "100%"
         }}
         styles={{
           body: {

@@ -155,7 +155,8 @@ export default function DashboardPage() {
       title: "Task",
       dataIndex: "title",
       key: "title",
-      render: (text: string) => <Text strong style={{ fontSize: 13 }}>{text}</Text>,
+      ellipsis: true,
+      render: (text: string) => <Text strong style={{ fontSize: 13 }} title={text}>{text}</Text>,
     },
     {
       title: "Priority",

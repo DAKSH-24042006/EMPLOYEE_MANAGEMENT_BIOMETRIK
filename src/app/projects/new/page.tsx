@@ -314,7 +314,7 @@ export default function NewProjectPage() {
   });
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
       {/* ── Header ── */}
       <div style={{
         display: "flex",
@@ -338,7 +338,7 @@ export default function NewProjectPage() {
         </Link>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, paddingBottom: 40 }} className="hide-scrollbar">
+      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, paddingBottom: 40, minWidth: 0, maxWidth: "100%" }} className="hide-scrollbar">
         <Skeleton active loading={mounting} paragraph={{ rows: 15 }}>
           <Form
             form={form}
