@@ -19,6 +19,8 @@ import {
   Badge,
   Result,
   Grid,
+  Row,
+  Col,
 } from "antd";
 import { Role } from "@/lib/constants";
 
@@ -79,7 +81,7 @@ export default function UsersPage() {
       const res = await fetch("/api/users");
       const data = await res.json();
       if (res.ok) {
-        setUsers(data);
+        setUsers(Array.isArray(data) ? data : []);
       } else {
         message.error(data.error || "Failed to fetch users");
       }
@@ -513,6 +515,9 @@ export default function UsersPage() {
             <Select placeholder="Select a role">
               <Option value={Role.ADMIN}>Admin (Full Access)</Option>
               <Option value={Role.SALES}>Sales</Option>
+              <Option value={Role.SALES_TEAM}>Sales Team</Option>
+              <Option value={Role.TECH_TEAM}>Tech Team</Option>
+              <Option value={Role.TECH_MANAGER}>Tech Manager</Option>
             </Select>
           </Form.Item>
 

@@ -139,7 +139,7 @@ function NotificationDropdown() {
   );
 
   return (
-    <Dropdown dropdownRender={() => notificationMenu} trigger={["click"]} placement="bottomRight">
+    <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="bottomRight">
       <Badge count={unreadCount} size="small" offset={[-2, 4]} style={{ cursor: "pointer" }}>
         <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
       </Badge>

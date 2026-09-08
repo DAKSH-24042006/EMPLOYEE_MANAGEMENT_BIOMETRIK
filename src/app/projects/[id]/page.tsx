@@ -1136,7 +1136,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         size="small"
                         items={PROJECT_STAGES.map((s) => ({
                           title: s.shortLabel,
-                          description: s.label,
                         }))}
                       />
                     </Card>
