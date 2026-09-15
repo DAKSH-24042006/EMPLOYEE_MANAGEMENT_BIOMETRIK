@@ -81,17 +81,41 @@ export async function DELETE(
       return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
     }
 
-    const filePath = path.join(process.cwd(), "uploads", attachment.filename);
+    // If it's a folder, delete all child files and subfolders
+    if (attachment.isFolder) {
+      const parentPath = attachment.folder === "/" ? "" : attachment.folder;
+      const folderPrefix = `${parentPath}/${attachment.originalName}`;
+      
+      // Find all nested items to delete disk files
+      const children = await ProjectAttachment.find({
+        projectId: id,
+        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+      });
 
-    // Remove from disk
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      for (const child of children) {
+        if (!child.isFolder && child.filename) {
+          const childFilePath = path.join(process.cwd(), "uploads", child.filename);
+          if (fs.existsSync(childFilePath)) {
+            try { fs.unlinkSync(childFilePath); } catch (e) {}
+          }
+        }
+      }
+
+      await ProjectAttachment.deleteMany({
+        projectId: id,
+        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+      });
+    }
+
+    // Remove from disk if file
+    if (!attachment.isFolder && fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (e) {}
     }
 
     // Delete database entry
     await ProjectAttachment.findByIdAndDelete(attachmentId);
 
-    return NextResponse.json({ message: "Attachment deleted successfully" }, { status: 200 });
+    return NextResponse.json({ message: "Item deleted successfully" }, { status: 200 });
   } catch (error: any) {
     console.error("Delete attachment error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

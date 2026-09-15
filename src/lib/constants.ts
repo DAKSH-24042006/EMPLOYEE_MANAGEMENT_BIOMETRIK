@@ -1,7 +1,14 @@
 export enum Role {
+  SYSTEM_ADMIN = "SYSTEM_ADMIN",
+  EMPLOYEE = "EMPLOYEE",
   ADMIN = "ADMIN",
   SALES = "SALES",
   SALES_TEAM = "SALES_TEAM",
   TECH_TEAM = "TECH_TEAM",
   TECH_MANAGER = "TECH_MANAGER",
+}
+
+export enum UserStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
 }

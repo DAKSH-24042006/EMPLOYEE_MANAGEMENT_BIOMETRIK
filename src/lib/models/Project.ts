@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IClientDetails {
-  companyName: string;
+  companyName?: string;
   contactPerson?: string;
   email: string;
   contactNumber?: string;
@@ -103,7 +103,7 @@ const ProjectSchema: Schema = new Schema(
     clientDetails: {
       companyName: {
         type: String,
-        required: [true, "Company Name is required"],
+        default: "",
       },
       contactPerson: String,
       email: {

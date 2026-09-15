@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { CalendarTask } from "@/lib/models/CalendarTask";
+import { WorkItem } from "@/lib/models/WorkItem";
+import { Sprint } from "@/lib/models/Sprint";
+import "@/lib/models/Project";
+import "@/lib/models/User";
 import { verifyJwt } from "@/lib/auth";
 
 import { GoogleToken } from "@/lib/models/GoogleToken";
@@ -26,28 +30,114 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const includeAll = searchParams.get("includeAll") === "true";
+    const projectId = searchParams.get("projectId");
 
-    let query: any = { createdBy: payload.userId };
+    let personalQuery: any = { createdBy: payload.userId };
+    let dateFilter: any = null;
 
     if (startDate && endDate) {
       const sDate = new Date(startDate);
       const eDate = new Date(endDate);
 
       if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
-        query.date = {
+        dateFilter = {
           $gte: sDate,
           $lte: eDate,
         };
-      } else {
-        console.warn("GET Calendar Tasks: Invalid date range provided", { startDate, endDate });
+        personalQuery.date = dateFilter;
       }
     }
 
-    console.log("GET Calendar Tasks Query:", query);
-    const tasks = await CalendarTask.find(query).sort({ date: 1, createdAt: 1 });
-    console.log(`GET Calendar Tasks Success: Found ${tasks.length} tasks`);
+    const personalTasks = await CalendarTask.find(personalQuery).sort({ date: 1, createdAt: 1 }).lean();
 
-    return NextResponse.json(tasks);
+    const formattedPersonalTasks = personalTasks.map((t: any) => ({
+      ...t,
+      _id: String(t._id),
+      itemType: "personal",
+      isPersonal: true,
+      color: t.color || (t.priority === "Urgent" ? "#f55c5c" : t.priority === "High" ? "#f58c42" : t.priority === "Medium" ? "#f5c542" : "#6c8ef5"),
+    }));
+
+    if (!includeAll) {
+      return NextResponse.json(formattedPersonalTasks);
+    }
+
+    // Also fetch Work Items and Sprints
+    let workItemQuery: any = {};
+    if (dateFilter) {
+      workItemQuery.dueDate = dateFilter;
+    }
+    if (projectId) {
+      workItemQuery.projectId = projectId;
+    }
+
+    let sprintQuery: any = {};
+    if (dateFilter) {
+      sprintQuery.$or = [
+        { endDate: dateFilter },
+        { startDate: dateFilter }
+      ];
+    }
+    if (projectId) {
+      sprintQuery.projectId = projectId;
+    }
+
+    const [workItems, sprints] = await Promise.all([
+      WorkItem.find(workItemQuery)
+        .populate("projectId", "title clientDetails")
+        .populate("assignee", "name email")
+        .populate("sprint", "name")
+        .lean(),
+      Sprint.find(sprintQuery)
+        .populate("projectId", "title")
+        .lean()
+    ]);
+
+    const formattedWorkItems = workItems.map((w: any) => {
+      const isUrgent = w.priority === "Urgent";
+      const isHigh = w.priority === "High";
+      return {
+        _id: String(w._id),
+        title: w.title,
+        description: w.description || "",
+        date: w.dueDate ? new Date(w.dueDate).toISOString() : new Date().toISOString(),
+        priority: w.priority || "Medium",
+        status: w.status === "Done" ? "Done" : w.status === "In Progress" ? "In Progress" : "Todo",
+        rawStatus: w.status,
+        color: isUrgent ? "#ff4d4f" : isHigh ? "#fa8c16" : "#1890ff",
+        itemType: "work_item",
+        isPersonal: false,
+        projectName: w.projectId?.title || "Project Work Item",
+        projectId: w.projectId?._id ? String(w.projectId._id) : undefined,
+        assigneeName: w.assignee?.name || "Unassigned",
+        progress: w.progress || 0,
+        type: w.type,
+      };
+    });
+
+    const formattedSprints = sprints.map((s: any) => ({
+      _id: String(s._id),
+      title: `Sprint Deadline: ${s.name}`,
+      description: s.goal || "Sprint deadline",
+      date: s.endDate ? new Date(s.endDate).toISOString() : new Date().toISOString(),
+      priority: "High",
+      status: s.status === "Completed" ? "Done" : s.status === "Active" ? "In Progress" : "Todo",
+      rawStatus: s.status,
+      color: "#52c41a",
+      itemType: "sprint",
+      isPersonal: false,
+      projectName: s.projectId?.title || "Project Sprint",
+      projectId: s.projectId?._id ? String(s.projectId._id) : undefined,
+      startDate: s.startDate,
+      endDate: s.endDate,
+    }));
+
+    const allEvents = [...formattedPersonalTasks, ...formattedWorkItems, ...formattedSprints].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    return NextResponse.json(allEvents);
   } catch (error: any) {
     console.error("GET Calendar Tasks Error:", error);
     return NextResponse.json(

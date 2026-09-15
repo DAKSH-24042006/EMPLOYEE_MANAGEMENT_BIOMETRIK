@@ -1,4 +1,16 @@
 import { NextResponse } from "next/server";
+
+// ============================================================
+// LEGACY AUTHENTICATION — COMMENTED OUT
+//
+// Previous authentication implementation.
+// Replaced by Microsoft Entra ID authentication.
+//
+// PRESERVED FOR ROLLBACK / REFERENCE.
+// DO NOT DELETE.
+// ============================================================
+
+/*
 import dbConnect from "@/lib/db";
 import { User } from "@/lib/models/User";
 
@@ -39,3 +51,15 @@ export async function POST(req: Request) {
     );
   }
 }
+*/
+
+export async function POST() {
+  return NextResponse.json(
+    {
+      error: "Legacy check-email is disabled.",
+      message: "Please sign in using Microsoft Entra ID authentication.",
+    },
+    { status: 403 }
+  );
+}
+

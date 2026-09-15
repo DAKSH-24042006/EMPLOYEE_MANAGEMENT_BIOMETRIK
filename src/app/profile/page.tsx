@@ -23,12 +23,6 @@ function ProfileContent() {
   const screens = Grid.useBreakpoint();
   const [mounted, setMounted] = useState(false);
 
-  // Google Calendar Integration states
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState("");
-  const [checkingStatus, setCheckingStatus] = useState(true);
-  const [disconnecting, setDisconnecting] = useState(false);
-
   // Edit Profile states
   const [editProfileForm] = Form.useForm();
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -40,22 +34,6 @@ function ProfileContent() {
   }, []);
 
   const isMobile = mounted && !screens.md;
-
-  // Check URL parameters for OAuth status callbacks
-  useEffect(() => {
-    const connected = searchParams.get("google_connected");
-    const error = searchParams.get("google_error");
-
-    if (connected === "true") {
-      message.success("Google Calendar successfully connected!");
-      router.replace("/profile");
-    } else if (error) {
-      message.error(`Google Calendar connection failed: ${error}`);
-      router.replace("/profile");
-    }
-
-    checkGoogleStatus();
-  }, [searchParams, router]);
 
   const fetchUserData = async () => {
     try {
@@ -114,48 +92,6 @@ function ProfileContent() {
       message.error("Something went wrong. Please try again later.");
     } finally {
       setProfileUpdating(false);
-    }
-  };
-
-  const checkGoogleStatus = async () => {
-    setCheckingStatus(true);
-    try {
-      const res = await fetch("/api/auth/google/status");
-      const data = await res.json();
-      if (res.ok && data.connected) {
-        setGoogleConnected(true);
-        setGoogleEmail(data.email);
-      } else {
-        setGoogleConnected(false);
-        setGoogleEmail("");
-      }
-    } catch (error) {
-      console.error("Failed to fetch Google OAuth status", error);
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  const handleConnect = () => {
-    window.location.href = "/api/auth/google/connect";
-  };
-
-  const handleDisconnect = async () => {
-    setDisconnecting(true);
-    try {
-      const res = await fetch("/api/auth/google/disconnect", { method: "POST" });
-      if (res.ok) {
-        message.success("Google Calendar successfully disconnected!");
-        setGoogleConnected(false);
-        setGoogleEmail("");
-      } else {
-        const data = await res.json();
-        message.error(data.error || "Failed to disconnect Google Calendar");
-      }
-    } catch (error) {
-      message.error("An error occurred during disconnection");
-    } finally {
-      setDisconnecting(false);
     }
   };
 
@@ -294,67 +230,6 @@ function ProfileContent() {
                 <Divider />
                 <Title level={5}>Bio</Title>
                 <Text>Lead {user?.role?.toLowerCase().replace("_", " ") || "user"} for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.</Text>
-              </Card>
-
-              <Card 
-                variant="borderless" 
-                title={
-                  <Space>
-                    <Calendar size={18} color="#00897b" />
-                    <span>Google Calendar Integration</span>
-                  </Space>
-                }
-                style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <Text>
-                    Sync your tasks, clarification deadlines, and milestones directly to your Google Calendar.
-                  </Text>
-                  
-                  {checkingStatus ? (
-                    <Text type="secondary">Checking connection status...</Text>
-                  ) : googleConnected ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <CheckCircle2 size={20} color="#52c41a" />
-                        <Text style={{ fontWeight: 500 }}>
-                          Status: <Tag color="success">Connected</Tag>
-                        </Text>
-                      </div>
-                      <Text type="secondary" style={{ marginLeft: 32 }}>
-                        Linked to: <strong>{googleEmail}</strong>
-                      </Text>
-                      <div>
-                        <Button 
-                          danger 
-                          onClick={handleDisconnect} 
-                          loading={disconnecting}
-                          style={{ marginLeft: 32 }}
-                        >
-                          Disconnect Calendar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <XCircle size={20} color="#ff4d4f" />
-                        <Text style={{ fontWeight: 500 }}>
-                          Status: <Tag color="default">Not Connected</Tag>
-                        </Text>
-                      </div>
-                      <div>
-                        <Button 
-                          type="primary" 
-                          onClick={handleConnect} 
-                          style={{ backgroundColor: "#0073ea", border: "none", marginLeft: 32 }}
-                        >
-                          Connect Google Calendar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </Card>
             </Space>
           </Col>

@@ -30,7 +30,7 @@ export async function GET() {
     await dbConnect();
 
     // Find the user by ID and internal fields
-    const user = await User.findById(decoded.userId).select("name email role phoneNumber location");
+    const user = await User.findById(decoded.userId).select("name username email microsoftEmail designation status role phoneNumber location");
 
     if (!user) {
       return NextResponse.json(
@@ -44,7 +44,11 @@ export async function GET() {
         user: { 
           id: user._id,
           name: user.name, 
+          username: user.username,
           email: user.email, 
+          microsoftEmail: user.microsoftEmail,
+          designation: user.designation || "",
+          status: user.status,
           role: user.role,
           phoneNumber: user.phoneNumber,
           location: user.location

@@ -17,6 +17,8 @@ import {
   LogOut,
   Check,
   Bell,
+  ShieldCheck,
+  Mail,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
 import logo from '../../public/Biometrik_New_Logo.png'
@@ -153,7 +155,7 @@ const { useBreakpoint } = Grid;
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -210,9 +212,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       label: <Link href="/calendar">Calendar</Link>,
     },
     {
+      key: "/mail",
+      icon: <Mail size={18} />,
+      label: <Link href="/mail">Send Mail</Link>,
+    },
+    {
       key: "/profile",
       icon: <User size={18} />,
       label: <Link href="/profile">My Profile</Link>,
+    },
+    {
+      key: "/admin",
+      icon: <ShieldCheck size={18} />,
+      label: <Link href="/admin">System Admin</Link>,
     },
     {
       key: "/users",
@@ -220,6 +232,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       label: <Link href="/users">Users</Link>,
     },
   ].filter(item => {
+    if (item.key === "/admin") {
+      return user?.role === Role.SYSTEM_ADMIN;
+    }
     if (item.key === "/users") {
       return user?.role === Role.ADMIN;
     }
@@ -290,38 +305,40 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
-            <button
-              onClick={() => {
-                if (isDrawer) setDrawerVisible(false);
-                router.push("/projects/new");
-              }}
-              style={{
-                height: 48,
-                width: "100%",
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: isActuallyCollapsed ? "center" : "flex-start",
-                padding: isActuallyCollapsed ? "0" : "0 16px",
-                background: logoTeal,
-                border: "none",
-                color: "white",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.3s",
-              }}
-            >
-              {isActuallyCollapsed ? (
-                <Plus size={20} />
-              ) : (
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Plus size={16} />
-                  Create New
-                </span>
-              )}
-            </button>
-          </div>
+          {user?.role === Role.SYSTEM_ADMIN && (
+            <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
+              <button
+                onClick={() => {
+                  if (isDrawer) setDrawerVisible(false);
+                  router.push("/projects/new");
+                }}
+                style={{
+                  height: 48,
+                  width: "100%",
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: isActuallyCollapsed ? "center" : "flex-start",
+                  padding: isActuallyCollapsed ? "0" : "0 16px",
+                  background: logoTeal,
+                  border: "none",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                }}
+              >
+                {isActuallyCollapsed ? (
+                  <Plus size={20} />
+                ) : (
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Plus size={16} />
+                    Create New
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
           <Menu
             theme="light"
@@ -500,7 +517,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                       {user?.name || "Loading..."}
                     </span>
                     <span style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.45)", textTransform: "capitalize" }}>
-                      {user?.role === Role.SALES ? "Sales" : (user?.role?.toLowerCase().replace("_", " ") || "User")}
+                      {user?.role === Role.SYSTEM_ADMIN ? "System Admin" : (user?.designation || user?.role?.toLowerCase().replace("_", " ") || "Employee")}
                     </span>
                   </div>
                 )}

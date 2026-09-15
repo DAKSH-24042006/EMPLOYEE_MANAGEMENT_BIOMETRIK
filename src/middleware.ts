@@ -33,8 +33,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Optionally: Route specific Role-Based Access Control
-  // e.g. if (pathname.startsWith("/requirement") && payload.role !== "ADMIN") return NextResponse.redirect("/unauthorized")
+  // Enforce System Admin Route Protection — Strictly SYSTEM_ADMIN only
+  if (pathname.startsWith("/admin") || pathname.startsWith("/projects/new")) {
+    if (payload.role !== "SYSTEM_ADMIN") {
+      console.warn(`[Middleware] Unauthorized attempt to access ${pathname} by role: ${payload.role}`);
+      const redirectUrl = new URL("/projects", req.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
 
   console.log(`[Middleware] User authorized: ${payload.userId} (${payload.role})`);
   return NextResponse.next();

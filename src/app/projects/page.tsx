@@ -38,10 +38,10 @@ import {
   EyeOutlined,
   CalendarOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { generateProjectPDF } from "@/lib/reportUtils";
+import { Role } from "@/lib/constants";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -674,11 +674,20 @@ export default function ProjectsPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
 
   useEffect(() => {
     setMounted(true);
+    fetch("/api/user/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user?.role) {
+          setCurrentUserRole(data.user.role);
+        }
+      })
+      .catch((err) => console.error("Error fetching user role:", err));
   }, []);
 
   const isMobile = mounted && !screens.md;
@@ -993,15 +1002,17 @@ export default function ProjectsPage() {
               loading={loading}
             />
           </Tooltip>
-          <Link href="/projects/new">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              style={{ background: "#00897b", borderColor: "#00897b" }}
-            >
-              New Project
-            </Button>
-          </Link>
+          {currentUserRole === Role.SYSTEM_ADMIN && (
+            <Link href="/projects/new">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                style={{ background: "#00897b", borderColor: "#00897b" }}
+              >
+                New Project
+              </Button>
+            </Link>
+          )}
         </Space>
       </div>
 
@@ -1130,15 +1141,17 @@ export default function ProjectsPage() {
                   <Title level={5} style={{ color: "#9ca3af" }}>
                     No projects yet
                   </Title>
-                  <Link href="/projects/new">
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      style={{ marginTop: 16, background: "#00897b", borderColor: "#00897b" }}
-                    >
-                      New Project
-                    </Button>
-                  </Link>
+                  {currentUserRole === Role.SYSTEM_ADMIN && (
+                    <Link href="/projects/new">
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        style={{ marginTop: 16, background: "#00897b", borderColor: "#00897b" }}
+                      >
+                        New Project
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               ),
             }}

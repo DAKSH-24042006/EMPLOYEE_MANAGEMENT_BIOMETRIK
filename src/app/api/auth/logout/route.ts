@@ -6,8 +6,15 @@ export async function POST() {
     { status: 200 }
   );
 
-  // Clear the cookie by setting maxAge to 0
+  // Clear session cookie and auth state
   response.cookies.set("token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    expires: new Date(0),
+    path: "/",
+  });
+
+  response.cookies.set("ms_auth_state", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(0),

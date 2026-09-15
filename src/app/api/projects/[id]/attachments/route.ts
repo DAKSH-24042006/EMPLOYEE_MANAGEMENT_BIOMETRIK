@@ -25,8 +25,54 @@ export async function POST(
     }
 
     const { id } = await params;
+    await dbConnect();
+
+    const contentType = req.headers.get("content-type") || "";
+
+    // Handle Folder Creation (JSON payload)
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      if (body.action === "create_folder") {
+        const folderName = (body.folderName || "").trim();
+        const parentFolder = (body.parentFolder || "/").trim();
+
+        if (!folderName) {
+          return NextResponse.json({ error: "Folder name is required" }, { status: 400 });
+        }
+
+        // Check for duplicate folder in the same parent folder
+        const existingFolder = await ProjectAttachment.findOne({
+          projectId: id,
+          folder: parentFolder,
+          originalName: folderName,
+          isFolder: true,
+        });
+
+        if (existingFolder) {
+          return NextResponse.json({ error: `Folder '${folderName}' already exists here.` }, { status: 400 });
+        }
+
+        const newFolder = await ProjectAttachment.create({
+          projectId: id,
+          originalName: folderName,
+          folder: parentFolder,
+          isFolder: true,
+          mimeType: "application/x-directory",
+          size: 0,
+          uploadedBy: payload.userId,
+        });
+
+        const populatedFolder = await ProjectAttachment.findById(newFolder._id)
+          .populate("uploadedBy", "name email role");
+
+        return NextResponse.json({ data: populatedFolder }, { status: 201 });
+      }
+    }
+
+    // Handle File Upload (FormData payload)
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const targetFolder = (formData.get("folder") as string) || "/";
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -47,18 +93,19 @@ export async function POST(
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       "text/plain",
       "text/csv",
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/json",
     ];
 
-    if (!allowedMimeTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Forbidden file type!" }, { status: 400 });
+    if (!allowedMimeTypes.includes(file.type) && !file.type.startsWith("image/") && !file.type.startsWith("text/")) {
+      return NextResponse.json({ error: "Unsupported file format. Please upload documents, images, spreadsheets, or PDFs." }, { status: 400 });
     }
 
-    // 10MB max size
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "File size exceeds limit (10MB)" }, { status: 400 });
+    // 25MB max size
+    if (file.size > 25 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds limit (25MB)" }, { status: 400 });
     }
-
-    await dbConnect();
 
     // Setup Storage Path
     const uploadDir = path.join(process.cwd(), "uploads");
@@ -81,8 +128,10 @@ export async function POST(
       projectId: id,
       filename: uniqueFilename,
       originalName: file.name,
-      mimeType: file.type,
+      mimeType: file.type || "application/octet-stream",
       size: file.size,
+      folder: targetFolder,
+      isFolder: false,
       uploadedBy: payload.userId,
     });
 
@@ -114,11 +163,19 @@ export async function GET(
     }
 
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const folderFilter = searchParams.get("folder");
+
     await dbConnect();
 
-    const attachments = await ProjectAttachment.find({ projectId: id })
+    const query: any = { projectId: id };
+    if (folderFilter !== null && folderFilter !== undefined) {
+      query.folder = folderFilter;
+    }
+
+    const attachments = await ProjectAttachment.find(query)
       .populate("uploadedBy", "name email role")
-      .sort({ createdAt: -1 });
+      .sort({ isFolder: -1, createdAt: -1 });
 
     return NextResponse.json({ data: attachments }, { status: 200 });
   } catch (error: any) {

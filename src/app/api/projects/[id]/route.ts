@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
 import { Project } from "@/lib/models/Project";
 import { ProjectVersion } from "@/lib/models/ProjectVersion";
@@ -8,6 +9,7 @@ import { TestCase } from "@/lib/models/TestCase";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { Role } from "@/lib/constants";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -74,6 +76,22 @@ export async function PATCH(
     }
 
     // --- Role-Based Access Control Checks ---
+    // STRICT SECURITY: Only SYSTEM_ADMIN can decide project lead (techOwner) and manage members (techTeamMembers)
+    if (userRole !== Role.SYSTEM_ADMIN) {
+      if (body.techOwner !== undefined) {
+        return NextResponse.json(
+          { error: "Forbidden: Only System Administrator has access to decide or change the Project Lead." },
+          { status: 403 }
+        );
+      }
+      if (body.techTeamMembers !== undefined) {
+        return NextResponse.json(
+          { error: "Forbidden: Only System Administrator has access to add or modify project members." },
+          { status: 403 }
+        );
+      }
+    }
+
     if (userRole === "SALES_TEAM" || userRole === "SALES") {
       // Sales restrictions
       const restrictedFieldsForSales = [
@@ -234,14 +252,14 @@ export async function PATCH(
     if (body.internalApproval !== undefined) {
       existingProject.internalApproval = {
         approved: body.internalApproval.approved,
-        approvedBy: body.internalApproval.approved ? userId : undefined,
+        approvedBy: body.internalApproval.approved && userId ? (new mongoose.Types.ObjectId(userId) as any) : undefined,
         approvedAt: body.internalApproval.approved ? new Date() : undefined,
       };
     }
     if (body.salesApproval !== undefined) {
       existingProject.salesApproval = {
         approved: body.salesApproval.approved,
-        approvedBy: body.salesApproval.approved ? userId : undefined,
+        approvedBy: body.salesApproval.approved && userId ? (new mongoose.Types.ObjectId(userId) as any) : undefined,
         approvedAt: body.salesApproval.approved ? new Date() : undefined,
       };
     }

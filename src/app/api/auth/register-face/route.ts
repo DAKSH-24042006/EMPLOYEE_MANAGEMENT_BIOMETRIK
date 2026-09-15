@@ -3,6 +3,14 @@ import dbConnect from "@/lib/db";
 import { signJwt } from "@/lib/auth";
 import { User } from "@/lib/models/User";
 
+// ============================================================
+// LEGACY AUTHENTICATION — PRESERVED FOR ROLLBACK / REFERENCE
+//
+// Previous face registration authentication implementation.
+// Replaced by Microsoft Entra ID authentication as active login.
+// DO NOT DELETE.
+// ============================================================
+
 const MAX_FACE_IMAGE_LENGTH = 8 * 1024 * 1024;
 
 function normalizeEmail(email: unknown) {

@@ -3,26 +3,38 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Typography, Card, Button, Drawer, Modal, Form,
-  Input, DatePicker, Select, message, Tag, Spin, Space, Popconfirm, Row, Col, Grid
+  Input, DatePicker, Select, message, Tag, Spin, Space, Popconfirm, Row, Col, Grid, Segmented, Tooltip
 } from "antd";
 import {
   LeftOutlined, RightOutlined, PlusOutlined,
-  EditOutlined, DeleteOutlined, CalendarOutlined
+  EditOutlined, DeleteOutlined, CalendarOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, ArrowRightOutlined
 } from "@ant-design/icons";
+import { useRouter } from "next/navigation";
 import dayjs, { Dayjs } from "dayjs";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-interface CalendarTask {
+export interface CalendarEventItem {
   _id: string;
   title: string;
   description: string;
   date: string; // ISO string
   priority: "Low" | "Medium" | "High" | "Urgent";
   status: "Todo" | "In Progress" | "Done" | "Cancelled";
+  rawStatus?: string;
   color: string;
+  itemType: "personal" | "work_item" | "sprint";
+  isPersonal: boolean;
+  projectName?: string;
+  projectId?: string;
+  assigneeName?: string;
+  progress?: number;
+  type?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 const PRIORITIES = [
@@ -36,9 +48,14 @@ const STATUSES = ["Todo", "In Progress", "Done", "Cancelled"];
 
 export default function CalendarPage() {
   const [messageApi, contextHolder] = message.useMessage();
+  const router = useRouter();
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
-  const [tasks, setTasks] = useState<CalendarTask[]>([]);
+  const [tasks, setTasks] = useState<CalendarEventItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter States
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Responsive Hooks
   const screens = Grid.useBreakpoint();
@@ -50,27 +67,26 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
 
-  // Modal state
+  // Modal state for Personal Task
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingTask, setEditingTask] = useState<CalendarTask | null>(null);
+  const [editingTask, setEditingTask] = useState<CalendarEventItem | null>(null);
   const [form] = Form.useForm();
-  // Store pending add-date so afterOpenChange can use it
   const pendingDateRef = React.useRef<Dayjs>(dayjs());
 
   const fetchTasks = async (date: Dayjs) => {
     setLoading(true);
     try {
       // Fetch -1 month, current month, +1 month
-      const start = date.subtract(1, 'month').startOf('month').toISOString();
-      const end = date.add(1, 'month').endOf('month').toISOString();
+      const start = date.subtract(1, "month").startOf("month").toISOString();
+      const end = date.add(1, "month").endOf("month").toISOString();
 
-      const res = await fetch(`/api/calendar-tasks?startDate=${start}&endDate=${end}`);
+      const res = await fetch(`/api/calendar-tasks?startDate=${start}&endDate=${end}&includeAll=true`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
       setTasks(data);
     } catch (error) {
       console.error(error);
-      messageApi.error("Could not load tasks");
+      messageApi.error("Could not load calendar events");
     } finally {
       setLoading(false);
     }
@@ -80,8 +96,8 @@ export default function CalendarPage() {
     fetchTasks(currentDate);
   }, [currentDate]);
 
-  const handlePrevMonth = () => setCurrentDate(currentDate.subtract(1, 'month'));
-  const handleNextMonth = () => setCurrentDate(currentDate.add(1, 'month'));
+  const handlePrevMonth = () => setCurrentDate(currentDate.subtract(1, "month"));
+  const handleNextMonth = () => setCurrentDate(currentDate.add(1, "month"));
   const handleToday = () => setCurrentDate(dayjs());
 
   const onDateClick = (date: Dayjs) => {
@@ -89,19 +105,19 @@ export default function CalendarPage() {
     setDrawerVisible(true);
   };
 
-  // Open modal inside drawer or from anywhere
+  // Open modal to add or edit personal task
   const onAddTask = (date?: Dayjs) => {
     setEditingTask(null);
     pendingDateRef.current = date || selectedDate || dayjs();
     setModalVisible(true);
   };
 
-  const onEditTask = (task: CalendarTask) => {
+  const onEditTask = (task: CalendarEventItem) => {
+    if (!task.isPersonal) return;
     setEditingTask(task);
     setModalVisible(true);
   };
 
-  // Called by Modal afterOpenChange — form is guaranteed mounted at this point
   const populateFormAfterOpen = (open: boolean) => {
     if (!open) return;
     if (editingTask) {
@@ -118,13 +134,29 @@ export default function CalendarPage() {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete task");
-      messageApi.success("Task deleted");
-      // Small delay to allow DB/Server to stabilize after delete before re-fetching
+      messageApi.success("Personal task deleted");
       setTimeout(() => {
         fetchTasks(currentDate);
       }, 300);
     } catch (error) {
       messageApi.error("Could not delete task");
+    }
+  };
+
+  const handleToggleStatus = async (task: CalendarEventItem) => {
+    if (!task.isPersonal) return;
+    try {
+      const newStatus = task.status === "Done" ? "Todo" : "Done";
+      const res = await fetch(`/api/calendar-tasks/${task._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...task, status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      messageApi.success(`Task marked as ${newStatus}`);
+      fetchTasks(currentDate);
+    } catch (error) {
+      messageApi.error("Failed to update status");
     }
   };
 
@@ -150,7 +182,7 @@ export default function CalendarPage() {
 
       if (!res.ok) throw new Error("Failed to save task");
 
-      messageApi.success(isEdit ? "Task updated" : "Task created");
+      messageApi.success(isEdit ? "Personal task updated" : "Personal task created");
       setModalVisible(false);
       fetchTasks(currentDate);
     } catch (error) {
@@ -158,19 +190,31 @@ export default function CalendarPage() {
     }
   };
 
+  // Filtered Events
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (typeFilter !== "all" && t.itemType !== typeFilter) return false;
+      if (statusFilter !== "all") {
+        if (statusFilter === "done" && t.status !== "Done") return false;
+        if (statusFilter === "pending" && t.status === "Done") return false;
+      }
+      return true;
+    });
+  }, [tasks, typeFilter, statusFilter]);
+
   // Calendar Grid Logic
   const generateGrid = () => {
-    const startOfMonth = currentDate.startOf('month');
-    const endOfMonth = currentDate.endOf('month');
-    const startDate = startOfMonth.startOf('week');
-    const endDate = endOfMonth.endOf('week');
+    const startOfMonth = currentDate.startOf("month");
+    const endOfMonth = currentDate.endOf("month");
+    const startDate = startOfMonth.startOf("week");
+    const endDate = endOfMonth.endOf("week");
 
     const grid = [];
     let d = startDate;
 
     while (d.isBefore(endDate)) {
       grid.push(d);
-      d = d.add(1, 'day');
+      d = d.add(1, "day");
     }
 
     return grid;
@@ -179,40 +223,68 @@ export default function CalendarPage() {
   const gridDays = generateGrid();
 
   const getTasksForDate = (date: Dayjs) => {
-    return tasks.filter(t => dayjs(t.date).isSame(date, 'day'));
+    return filteredTasks.filter(t => dayjs(t.date).isSame(date, "day"));
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "0", minWidth: 0, maxWidth: "100%" }}>
       {contextHolder}
+
       {/* Header */}
-      {/* Header */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16, flex: "0 0 auto" }}>
-        <div>
-          <Title level={3} style={{ margin: 0 }}>Calendar</Title>
-          <Text type="secondary">Manage your daily tasks and schedule</Text>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16, flex: "0 0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <Title level={3} style={{ margin: 0, color: "#111827" }}>Master Schedule & Calendar</Title>
+            <Text type="secondary">View all project work items, sprint deadlines, and manage your personal tasks in one place.</Text>
+          </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => onAddTask()}
+            style={{ backgroundColor: "#00897b", borderColor: "#00897b", fontWeight: 600 }}
+          >
+            Add Personal Task
+          </Button>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "nowrap", width: "100%", overflowX: "auto", paddingBottom: 4 }} className="hide-scrollbar">
 
-          {/* Left: Today */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "flex-start", paddingRight: isMobile ? 4 : 16 }}>
-            <Button onClick={handleToday} size={isMobile ? "small" : "middle"} style={{ width: "100%", maxWidth: 160 }}>Today</Button>
-          </div>
+        {/* Filter Bar & Controls */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, backgroundColor: "#fff", padding: "10px 14px", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Navigation Controls */}
+          <Space size={8}>
+            <Button onClick={handleToday} size="small">Today</Button>
+            <Button icon={<LeftOutlined />} onClick={handlePrevMonth} size="small" />
+            <Text strong style={{ minWidth: 120, textAlign: "center", display: "inline-block", fontSize: 14 }}>
+              {currentDate.format("MMMM YYYY")}
+            </Text>
+            <Button icon={<RightOutlined />} onClick={handleNextMonth} size="small" />
+          </Space>
 
-          {/* Center: Month Navigation */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flex: "0 0 auto" }}>
-            <Button icon={<LeftOutlined />} onClick={handlePrevMonth} size={isMobile ? "small" : "middle"} />
-            <Title level={isMobile ? 5 : 4} style={{ margin: "0", minWidth: isMobile ? 90 : 130, textAlign: "center", lineHeight: isMobile ? "24px" : "32px", whiteSpace: "nowrap" }}>
-              {currentDate.format(isMobile ? 'MMM YYYY' : 'MMMM YYYY')}
-            </Title>
-            <Button icon={<RightOutlined />} onClick={handleNextMonth} size={isMobile ? "small" : "middle"} />
-          </div>
+          {/* Type Filter */}
+          <Space wrap size={10}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Show:</Text>
+            <Segmented
+              value={typeFilter}
+              onChange={(val) => setTypeFilter(val as string)}
+              options={[
+                { label: "All Items", value: "all" },
+                { label: "📝 Personal Tasks", value: "personal" },
+                { label: "💼 Work Items", value: "work_item" },
+                { label: "🏁 Sprints", value: "sprint" },
+              ]}
+              size="small"
+            />
 
-          {/* Right: Add Task */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", paddingLeft: isMobile ? 4 : 16 }}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => onAddTask()} size={isMobile ? "small" : "middle"} style={{ width: "100%", maxWidth: 160, whiteSpace: "nowrap" }}>Add Task</Button>
-          </div>
-
+            <Segmented
+              value={statusFilter}
+              onChange={(val) => setStatusFilter(val as string)}
+              options={[
+                { label: "All Statuses", value: "all" },
+                { label: "Pending", value: "pending" },
+                { label: "Done", value: "done" },
+              ]}
+              size="small"
+            />
+          </Space>
         </div>
       </div>
 
@@ -225,16 +297,18 @@ export default function CalendarPage() {
             overflow: "hidden",
             flex: 1,
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+            border: "1px solid #e5e7eb"
           }}
           styles={{ body: { padding: 0, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" } }}
         >
           <div style={{ overflow: "hidden", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
               {/* Weekday headers */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f0f0", flex: "0 0 auto" }}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-                  <div key={idx} style={{ padding: isMobile ? "8px 0" : "12px 0", textAlign: "center", fontWeight: 600, color: "#8c8c8c", fontSize: isMobile ? 12 : 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f0f0", backgroundColor: "#fafafa", flex: "0 0 auto" }}>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
+                  <div key={idx} style={{ padding: isMobile ? "8px 0" : "10px 0", textAlign: "center", fontWeight: 600, color: "#6b7280", fontSize: isMobile ? 11 : 13 }}>
                     {isMobile ? day.charAt(0) : day}
                   </div>
                 ))}
@@ -243,8 +317,8 @@ export default function CalendarPage() {
               {/* Calendar Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", flex: 1, overflowY: "auto" }}>
                 {gridDays.map((date, idx) => {
-                  const isCurrentMonth = date.isSame(currentDate, 'month');
-                  const isToday = date.isSame(dayjs(), 'day');
+                  const isCurrentMonth = date.isSame(currentDate, "month");
+                  const isToday = date.isSame(dayjs(), "day");
                   const dayTasks = getTasksForDate(date);
 
                   return (
@@ -252,84 +326,132 @@ export default function CalendarPage() {
                       key={idx}
                       onClick={() => onDateClick(date)}
                       style={{
-                        minHeight: isMobile ? 60 : "calc((100vh - 350px) / 6)", // Dynamically size cells
+                        minHeight: isMobile ? 60 : "calc((100vh - 350px) / 6)",
                         borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
                         borderBottom: "1px solid #f0f0f0",
                         padding: isMobile ? 4 : 8,
                         backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
                         cursor: "pointer",
-                        transition: "all 0.2s",
-                        opacity: isMobile && !isCurrentMonth ? 0.6 : 1, // Dim inactive months slightly on mobile
+                        transition: "all 0.15s ease",
+                        position: "relative",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = isCurrentMonth ? "#fcfcfc" : "#f5f5f5";
+                        e.currentTarget.style.backgroundColor = isCurrentMonth ? "#f4fbf7" : "#f0f0f0";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = isCurrentMonth ? "#fff" : "#fafafa";
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: isMobile ? "center" : "space-between", alignItems: "center", marginBottom: isMobile ? 6 : 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{
-                          width: isMobile ? 24 : 28,
-                          height: isMobile ? 24 : 28,
+                          width: isMobile ? 22 : 26,
+                          height: isMobile ? 22 : 26,
                           borderRadius: "50%",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: isToday ? "#1677ff" : "transparent",
-                          color: isToday ? "#fff" : (isCurrentMonth ? "#262626" : "#bfbfbf"),
-                          fontWeight: isToday ? 600 : 400,
-                          fontSize: isMobile ? 12 : 14
+                          backgroundColor: isToday ? "#00897b" : "transparent",
+                          color: isToday ? "#fff" : (isCurrentMonth ? "#1f2937" : "#9ca3af"),
+                          fontWeight: isToday ? 700 : 500,
+                          fontSize: isMobile ? 11 : 13
                         }}>
-                          {date.format('D')}
+                          {date.format("D")}
                         </div>
+
+                        {/* Quick Add Button */}
+                        {!isMobile && (
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<PlusOutlined style={{ fontSize: 10, color: "#9ca3af" }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddTask(date);
+                            }}
+                            title="Add personal task to this day"
+                            style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
+                          />
+                        )}
                       </div>
 
-                      {/* Task Chips */}
-                      <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start", gap: isMobile ? 3 : 4 }}>
-                        {dayTasks.slice(0, isMobile ? 4 : 3).map(task => (
-                          isMobile ? (
-                            <div
+                      {/* Event Chips */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {dayTasks.slice(0, isMobile ? 2 : 3).map((task) => {
+                          const isPersonal = task.itemType === "personal";
+                          const isSprint = task.itemType === "sprint";
+                          const isDone = task.status === "Done";
+
+                          const bg = isPersonal
+                            ? "#eef2ff"
+                            : isSprint
+                            ? "#ecfdf5"
+                            : "#f0fdfa";
+                          const borderColor = isPersonal
+                            ? "#c7d2fe"
+                            : isSprint
+                            ? "#a7f3d0"
+                            : "#99f6e4";
+                          const textColor = isPersonal
+                            ? "#3730a3"
+                            : isSprint
+                            ? "#065f46"
+                            : "#115e59";
+
+                          return (
+                            <Tooltip
                               key={task._id}
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: "50%",
-                                backgroundColor: task.color,
-                              }}
-                            />
-                          ) : (
-                            <div
-                              key={task._id}
-                              style={{
-                                backgroundColor: `${task.color}20`,
-                                color: task.color,
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                border: `1px solid ${task.color}40`,
-                                zIndex: 2,
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditTask(task);
-                              }}
+                              title={
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{task.title}</div>
+                                  <div style={{ fontSize: 11 }}>
+                                    Type: {task.itemType === "personal" ? "Personal Task" : task.itemType === "sprint" ? "Sprint Deadline" : `Work Item (${task.projectName || "Project"})`}
+                                  </div>
+                                  <div style={{ fontSize: 11 }}>Status: {task.status} | Priority: {task.priority}</div>
+                                  {task.assigneeName && <div style={{ fontSize: 11 }}>Assignee: {task.assigneeName}</div>}
+                                </div>
+                              }
                             >
-                              {task.title}
-                            </div>
-                          )
-                        ))}
-                        {!isMobile && dayTasks.length > 3 && (
-                          <Text type="secondary" style={{ fontSize: 12, textAlign: "center", display: "block", marginTop: 2 }}>
-                            + {dayTasks.length - 3} more
+                              <div
+                                style={{
+                                  backgroundColor: bg,
+                                  borderLeft: `3px solid ${task.color || "#00897b"}`,
+                                  borderTop: `1px solid ${borderColor}`,
+                                  borderRight: `1px solid ${borderColor}`,
+                                  borderBottom: `1px solid ${borderColor}`,
+                                  color: textColor,
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  textDecoration: isDone ? "line-through" : "none",
+                                  opacity: isDone ? 0.65 : 1,
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isPersonal) {
+                                    onEditTask(task);
+                                  } else {
+                                    setSelectedDate(date);
+                                    setDrawerVisible(true);
+                                  }
+                                }}
+                              >
+                                {isPersonal && "📝 "}
+                                {isSprint && "🏁 "}
+                                {!isPersonal && !isSprint && "💼 "}
+                                {task.title}
+                              </div>
+                            </Tooltip>
+                          );
+                        })}
+
+                        {dayTasks.length > (isMobile ? 2 : 3) && (
+                          <Text type="secondary" style={{ fontSize: 10, textAlign: "center", display: "block", marginTop: 1 }}>
+                            + {dayTasks.length - (isMobile ? 2 : 3)} more
                           </Text>
-                        )}
-                        {isMobile && dayTasks.length > 4 && (
-                          <div style={{ fontSize: 10, lineHeight: "6px", color: "#8c8c8c", marginLeft: 2 }}>+</div>
                         )}
                       </div>
                     </div>
@@ -342,76 +464,258 @@ export default function CalendarPage() {
       </Spin>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 24, marginTop: 12, justifyContent: "center" }}>
-        {PRIORITIES.map(p => (
+      <div style={{ display: "flex", gap: 20, marginTop: 12, justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13 }}>📝</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>Personal Tasks (Full Edit/Delete)</Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13 }}>💼</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>Project Work Items (Due Dates)</Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13 }}>🏁</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>Sprint Deadlines</Text>
+        </div>
+        {PRIORITIES.map((p) => (
           <div key={p.value} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: p.color }}></div>
-            <Text type="secondary" style={{ fontSize: 13 }}>{p.label}</Text>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>{p.label}</Text>
           </div>
         ))}
       </div>
 
       {/* Drawer for Specific Date */}
       <Drawer
-        title={selectedDate ? selectedDate.format('dddd, MMMM D, YYYY') : "Tasks"}
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <CalendarOutlined style={{ color: "#00897b" }} />
+            <span>{selectedDate ? selectedDate.format("dddd, MMMM D, YYYY") : "Schedule"}</span>
+          </div>
+        }
         placement="right"
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
         size="large"
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <Title level={5} style={{ margin: 0 }}>
-            {selectedDate && getTasksForDate(selectedDate).length} Tasks
+            {selectedDate && getTasksForDate(selectedDate).length} Items Scheduled
           </Title>
-          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => onAddTask(selectedDate || dayjs())}>
-            Add New
+          <Button
+            type="primary"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => onAddTask(selectedDate || dayjs())}
+            style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
+          >
+            Add Personal Task
           </Button>
         </div>
 
         {selectedDate && getTasksForDate(selectedDate).length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#bfbfbf" }}>
-            <CalendarOutlined style={{ fontSize: 48, marginBottom: 16, display: "block", opacity: 0.5 }} />
-            <Text type="secondary">No tasks for this day</Text>
+          <div style={{ textAlign: "center", padding: "50px 0", color: "#bfbfbf" }}>
+            <CalendarOutlined style={{ fontSize: 44, marginBottom: 16, display: "block", opacity: 0.4 }} />
+            <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>No events or tasks scheduled for this day</Text>
+            <Button type="dashed" icon={<PlusOutlined />} onClick={() => onAddTask(selectedDate || dayjs())}>
+              Create a Task for this Date
+            </Button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {selectedDate && getTasksForDate(selectedDate).map(task => (
-              <Card key={task._id} size="small" styles={{ body: { padding: 12 } }} style={{ borderLeft: `4px solid ${task.color}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <Text strong>{task.title}</Text>
-                  <Space size="small">
-                    <Button type="text" size="small" icon={<EditOutlined />} onClick={() => onEditTask(task)} />
-                    <Popconfirm
-                      title="Delete task"
-                      description="Are you sure you want to delete this task?"
-                      onConfirm={() => onDeleteTask(task._id)}
-                      okText="Yes"
-                      cancelText="No"
-                    >
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* 1. Personal Tasks Section */}
+            {(() => {
+              const dateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+              const personalItems = dateTasks.filter(t => t.itemType === "personal");
+              if (personalItems.length === 0) return null;
+
+              return (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13, color: "#3730a3" }}>📝 Personal Tasks ({personalItems.length})</Text>
+                  </div>
+                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                    {personalItems.map((task) => (
+                      <Card
+                        key={task._id}
+                        size="small"
+                        styles={{ body: { padding: 12 } }}
+                        style={{
+                          borderLeft: `4px solid ${task.color || "#00897b"}`,
+                          borderRadius: 8,
+                          backgroundColor: task.status === "Done" ? "#f9fafb" : "#fff",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <Space align="start">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={task.status === "Done" ? <CheckCircleOutlined style={{ color: "#52c41a" }} /> : <ClockCircleOutlined style={{ color: "#9ca3af" }} />}
+                              onClick={() => handleToggleStatus(task)}
+                              title={task.status === "Done" ? "Mark as Incomplete" : "Mark as Done"}
+                            />
+                            <div>
+                              <Text
+                                strong
+                                style={{
+                                  fontSize: 14,
+                                  textDecoration: task.status === "Done" ? "line-through" : "none",
+                                  color: task.status === "Done" ? "#9ca3af" : "#111827",
+                                }}
+                              >
+                                {task.title}
+                              </Text>
+                              <Tag color="purple" style={{ marginLeft: 8, fontSize: 10 }}>Personal</Tag>
+                            </div>
+                          </Space>
+                          <Space size="small">
+                            <Button type="text" size="small" icon={<EditOutlined />} onClick={() => onEditTask(task)} />
+                            <Popconfirm
+                              title="Delete task"
+                              description="Are you sure you want to delete this personal task?"
+                              onConfirm={() => onDeleteTask(task._id)}
+                              okText="Yes"
+                              cancelText="No"
+                            >
+                              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                            </Popconfirm>
+                          </Space>
+                        </div>
+                        {task.description && (
+                          <Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 12, paddingLeft: 28 }}>
+                            {task.description}
+                          </Text>
+                        )}
+                        <div style={{ display: "flex", gap: 6, paddingLeft: 28 }}>
+                          <Tag color={task.status === "Done" ? "success" : task.status === "In Progress" ? "processing" : "default"}>
+                            {task.status}
+                          </Tag>
+                          <Tag color={task.color}>{task.priority}</Tag>
+                        </div>
+                      </Card>
+                    ))}
                   </Space>
                 </div>
-                {task.description && (
-                  <Text type="secondary" style={{ display: "block", marginBottom: 12, fontSize: 13 }}>
-                    {task.description}
-                  </Text>
-                )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Tag color={task.status === "Done" ? "success" : task.status === "In Progress" ? "processing" : "default"}>
-                    {task.status}
-                  </Tag>
-                  <Tag color={task.color}>{task.priority}</Tag>
+              );
+            })()}
+
+            {/* 2. Project Work Items Section */}
+            {(() => {
+              const dateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+              const workItems = dateTasks.filter(t => t.itemType === "work_item");
+              if (workItems.length === 0) return null;
+
+              return (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13, color: "#00897b" }}>💼 Project Work Items ({workItems.length})</Text>
+                  </div>
+                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                    {workItems.map((item) => (
+                      <Card
+                        key={item._id}
+                        size="small"
+                        styles={{ body: { padding: 12 } }}
+                        style={{ borderLeft: `4px solid ${item.color}`, borderRadius: 8 }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <div>
+                            <Text strong style={{ fontSize: 14 }}>{item.title}</Text>
+                            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                              Project: <Text strong style={{ color: "#00897b" }}>{item.projectName}</Text> {item.type ? `| ${item.type}` : ""}
+                            </div>
+                          </div>
+                          {item.projectId && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<ArrowRightOutlined />}
+                              onClick={() => {
+                                setDrawerVisible(false);
+                                router.push(`/projects/${item.projectId}`);
+                              }}
+                            >
+                              Open Project
+                            </Button>
+                          )}
+                        </div>
+                        {item.description && (
+                          <Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                            {item.description}
+                          </Text>
+                        )}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                          <Tag color={item.status === "Done" ? "success" : "blue"}>{item.status}</Tag>
+                          <Tag color={item.color}>{item.priority}</Tag>
+                          {item.assigneeName && (
+                            <span style={{ fontSize: 11, color: "#6b7280" }}>
+                              Assignee: <Text strong>{item.assigneeName}</Text>
+                            </span>
+                          )}
+                        </div>
+                      </Card>
+                    ))}
+                  </Space>
                 </div>
-              </Card>
-            ))}
+              );
+            })()}
+
+            {/* 3. Sprints Section */}
+            {(() => {
+              const dateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+              const sprintItems = dateTasks.filter(t => t.itemType === "sprint");
+              if (sprintItems.length === 0) return null;
+
+              return (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13, color: "#059669" }}>🏁 Sprint Deadlines ({sprintItems.length})</Text>
+                  </div>
+                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                    {sprintItems.map((sprint) => (
+                      <Card
+                        key={sprint._id}
+                        size="small"
+                        styles={{ body: { padding: 12 } }}
+                        style={{ borderLeft: "4px solid #52c41a", borderRadius: 8, backgroundColor: "#f6ffed" }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div>
+                            <Text strong style={{ fontSize: 14, color: "#135200" }}>{sprint.title}</Text>
+                            <div style={{ fontSize: 11, color: "#52c41a", marginTop: 2 }}>
+                              Project: {sprint.projectName}
+                            </div>
+                            {sprint.description && (
+                              <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>Goal: {sprint.description}</div>
+                            )}
+                          </div>
+                          {sprint.projectId && (
+                            <Button
+                              type="link"
+                              size="small"
+                              onClick={() => {
+                                setDrawerVisible(false);
+                                router.push(`/projects/${sprint.projectId}`);
+                              }}
+                            >
+                              View Project
+                            </Button>
+                          )}
+                        </div>
+                      </Card>
+                    ))}
+                  </Space>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Drawer>
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit Personal Task Modal */}
       <Modal
-        title={editingTask ? "Edit Task" : "Add Task"}
+        title={editingTask ? "Edit Personal Task" : "Add Personal Task"}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
@@ -422,14 +726,14 @@ export default function CalendarPage() {
           form={form}
           layout="vertical"
           onFinish={handleModalSubmit}
-          style={{ marginTop: 24 }}
+          style={{ marginTop: 20 }}
         >
           <Form.Item
             name="title"
             label="Task Title"
-            rules={[{ required: true, message: "Please enter a title" }]}
+            rules={[{ required: true, message: "Please enter a task title" }]}
           >
-            <Input placeholder="e.g. Call client regarding new specs" />
+            <Input placeholder="e.g. Review client proposal, finish documentation..." />
           </Form.Item>
 
           <Row gutter={[16, 16]}>
@@ -451,10 +755,10 @@ export default function CalendarPage() {
                 <Select>
                   {PRIORITIES.map(p => (
                     <Option key={p.value} value={p.value}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: p.color }} />
+                      <Space>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color, display: "inline-block" }} />
                         {p.label}
-                      </div>
+                      </Space>
                     </Option>
                   ))}
                 </Select>
@@ -468,22 +772,24 @@ export default function CalendarPage() {
             rules={[{ required: true }]}
           >
             <Select>
-              {STATUSES.map(s => <Option key={s} value={s}>{s}</Option>)}
+              {STATUSES.map(s => (
+                <Option key={s} value={s}>{s}</Option>
+              ))}
             </Select>
           </Form.Item>
 
           <Form.Item
             name="description"
-            label="Description (Optional)"
+            label="Notes / Description"
           >
-            <TextArea rows={3} placeholder="Add any extra details here..." />
+            <TextArea rows={3} placeholder="Add any personal details, links or checklists..." />
           </Form.Item>
 
-          <Form.Item style={{ marginBottom: 0, textAlign: "right", marginTop: 24 }}>
+          <Form.Item style={{ marginBottom: 0, textAlign: "right" }}>
             <Space>
               <Button onClick={() => setModalVisible(false)}>Cancel</Button>
-              <Button type="primary" htmlType="submit">
-                {editingTask ? "Update Task" : "Create Task"}
+              <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}>
+                {editingTask ? "Update Task" : "Add Task"}
               </Button>
             </Space>
           </Form.Item>

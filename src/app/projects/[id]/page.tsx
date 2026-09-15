@@ -47,11 +47,24 @@ import {
   AlertOctagon,
   User as UserIcon,
   Filter,
-  KanbanSquare,
   ListFilter,
   CheckSquare,
   FileText,
   ShieldAlert,
+  Users as UsersIcon,
+  Folder,
+  FolderPlus,
+  File,
+  Check,
+  CheckCheck,
+  Clock,
+  TrendingUp,
+  Send,
+  ChevronRight,
+  HardDrive,
+  ListTodo,
+  ArrowUp,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -102,6 +115,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [selectedTestCase, setSelectedTestCase] = useState<any>(null);
   const [workItemDetailOpen, setWorkItemDetailOpen] = useState(false);
   const [selectedWorkItem, setSelectedWorkItem] = useState<any>(null);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [teamForm] = Form.useForm();
 
   // Complete Sprint & Drag-and-Drop States
   const [isCompleteSprintModalOpen, setIsCompleteSprintModalOpen] = useState(false);
@@ -116,7 +131,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workFilterSprint, setWorkFilterSprint] = useState<string>("All");
   const [workFilterPriority, setWorkFilterPriority] = useState<string>("All");
   const [workFilterOverdue, setWorkFilterOverdue] = useState<boolean>(false);
-  const [workViewMode, setWorkViewMode] = useState<"table" | "kanban">("table");
+  const [activeTab, setActiveTab] = useState<string>("work-items");
+
+  // Project Calendar & Personal Tasks states
+  const [projectPersonalTasks, setProjectPersonalTasks] = useState<any[]>([]);
+  const [projectCalendarMonth, setProjectCalendarMonth] = useState<any>(dayjs());
+  const [isPersonalTaskModalOpen, setIsPersonalTaskModalOpen] = useState(false);
+  const [personalTaskForm] = Form.useForm();
 
   // Tabs data states
   const [tasks, setTasks] = useState<any[]>([]);
@@ -156,17 +177,142 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [chatUploading, setChatUploading] = useState(false);
   const [chatFile, setChatFile] = useState<any>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef(0);
+
+  // Drive & Folder states
+  const [currentFolder, setCurrentFolder] = useState<string>("/");
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [folderForm] = Form.useForm();
+  const [driveUploading, setDriveUploading] = useState(false);
+
+  // Project Lead & Team determination
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const techOwnerId = project?.techOwner?._id || project?.techOwner;
+  const isProjectLead = Boolean(
+    currentUser && (
+      currentUser.role === "SYSTEM_ADMIN" ||
+      currentUser.role === "ADMIN" ||
+      (techOwnerId && String(currentUserId) === String(techOwnerId))
+    )
+  );
+
+  const projectTeamMembers = React.useMemo(() => {
+    const list: any[] = [];
+    const addedIds = new Set<string>();
+
+    if (project?.techOwner) {
+      const ownerObj = typeof project.techOwner === "object" ? project.techOwner : users.find((u: any) => u._id === project.techOwner);
+      if (ownerObj) {
+        list.push(ownerObj);
+        addedIds.add(String(ownerObj._id || ownerObj.id));
+      }
+    }
+
+    if (Array.isArray(project?.techTeamMembers)) {
+      project.techTeamMembers.forEach((m: any) => {
+        const memObj = typeof m === "object" && m._id ? m : users.find((u: any) => u._id === (m._id || m));
+        const mid = memObj ? String(memObj._id || memObj.id) : String(m);
+        if (memObj && !addedIds.has(mid)) {
+          list.push(memObj);
+          addedIds.add(mid);
+        }
+      });
+    }
+
+    return list.length > 0 ? list : users;
+  }, [project, users]);
 
   // Initialize
   useEffect(() => {
     refreshData();
   }, [id]);
 
+  // Real-time chat polling (every 3 seconds)
   useEffect(() => {
-    if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    if (!id) return;
+    const chatPollInterval = setInterval(() => {
+      fetchChat();
+    }, 3000);
+    return () => clearInterval(chatPollInterval);
+  }, [id]);
+
+  // Scroll chat container internally without moving window/page
+  const scrollToChatBottom = (behavior: "smooth" | "auto" = "smooth") => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior,
+      });
     }
-  }, [chatMessages]);
+  };
+
+  // When switching to the chat tab, scroll chat box to latest messages
+  useEffect(() => {
+    if (activeTab === "3") {
+      setTimeout(() => {
+        scrollToChatBottom("auto");
+      }, 100);
+    }
+  }, [activeTab]);
+
+  // When chat messages update, ONLY scroll container if activeTab is chat AND user is already near bottom
+  useEffect(() => {
+    if (activeTab === "3" && chatContainerRef.current) {
+      const container = chatContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 140;
+      if (isNearBottom || chatMessages.length > prevMsgCountRef.current) {
+        scrollToChatBottom("smooth");
+      }
+    }
+    prevMsgCountRef.current = chatMessages.length;
+  }, [chatMessages, activeTab]);
+
+  const fetchPersonalTasks = async () => {
+    try {
+      const res = await fetch(`/api/calendar-tasks`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjectPersonalTasks(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreatePersonalTask = async (values: any) => {
+    try {
+      const priorityColors: Record<string, string> = {
+        Low: "#6C8EF5",
+        Medium: "#F5C542",
+        High: "#F58C42",
+        Urgent: "#F55C5C",
+      };
+      const payload = {
+        title: values.title,
+        description: values.description || `Task for project: ${project?.title || ""}`,
+        date: values.date.toISOString(),
+        priority: values.priority || "Medium",
+        status: values.status || "Todo",
+        color: priorityColors[values.priority] || "#6C8EF5",
+      };
+      const res = await fetch("/api/calendar-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        message.success("Personal task created!");
+        setIsPersonalTaskModalOpen(false);
+        personalTaskForm.resetFields();
+        fetchPersonalTasks();
+      } else {
+        message.error("Failed to create personal task");
+      }
+    } catch (err) {
+      message.error("Failed to create personal task");
+    }
+  };
 
   const refreshData = () => {
     fetchProject();
@@ -181,6 +327,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
     fetchWorkItems();
     fetchTestCases();
     fetchActivities();
+    fetchPersonalTasks();
   };
 
   // Fetch functions
@@ -283,13 +430,91 @@ function ProjectDetailsClient({ id }: { id: string }) {
     }
   };
 
-  const fetchAttachments = async () => {
+  const fetchAttachments = async (targetFolder?: string) => {
     try {
-      const res = await fetch(`/api/projects/${id}/attachments`);
+      const f = targetFolder !== undefined ? targetFolder : currentFolder;
+      const res = await fetch(`/api/projects/${id}/attachments?folder=${encodeURIComponent(f)}`);
       const json = await res.json();
-      if (res.ok) setAttachments(json.data);
+      if (res.ok) setAttachments(json.data || []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttachments(currentFolder);
+  }, [currentFolder]);
+
+  // Drive Operations
+  const handleCreateFolder = async (values: { folderName: string }) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/attachments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_folder",
+          folder: currentFolder,
+          folderName: values.folderName,
+        }),
+      });
+      if (res.ok) {
+        message.success("Folder created!");
+        setIsFolderModalOpen(false);
+        folderForm.resetFields();
+        fetchAttachments(currentFolder);
+      } else {
+        const json = await res.json();
+        message.error(json.error || "Failed to create folder");
+      }
+    } catch (err) {
+      message.error("Error creating folder");
+    }
+  };
+
+  const handleDriveFileUpload = async (options: any) => {
+    const { file, onSuccess, onError } = options;
+    setDriveUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", currentFolder);
+
+      const res = await fetch(`/api/projects/${id}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        message.success(`${file.name} uploaded successfully!`);
+        fetchAttachments(currentFolder);
+        onSuccess(null, file);
+      } else {
+        const json = await res.json();
+        message.error(json.error || "Upload failed");
+        onError(new Error("Upload failed"));
+      }
+    } catch (err) {
+      message.error("Upload error");
+      onError(err);
+    } finally {
+      setDriveUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        message.success("Item deleted!");
+        fetchAttachments(currentFolder);
+      } else {
+        const json = await res.json();
+        message.error(json.error || "Failed to delete item");
+      }
+    } catch (err) {
+      message.error("Error deleting item");
     }
   };
 
@@ -439,7 +664,27 @@ function ProjectDetailsClient({ id }: { id: string }) {
     }
   };
 
+  const openTeamModal = () => {
+    teamForm.setFieldsValue({
+      techOwner: project?.techOwner?._id,
+      techTeamMembers: project?.techTeamMembers?.map((m: any) => m._id) || [],
+    });
+    setIsTeamModalOpen(true);
+  };
+
+  const handleSaveTeam = async (values: any) => {
+    await handleUpdateProjectField({
+      techOwner: values.techOwner || null,
+      techTeamMembers: values.techTeamMembers || [],
+    });
+    setIsTeamModalOpen(false);
+  };
+
   const handleCreateTask = async (values: any) => {
+    if (!isProjectLead) {
+      message.error("Only the Project Lead or System Admin can create and assign tasks.");
+      return;
+    }
     try {
       const res = await fetch(`/api/projects/${id}/tasks`, {
         method: "POST",
@@ -543,11 +788,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
     if (!chatInput.trim() && !chatFile) return;
 
     try {
-      const payload = {
-        message: chatInput,
+      const payload: any = {
+        message: chatInput.trim() || (chatFile ? `Sent a file: ${chatFile.name}` : ""),
         mentions: chatMentions,
-        attachment: chatFile ? { name: chatFile.name, url: chatFile.url } : undefined,
       };
+
+      if (chatFile) {
+        payload.attachments = [chatFile];
+        payload.attachment = { name: chatFile.name, url: chatFile.path };
+      }
 
       const res = await fetch(`/api/projects/${id}/chat`, {
         method: "POST",
@@ -560,8 +809,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
         setChatMentions([]);
         setChatFile(null);
         fetchChat();
+        setTimeout(() => scrollToChatBottom("smooth"), 150);
       } else {
-        message.error("Failed to send message");
+        const err = await res.json();
+        message.error(err.error || "Failed to send message");
       }
     } catch (err) {
       message.error("Error sending message");
@@ -575,19 +826,27 @@ function ProjectDetailsClient({ id }: { id: string }) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("folder", "/Chat Files");
 
-      const res = await fetch("/api/upload", {
+      const res = await fetch(`/api/projects/${id}/attachments`, {
         method: "POST",
         body: formData,
       });
 
       if (res.ok) {
         const json = await res.json();
-        setChatFile({ name: file.name, url: json.url });
-        message.success(`${file.name} uploaded successfully.`);
+        const uploadedAtt = json.data;
+        setChatFile({
+          name: uploadedAtt.originalName || file.name,
+          path: `/api/projects/${id}/attachments/${uploadedAtt._id}`,
+          mimeType: uploadedAtt.mimeType || file.type,
+          size: uploadedAtt.size || file.size,
+        });
+        message.success(`${file.name} ready to send!`);
         onSuccess(null, file);
       } else {
-        message.error("Upload failed.");
+        const json = await res.json();
+        message.error(json.error || "Upload failed.");
         onError(new Error("Upload failed"));
       }
     } catch (err) {
@@ -712,6 +971,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // --- Work Items Operations ---
   const handleCreateWorkItem = async (values: any) => {
+    if (!isProjectLead) {
+      message.error("Only the Project Lead or System Admin can create and assign work items.");
+      return;
+    }
     try {
       const res = await fetch(`/api/projects/${id}/work-items`, {
         method: "POST",
@@ -1032,251 +1295,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
       {/* Main Tabs */}
       <Card variant="borderless" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", minWidth: 0, maxWidth: "100%" }}>
-        <Tabs defaultActiveKey="1" items={[
-          {
-            key: "1",
-            label: "Requirements Overview",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Row gutter={[24, 24]}>
-                  <Col xs={24} lg={16}>
-                    <Space direction="vertical" size={24} style={{ width: "100%" }}>
-                      <div>
-                        <Title level={5}>Use Case & Objective</Title>
-                        <Paragraph style={{ whiteSpace: "pre-line" }}>
-                          {project.useCase || "No use case details provided yet."}
-                        </Paragraph>
-                      </div>
-                      <Divider style={{ margin: "4px 0" }} />
-                      <div>
-                        <Title level={5}>Target Users</Title>
-                        <Paragraph style={{ whiteSpace: "pre-line" }}>
-                          {project.targetUsers || "No target users provided yet."}
-                        </Paragraph>
-                      </div>
-                      <Divider style={{ margin: "4px 0" }} />
-                      <div>
-                        <Title level={5}>Functional Requirements</Title>
-                        <Paragraph style={{ whiteSpace: "pre-line" }}>
-                          {project.functionalRequirements || "No functional requirements listed."}
-                        </Paragraph>
-                      </div>
-                      <Divider style={{ margin: "4px 0" }} />
-                      <div>
-                        <Title level={5}>Non-Functional Requirements</Title>
-                        <Paragraph style={{ whiteSpace: "pre-line" }}>
-                          {project.nonFunctionalRequirements || "No non-functional requirements listed."}
-                        </Paragraph>
-                      </div>
-                    </Space>
-                  </Col>
-                  <Col xs={24} lg={8}>
-                    <Card size="small" title="Project Details & Metrics" style={{ borderRadius: 8, backgroundColor: "#fafafa" }}>
-                      <div style={{ marginBottom: 16 }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Requirement Completeness Score</Text>
-                        <div style={{ marginTop: 4 }}>
-                          {/* Completeness Calculator */}
-                          {(() => {
-                            let filled = 0;
-                            const fields = [
-                              project.title, project.useCase, project.targetUsers, 
-                              project.functionalRequirements, project.nonFunctionalRequirements, 
-                              project.budget, project.clientDetails?.contactPerson
-                            ];
-                            fields.forEach((f) => { if (f && f.trim() !== "") filled++; });
-                            const hasFeatures = Object.values(project.features || {}).some((v) => v === true);
-                            if (hasFeatures) filled++;
-                            const score = Math.round((filled / 8) * 100);
-                            return <Progress percent={score} strokeColor="#00897b" size="small" />;
-                          })()}
-                        </div>
-                      </div>
-                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                        <div>
-                          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>EST. BUDGET</Text>
-                          <Text strong>{project.budget || "Not defined"}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>INTEGRATIONS</Text>
-                          <Text>{project.integrations || "None specified"}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>ADD-ONS & NOTES</Text>
-                          <Text style={{ fontSize: 13 }}>{project.extraAddOns || "No add-on notes"}</Text>
-                        </div>
-                        <Divider style={{ margin: "8px 0" }} />
-                        <div>
-                          <Text type="secondary" style={{ display: "block", fontSize: 11, marginBottom: 4 }}>FEATURES SCOPE</Text>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {Object.entries(project.features || {}).map(([key, val]) => {
-                              if (val) {
-                                return <Tag key={key} color="cyan" style={{ borderRadius: 8, fontSize: 10 }}>{key}</Tag>;
-                              }
-                              return null;
-                            })}
-                          </div>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
-              </div>
-            )
-          },
-          {
-            key: "tech-review",
-            label: "Tech Review & Planning",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Row gutter={[24, 24]}>
-                  <Col span={24}>
-                    <Card size="small" title="Project Stage Progression" style={{ marginBottom: 20 }}>
-                      <Steps
-                        current={PROJECT_STAGES.findIndex((s) => s.key === project.status)}
-                        size="small"
-                        items={PROJECT_STAGES.map((s) => ({
-                          title: s.shortLabel,
-                        }))}
-                      />
-                    </Card>
-                  </Col>
-                  
-                  <Col xs={24} lg={16}>
-                    <Form
-                      layout="vertical"
-                      initialValues={{
-                        feasibilityStatus: project.feasibilityStatus || "Pending",
-                        complexity: project.complexity || "Medium",
-                        estimatedEffort: project.estimatedEffort,
-                        estimatedDeliveryDate: project.estimatedDeliveryDate ? dayjs(project.estimatedDeliveryDate) : null,
-                        assumptions: project.assumptions,
-                        risks: project.risks,
-                        openClarifications: project.openClarifications,
-                        recommendedTechStack: project.recommendedTechStack,
-                        techOwner: project.techOwner?._id,
-                        techTeamMembers: project.techTeamMembers?.map((m: any) => m._id) || [],
-                      }}
-                      onFinish={(values) => {
-                        handleUpdateProjectField({
-                          ...values,
-                          estimatedDeliveryDate: values.estimatedDeliveryDate ? values.estimatedDeliveryDate.toISOString() : undefined,
-                        });
-                      }}
-                    >
-                      <Row gutter={16}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="feasibilityStatus" label="Feasibility Status">
-                            <Select disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} options={[
-                              { label: "Pending", value: "Pending" },
-                              { label: "Feasible", value: "Feasible" },
-                              { label: "Not Feasible", value: "Not Feasible" },
-                              { label: "Need Clarification", value: "Need Clarification" },
-                            ]} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="complexity" label="Technical Complexity">
-                            <Select disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} options={[
-                              { label: "Low Complexity", value: "Low" },
-                              { label: "Medium Complexity", value: "Medium" },
-                              { label: "High Complexity", value: "High" },
-                              { label: "Very High Complexity", value: "Very High" },
-                            ]} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="estimatedEffort" label="Estimated Effort (e.g. 240 hrs / 6 weeks)">
-                            <Input placeholder="e.g. 160 hours" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="estimatedDeliveryDate" label="Target Tech Delivery Date">
-                            <DatePicker style={{ width: "100%" }} disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Form.Item name="recommendedTechStack" label="Recommended Tech Stack / Architecture">
-                        <TextArea rows={2} placeholder="e.g. NextJS, Node, MongoDB, Google Cloud Platform" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                      </Form.Item>
-
-                      <Row gutter={16}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="techOwner" label="Tech Lead / Owner">
-                            <Select
-                              placeholder="Select Tech Lead"
-                              disabled={currentUser?.role !== "TECH_MANAGER" && currentUser?.role !== "ADMIN"}
-                              options={users.filter(u => u.role === "TECH_TEAM" || u.role === "TECH_MANAGER" || u.role === "ADMIN").map((u) => ({
-                                label: `${u.name} (${u.role})`, value: u._id
-                              }))}
-                              allowClear
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="techTeamMembers" label="Tech Team Members Assigned">
-                            <Select
-                              mode="multiple"
-                              placeholder="Select Developers/QA"
-                              disabled={currentUser?.role !== "TECH_MANAGER" && currentUser?.role !== "ADMIN"}
-                              options={users.filter(u => u.role === "TECH_TEAM" || u.role === "TECH_MANAGER").map((u) => ({
-                                label: `${u.name} (${u.role})`, value: u._id
-                              }))}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Form.Item name="assumptions" label="Tech Assumptions">
-                        <TextArea rows={2} placeholder="Define any core development assumptions..." disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                      </Form.Item>
-
-                      <Form.Item name="risks" label="Risks & Mitigation Plan">
-                        <TextArea rows={2} placeholder="List identified risks and how they will be mitigated..." disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                      </Form.Item>
-
-                      <Form.Item name="openClarifications" label="Open Technical Clarifications Required">
-                        <TextArea rows={2} placeholder="Clarifications needed from client team before start..." disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                      </Form.Item>
-
-                      {(currentUser?.role !== "SALES" && currentUser?.role !== "SALES_TEAM") && (
-                        <div style={{ textAlign: "right", marginTop: 16 }}>
-                          <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>
-                            Save Tech Review & Assignments
-                          </Button>
-                        </div>
-                      )}
-                    </Form>
-                  </Col>
-
-                  <Col xs={24} lg={8}>
-                    <Card size="small" title="Transition Project Stage" style={{ borderRadius: 8, backgroundColor: "#fafafa" }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>Change Stage Status</Text>
-                      <Select
-                        style={{ width: "100%", marginTop: 8, marginBottom: 12 }}
-                        value={project.status}
-                        onChange={(val) => {
-                          handleUpdateProjectField({ status: val });
-                        }}
-                        options={PROJECT_STAGES.map((s) => ({ label: s.label, value: s.key })).filter((opt) => {
-                          if (currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM") {
-                            return ["Requirement Created", "Submitted for Tech Review", "Clarification Required", "Signoff Pending"].includes(opt.value);
-                          }
-                          return true;
-                        })}
-                      />
-                      <Text type="secondary" style={{ fontSize: 11, fontStyle: "italic" }}>
-                        Note: Restricting status modifications based on team roles (Sales vs Tech Delivery vs Tech Manager).
-                      </Text>
-                    </Card>
-                  </Col>
-                </Row>
-              </div>
-            )
-          },
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
           {
             key: "work-items",
             label: "Work Items & Tasks",
@@ -1315,126 +1334,681 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   </Space>
 
                   <Space>
-                    <Radio.Group value={workViewMode} onChange={e => setWorkViewMode(e.target.value)}>
-                      <Radio.Button value="table"><ListFilter size={14} style={{ display: "inline-block", verticalAlign: "middle" }} /> Table</Radio.Button>
-                      <Radio.Button value="kanban"><KanbanSquare size={14} style={{ display: "inline-block", verticalAlign: "middle" }} /> Kanban</Radio.Button>
-                    </Radio.Group>
-                    {(currentUser?.role !== "SALES" && currentUser?.role !== "SALES_TEAM") && (
-                      <Button type="primary" icon={<Plus size={14} />} onClick={() => setIsWorkItemModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
+                    {isProjectLead ? (
+                      <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        onClick={() => setIsWorkItemModalOpen(true)}
+                        style={{ backgroundColor: "#00897b", border: "none" }}
+                      >
                         Create Work Item
                       </Button>
+                    ) : (
+                      <Tag color="orange" style={{ padding: "4px 8px", borderRadius: 6, fontSize: 12 }}>
+                        Lead only can assign tasks
+                      </Tag>
                     )}
                   </Space>
                 </div>
 
-                {/* View Mode Render */}
-                {workViewMode === "table" ? (
-                  <Table
-                    dataSource={filteredWorkItems}
-                    rowKey="_id"
-                    size="small"
-                    onRow={(record) => ({
-                      onClick: () => {
-                        setSelectedWorkItem(record);
-                        setWorkItemDetailOpen(true);
-                      }
-                    })}
-                    columns={[
-                      {
-                        title: "ID/Title",
-                        key: "title",
-                        render: (_, record) => (
-                          <div>
-                            <Text strong style={{ color: "#00897b", cursor: "pointer" }}>{record.title}</Text>
-                            <div style={{ fontSize: 10, color: "#999" }}>Type: {record.type} | Module: {record.module || "General"}</div>
+                {/* Table View */}
+                <Table
+                  dataSource={filteredWorkItems}
+                  rowKey="_id"
+                  size="small"
+                  onRow={(record) => ({
+                    onClick: () => {
+                      setSelectedWorkItem(record);
+                      setWorkItemDetailOpen(true);
+                    }
+                  })}
+                  columns={[
+                    {
+                      title: "ID/Title",
+                      key: "title",
+                      render: (_, record) => (
+                        <div>
+                          <Text strong style={{ color: "#00897b", cursor: "pointer" }}>{record.title}</Text>
+                          <div style={{ fontSize: 10, color: "#999" }}>Type: {record.type} | Module: {record.module || "General"}</div>
+                        </div>
+                      ),
+                    },
+                    {
+                      title: "Assignee",
+                      dataIndex: ["assignee", "name"],
+                      key: "assignee",
+                      render: (name) => name || <Text type="secondary">Unassigned</Text>
+                    },
+                    {
+                      title: "Sprint",
+                      dataIndex: ["sprint", "name"],
+                      key: "sprint",
+                      render: (name) => name || <Text type="secondary">Backlog</Text>
+                    },
+                    {
+                      title: "Priority",
+                      dataIndex: "priority",
+                      key: "priority",
+                      render: (p: string) => <Tag color={p === "Urgent" ? "red" : p === "High" ? "orange" : "blue"}>{p}</Tag>
+                    },
+                    {
+                      title: "Status",
+                      dataIndex: "status",
+                      key: "status",
+                      render: (s: string) => <Tag color={s === "Done" ? "green" : s === "Blocked" ? "red" : "default"}>{s}</Tag>
+                    },
+                    {
+                      title: "Progress",
+                      dataIndex: "progress",
+                      key: "progress",
+                      render: (p) => <Progress percent={p} size="small" />
+                    },
+                    {
+                      title: "Hours",
+                      key: "hours",
+                      render: (_, record) => `${record.actualHours || 0}/${record.estimatedHours || 0} hrs`
+                    },
+                    {
+                      title: "Due Date",
+                      dataIndex: "dueDate",
+                      key: "dueDate",
+                      render: (d) => d ? dayjs(d).format("DD MMM YYYY") : "N/A"
+                    }
+                  ]}
+                />
+              </div>
+            )
+          },
+          {
+            key: "todo-progress",
+            label: (
+              <Space size={6}>
+                <ListTodo size={14} />
+                <span>To-Do & Progress</span>
+                {(() => {
+                  const myCount = workItems.filter(w => {
+                    const aid = w.assignee?._id || w.assignee;
+                    return String(aid) === String(currentUserId) && w.status !== "Done";
+                  }).length;
+                  return myCount > 0 ? <Badge count={myCount} size="small" style={{ backgroundColor: "#00897b" }} /> : null;
+                })()}
+              </Space>
+            ),
+            children: (
+              <div style={{ padding: "12px 0" }}>
+                {/* 1. PERSONAL TO-DO SECTION */}
+                <Card
+                  variant="borderless"
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                    border: "1px solid #e6f4ea",
+                    backgroundColor: "#fcfdfc",
+                    marginBottom: 24,
+                  }}
+                  title={
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                      <Space size={8}>
+                        <CheckSquare size={18} color="#00897b" />
+                        <Text strong style={{ fontSize: 16 }}>My Personal To-Do Checklist</Text>
+                      </Space>
+                      <Tag color="cyan" style={{ borderRadius: 12 }}>
+                        {currentUser?.name || "My Tasks"}
+                      </Tag>
+                    </div>
+                  }
+                >
+                  {(() => {
+                    const myTasks = workItems.filter(w => {
+                      const aid = w.assignee?._id || w.assignee;
+                      return String(aid) === String(currentUserId);
+                    });
+                    const completedTasks = myTasks.filter(w => w.status === "Done");
+                    const inProgressTasks = myTasks.filter(w => w.status === "In Progress");
+                    const blockedTasks = myTasks.filter(w => w.status === "Blocked");
+                    const myPct = myTasks.length > 0 ? Math.round((completedTasks.length / myTasks.length) * 100) : 0;
+
+                    return (
+                      <div>
+                        {/* Metrics Bar */}
+                        <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+                          <Col xs={24} sm={12} md={6}>
+                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>Total Assigned</Text>
+                              <Title level={4} style={{ margin: "4px 0 0" }}>{myTasks.length}</Title>
+                            </Card>
+                          </Col>
+                          <Col xs={24} sm={12} md={6}>
+                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>In Progress</Text>
+                              <Title level={4} style={{ margin: "4px 0 0", color: "#1890ff" }}>{inProgressTasks.length}</Title>
+                            </Card>
+                          </Col>
+                          <Col xs={24} sm={12} md={6}>
+                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>Blocked</Text>
+                              <Title level={4} style={{ margin: "4px 0 0", color: "#ff4d4f" }}>{blockedTasks.length}</Title>
+                            </Card>
+                          </Col>
+                          <Col xs={24} sm={12} md={6}>
+                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>Completed</Text>
+                              <Title level={4} style={{ margin: "4px 0 0", color: "#52c41a" }}>{completedTasks.length}</Title>
+                            </Card>
+                          </Col>
+                        </Row>
+
+                        {/* Personal Progress Bar */}
+                        <div style={{ marginBottom: 20, background: "#fff", padding: "14px 16px", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                            <Text strong style={{ fontSize: 13 }}>Personal Completion Progress</Text>
+                            <Text strong style={{ color: "#00897b" }}>{myPct}% ({completedTasks.length}/{myTasks.length} tasks completed)</Text>
                           </div>
-                        ),
-                      },
-                      {
-                        title: "Assignee",
-                        dataIndex: ["assignee", "name"],
-                        key: "assignee",
-                        render: (name) => name || <Text type="secondary">Unassigned</Text>
-                      },
-                      {
-                        title: "Sprint",
-                        dataIndex: ["sprint", "name"],
-                        key: "sprint",
-                        render: (name) => name || <Text type="secondary">Backlog</Text>
-                      },
-                      {
-                        title: "Priority",
-                        dataIndex: "priority",
-                        key: "priority",
-                        render: (p: string) => <Tag color={p === "Urgent" ? "red" : p === "High" ? "orange" : "blue"}>{p}</Tag>
-                      },
-                      {
-                        title: "Status",
-                        dataIndex: "status",
-                        key: "status",
-                        render: (s: string) => <Tag color={s === "Done" ? "green" : s === "Blocked" ? "red" : "default"}>{s}</Tag>
-                      },
-                      {
-                        title: "Progress",
-                        dataIndex: "progress",
-                        key: "progress",
-                        render: (p) => <Progress percent={p} size="small" />
-                      },
-                      {
-                        title: "Hours",
-                        key: "hours",
-                        render: (_, record) => `${record.actualHours || 0}/${record.estimatedHours || 0} hrs`
-                      },
-                      {
-                        title: "Due Date",
-                        dataIndex: "dueDate",
-                        key: "dueDate",
-                        render: (d) => d ? dayjs(d).format("DD MMM YYYY") : "N/A"
-                      }
-                    ]}
-                  />
-                ) : (
-                  // Kanban View
-                  <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 12 }}>
-                    {["To Do", "In Progress", "Blocked", "In Review", "Testing", "Done"].map((colStatus) => {
-                      const itemsInCol = filteredWorkItems.filter(w => w.status === colStatus);
+                          <Progress percent={myPct} strokeColor={{ from: "#00897b", to: "#52c41a" }} status={myPct === 100 ? "success" : "active"} />
+                        </div>
+
+                        {/* Checklist Table */}
+                        {myTasks.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "30px 0", color: "#8c8c8c" }}>
+                            <CheckCircle size={36} color="#d9d9d9" style={{ margin: "0 auto 8px" }} />
+                            <Paragraph>No tasks are currently assigned to you in this project.</Paragraph>
+                          </div>
+                        ) : (
+                          <List
+                            itemLayout="horizontal"
+                            dataSource={myTasks}
+                            renderItem={(item) => {
+                              const isDone = item.status === "Done";
+                              return (
+                                <List.Item
+                                  key={item._id}
+                                  style={{
+                                    backgroundColor: isDone ? "#fafafa" : "#fff",
+                                    marginBottom: 8,
+                                    padding: "12px 16px",
+                                    borderRadius: 8,
+                                    border: isDone ? "1px solid #f0f0f0" : "1px solid #e6f4ea",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                  actions={[
+                                    <Select
+                                      key="status"
+                                      size="small"
+                                      value={item.status}
+                                      onChange={(newStatus) => {
+                                        const newProg = newStatus === "Done" ? 100 : newStatus === "In Progress" ? (item.progress || 50) : (item.progress || 0);
+                                        handleUpdateWorkItem(item._id, { status: newStatus, progress: newProg });
+                                      }}
+                                      style={{ width: 120 }}
+                                    >
+                                      {["Backlog", "To Do", "In Progress", "Blocked", "Testing", "Done"].map(s => (
+                                        <Select.Option key={s} value={s}>{s}</Select.Option>
+                                      ))}
+                                    </Select>,
+                                    <Button
+                                      key="detail"
+                                      size="small"
+                                      onClick={() => {
+                                        setSelectedWorkItem(item);
+                                        setWorkItemDetailOpen(true);
+                                      }}
+                                    >
+                                      Details
+                                    </Button>
+                                  ]}
+                                >
+                                  <List.Item.Meta
+                                    avatar={
+                                      <Checkbox
+                                        checked={isDone}
+                                        onChange={(e) => {
+                                          const checked = e.target.checked;
+                                          handleUpdateWorkItem(item._id, {
+                                            status: checked ? "Done" : "In Progress",
+                                            progress: checked ? 100 : 50,
+                                          });
+                                        }}
+                                        style={{ transform: "scale(1.2)", marginTop: 4 }}
+                                      />
+                                    }
+                                    title={
+                                      <Space size={8} wrap>
+                                        <Text delete={isDone} strong={!isDone} style={{ fontSize: 14, color: isDone ? "#8c8c8c" : "#262626" }}>
+                                          {item.title}
+                                        </Text>
+                                        <Tag color={item.type === "Bug" ? "red" : item.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10 }}>
+                                          {item.type}
+                                        </Tag>
+                                        <Tag color={getPriorityColor(item.priority)} style={{ fontSize: 10 }}>
+                                          {item.priority}
+                                        </Tag>
+                                      </Space>
+                                    }
+                                    description={
+                                      <Space size={14} wrap style={{ fontSize: 12, marginTop: 4, color: "#8c8c8c" }}>
+                                        {item.dueDate && (
+                                          <span style={{ color: dayjs(item.dueDate).isBefore(dayjs(), "day") && !isDone ? "#ff4d4f" : "#8c8c8c" }}>
+                                            <CalendarIcon size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
+                                            Due: {dayjs(item.dueDate).format("DD MMM YYYY")}
+                                          </span>
+                                        )}
+                                        {item.estimatedHours > 0 && (
+                                          <span>
+                                            <Clock size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
+                                            Est: {item.estimatedHours}h
+                                          </span>
+                                        )}
+                                        {item.sprint?.name && (
+                                          <Tag color="geekblue" style={{ fontSize: 10 }}>{item.sprint.name}</Tag>
+                                        )}
+                                      </Space>
+                                    }
+                                  />
+                                </List.Item>
+                              );
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
+                </Card>
+
+                {/* 2. PROJECT LEAD: TEAM PROGRESS DASHBOARD */}
+                {isProjectLead && (
+                  <Card
+                    variant="borderless"
+                    style={{
+                      borderRadius: 12,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      border: "1px solid #dbeafe",
+                      backgroundColor: "#f8fafc",
+                    }}
+                    title={
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                        <Space size={8}>
+                          <Crown size={20} color="#f59e0b" />
+                          <Text strong style={{ fontSize: 16 }}>Project Lead: Team Delivery & Performance Progress</Text>
+                        </Space>
+                        <Button
+                          type="primary"
+                          icon={<Plus size={14} />}
+                          onClick={() => setIsWorkItemModalOpen(true)}
+                          style={{ backgroundColor: "#00897b", border: "none" }}
+                        >
+                          Assign New Task
+                        </Button>
+                      </div>
+                    }
+                  >
+                    {/* Overall Team Delivery Metrics */}
+                    {(() => {
+                      const totalItems = workItems.length;
+                      const doneItems = workItems.filter(w => w.status === "Done").length;
+                      const inProgItems = workItems.filter(w => w.status === "In Progress").length;
+                      const blockedItems = workItems.filter(w => w.status === "Blocked").length;
+                      const overallPct = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+
                       return (
-                        <div key={colStatus} style={{ flex: "0 0 200px", minWidth: 200, backgroundColor: "#f5f5f5", borderRadius: 8, padding: 8, minHeight: 300 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontWeight: 600 }}>
-                            <Text>{colStatus}</Text>
-                            <Badge count={itemsInCol.length} style={{ backgroundColor: "#8c8c8c" }} />
+                        <div>
+                          <div style={{ background: "#fff", padding: "16px 20px", borderRadius: 8, border: "1px solid #e2e8f0", marginBottom: 20 }}>
+                            <Row gutter={[24, 16]} align="middle">
+                              <Col xs={24} md={8}>
+                                <Text type="secondary" style={{ fontSize: 12 }}>OVERALL PROJECT PROGRESS</Text>
+                                <Title level={3} style={{ margin: "4px 0 6px", color: "#00897b" }}>{overallPct}%</Title>
+                                <Progress percent={overallPct} strokeColor="#00897b" size="small" />
+                              </Col>
+                              <Col xs={24} md={16}>
+                                <Row gutter={[16, 12]}>
+                                  <Col span={6}>
+                                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>TOTAL TASKS</Text>
+                                    <Text strong style={{ fontSize: 18 }}>{totalItems}</Text>
+                                  </Col>
+                                  <Col span={6}>
+                                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>COMPLETED</Text>
+                                    <Text strong style={{ fontSize: 18, color: "#52c41a" }}>{doneItems}</Text>
+                                  </Col>
+                                  <Col span={6}>
+                                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>IN PROGRESS</Text>
+                                    <Text strong style={{ fontSize: 18, color: "#1890ff" }}>{inProgItems}</Text>
+                                  </Col>
+                                  <Col span={6}>
+                                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>BLOCKED</Text>
+                                    <Text strong style={{ fontSize: 18, color: "#ff4d4f" }}>{blockedItems}</Text>
+                                  </Col>
+                                </Row>
+                              </Col>
+                            </Row>
                           </div>
-                          <Space direction="vertical" style={{ width: "100%" }} size={8}>
-                            {itemsInCol.map((item) => (
-                              <Card
-                                key={item._id}
-                                size="small"
-                                style={{ borderRadius: 6, cursor: "pointer", borderLeft: `4px solid ${item.priority === "Urgent" ? "#ff4d4f" : item.priority === "High" ? "#fa8c16" : "#1890ff"}` }}
-                                bodyStyle={{ padding: 8 }}
-                                onClick={() => {
-                                  setSelectedWorkItem(item);
-                                  setWorkItemDetailOpen(true);
-                                }}
-                              >
-                                <div style={{ fontSize: 12, fontWeight: 600 }}>{item.title}</div>
-                                <div style={{ fontSize: 10, color: "#6b7280", marginTop: 4 }}>
-                                  Type: <Text strong>{item.type}</Text>
-                                </div>
-                                <div style={{ fontSize: 10, color: "#6b7280" }}>
-                                  Assigned: {item.assignee?.name || "Unassigned"}
-                                </div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                                  <Progress percent={item.progress} size="small" showInfo={false} style={{ width: "60%" }} />
-                                  <span style={{ fontSize: 9, fontWeight: 500 }}>{item.actualHours || 0}/{item.estimatedHours || 0}h</span>
-                                </div>
-                              </Card>
-                            ))}
-                          </Space>
+
+                          {/* Member Progress Cards */}
+                          <Title level={5} style={{ marginBottom: 12 }}>
+                            <Space size={6}>
+                              <UsersIcon size={16} />
+                              <span>Individual Team Member Progress</span>
+                            </Space>
+                          </Title>
+                          <Row gutter={[16, 16]}>
+                            {projectTeamMembers.map((member: any) => {
+                              const memberTasks = workItems.filter(w => {
+                                const aid = w.assignee?._id || w.assignee;
+                                return String(aid) === String(member._id);
+                              });
+                              const mDone = memberTasks.filter(w => w.status === "Done").length;
+                              const mInProg = memberTasks.filter(w => w.status === "In Progress").length;
+                              const mBlocked = memberTasks.filter(w => w.status === "Blocked").length;
+                              const mPct = memberTasks.length > 0 ? Math.round((mDone / memberTasks.length) * 100) : 0;
+                              const isLeadMember = String(member._id) === String(techOwnerId);
+
+                              return (
+                                <Col xs={24} md={12} lg={8} key={member._id}>
+                                  <Card
+                                    size="small"
+                                    style={{
+                                      borderRadius: 10,
+                                      border: isLeadMember ? "1px solid #cbd5e1" : "1px solid #f1f5f9",
+                                      backgroundColor: "#fff",
+                                      boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                      <Space size={8}>
+                                        <Avatar icon={<UserIcon size={14} />} style={{ backgroundColor: isLeadMember ? "#f59e0b" : "#00897b" }} />
+                                        <div>
+                                          <Text strong style={{ fontSize: 13 }}>{member.name}</Text>
+                                          <div>
+                                            <Tag color={isLeadMember ? "gold" : "blue"} style={{ fontSize: 9, lineHeight: "14px" }}>
+                                              {isLeadMember ? "Project Lead" : (member.role || "Member")}
+                                            </Tag>
+                                          </div>
+                                        </div>
+                                      </Space>
+                                      <Text strong style={{ fontSize: 14, color: mPct === 100 ? "#52c41a" : "#00897b" }}>
+                                        {mPct}%
+                                      </Text>
+                                    </div>
+
+                                    <Progress percent={mPct} strokeColor={mPct === 100 ? "#52c41a" : "#00897b"} size="small" style={{ marginBottom: 8 }} />
+
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+                                      <span>Done: <strong style={{ color: "#52c41a" }}>{mDone}</strong></span>
+                                      <span>In Progress: <strong style={{ color: "#1890ff" }}>{mInProg}</strong></span>
+                                      <span>Blocked: <strong style={{ color: "#ff4d4f" }}>{mBlocked}</strong></span>
+                                      <span>Total: <strong>{memberTasks.length}</strong></span>
+                                    </div>
+
+                                    {/* Task preview list */}
+                                    {memberTasks.length > 0 ? (
+                                      <div style={{ maxHeight: 110, overflowY: "auto", borderTop: "1px solid #f8fafc", paddingTop: 6 }}>
+                                        {memberTasks.map(t => (
+                                          <div
+                                            key={t._id}
+                                            onClick={() => { setSelectedWorkItem(t); setWorkItemDetailOpen(true); }}
+                                            style={{
+                                              display: "flex",
+                                              justifyContent: "space-between",
+                                              alignItems: "center",
+                                              padding: "3px 0",
+                                              fontSize: 11,
+                                              cursor: "pointer",
+                                            }}
+                                          >
+                                            <Text ellipsis style={{ flex: 1, paddingRight: 6, fontSize: 11 }}>{t.title}</Text>
+                                            <Tag color={t.status === "Done" ? "success" : t.status === "In Progress" ? "processing" : t.status === "Blocked" ? "error" : "default"} style={{ fontSize: 9, margin: 0 }}>
+                                              {t.status}
+                                            </Tag>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <Text type="secondary" style={{ fontSize: 11, fontStyle: "italic", display: "block", textAlign: "center", paddingTop: 6 }}>
+                                        No tasks assigned
+                                      </Text>
+                                    )}
+                                  </Card>
+                                </Col>
+                              );
+                            })}
+                          </Row>
                         </div>
                       );
-                    })}
-                  </div>
+                    })()}
+                  </Card>
                 )}
+              </div>
+            )
+          },
+          {
+            key: "calendar",
+            label: (
+              <Space size={6}>
+                <CalendarIcon size={14} />
+                <span>Project Calendar</span>
+              </Space>
+            ),
+            children: (
+              <div style={{ padding: "12px 0" }}>
+                <Card
+                  variant="borderless"
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                    border: "1px solid #e5e7eb",
+                    marginBottom: 20,
+                  }}
+                  title={
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                      <Space size={8}>
+                        <CalendarIcon size={18} color="#00897b" />
+                        <div>
+                          <Text strong style={{ fontSize: 16, display: "block" }}>Project Schedule & Personal Tasks</Text>
+                          <Text type="secondary" style={{ fontSize: 12, fontWeight: "normal" }}>
+                            Calendar view of all work item deadlines, sprint milestones, and your personal to-dos
+                          </Text>
+                        </div>
+                      </Space>
+                      <Space wrap>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(dayjs())}>Today</Button>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.subtract(1, "month"))}>&lt;</Button>
+                        <Text strong style={{ minWidth: 110, textAlign: "center", display: "inline-block", fontSize: 13 }}>
+                          {projectCalendarMonth.format("MMMM YYYY")}
+                        </Text>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.add(1, "month"))}>&gt;</Button>
+                        <Button
+                          type="primary"
+                          size="small"
+                          icon={<Plus size={13} />}
+                          onClick={() => {
+                            personalTaskForm.setFieldsValue({ date: dayjs(), priority: "Medium", status: "Todo" });
+                            setIsPersonalTaskModalOpen(true);
+                          }}
+                          style={{ backgroundColor: "#00897b", border: "none" }}
+                        >
+                          Add Personal Task
+                        </Button>
+                      </Space>
+                    </div>
+                  }
+                >
+                  {/* Legend */}
+                  <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", fontSize: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>📝</span>
+                      <Text type="secondary">Personal Tasks</Text>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>💼</span>
+                      <Text type="secondary">Work Items (Due Dates)</Text>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>🏁</span>
+                      <Text type="secondary">Sprint Milestones</Text>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  {(() => {
+                    const startOfMonth = projectCalendarMonth.startOf("month");
+                    const endOfMonth = projectCalendarMonth.endOf("month");
+                    const startDate = startOfMonth.startOf("week");
+                    const endDate = endOfMonth.endOf("week");
+
+                    const days = [];
+                    let d = startDate;
+                    while (d.isBefore(endDate)) {
+                      days.push(d);
+                      d = d.add(1, "day");
+                    }
+
+                    return (
+                      <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
+                        {/* Day headers */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", backgroundColor: "#fafafa", borderBottom: "1px solid #f0f0f0" }}>
+                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
+                            <div key={idx} style={{ padding: "8px 0", textAlign: "center", fontWeight: 600, color: "#64748b", fontSize: 12 }}>
+                              {dayName}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Cells */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                          {days.map((dayDate, idx) => {
+                            const isCurrentMonth = dayDate.isSame(projectCalendarMonth, "month");
+                            const isToday = dayDate.isSame(dayjs(), "day");
+
+                            // Find project work items due this day
+                            const dayWorkItems = workItems.filter(w => w.dueDate && dayjs(w.dueDate).isSame(dayDate, "day"));
+                            // Find sprints ending/starting this day
+                            const daySprints = sprints.filter(s => dayjs(s.endDate).isSame(dayDate, "day") || dayjs(s.startDate).isSame(dayDate, "day"));
+                            // Find personal tasks on this day
+                            const dayPersonalTasks = projectPersonalTasks.filter(t => dayjs(t.date).isSame(dayDate, "day"));
+
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  minHeight: 90,
+                                  borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
+                                  borderBottom: "1px solid #f0f0f0",
+                                  padding: 6,
+                                  backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
+                                  transition: "background 0.2s",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                  <span style={{
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: "50%",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: isToday ? "#00897b" : "transparent",
+                                    color: isToday ? "#fff" : isCurrentMonth ? "#1e293b" : "#94a3b8",
+                                    fontWeight: isToday ? 700 : 500,
+                                    fontSize: 11,
+                                  }}>
+                                    {dayDate.format("D")}
+                                  </span>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<Plus size={10} color="#94a3b8" />}
+                                    onClick={() => {
+                                      personalTaskForm.setFieldsValue({ date: dayDate, priority: "Medium", status: "Todo" });
+                                      setIsPersonalTaskModalOpen(true);
+                                    }}
+                                    title="Add personal task on this date"
+                                    style={{ width: 18, height: 18, minWidth: 18, padding: 0 }}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  {/* Personal Tasks */}
+                                  {dayPersonalTasks.map((pt: any) => (
+                                    <div
+                                      key={pt._id}
+                                      style={{
+                                        backgroundColor: "#eef2ff",
+                                        borderLeft: `3px solid ${pt.color || "#6366f1"}`,
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#3730a3",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                      }}
+                                      onClick={() => {
+                                        personalTaskForm.setFieldsValue({
+                                          ...pt,
+                                          date: dayjs(pt.date),
+                                        });
+                                        setIsPersonalTaskModalOpen(true);
+                                      }}
+                                      title={`Personal Task: ${pt.title} (${pt.priority})`}
+                                    >
+                                      📝 {pt.title}
+                                    </div>
+                                  ))}
+
+                                  {/* Work Items */}
+                                  {dayWorkItems.map((wi: any) => (
+                                    <div
+                                      key={wi._id}
+                                      onClick={() => {
+                                        setSelectedWorkItem(wi);
+                                        setWorkItemDetailOpen(true);
+                                      }}
+                                      style={{
+                                        backgroundColor: "#f0fdfa",
+                                        borderLeft: `3px solid ${wi.priority === "Urgent" ? "#ff4d4f" : wi.priority === "High" ? "#fa8c16" : "#00897b"}`,
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#115e59",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                      }}
+                                      title={`Work Item: ${wi.title} (${wi.status})`}
+                                    >
+                                      💼 {wi.title}
+                                    </div>
+                                  ))}
+
+                                  {/* Sprints */}
+                                  {daySprints.map((sp: any) => (
+                                    <div
+                                      key={sp._id}
+                                      style={{
+                                        backgroundColor: "#f6ffed",
+                                        borderLeft: "3px solid #52c41a",
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#135200",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                      title={`Sprint Deadline: ${sp.name}`}
+                                    >
+                                      🏁 {sp.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </Card>
               </div>
             )
           },
@@ -1820,450 +2394,282 @@ function ProjectDetailsClient({ id }: { id: string }) {
             )
           },
           {
-            key: "testing",
-            label: "Testing & UAT",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <Text strong>UAT Status: </Text>
-                    <Select
-                      style={{ width: 160, marginLeft: 8 }}
-                      value={project.uatStatus || "Not Started"}
-                      disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"}
-                      onChange={(val) => {
-                        handleUpdateProjectField({ uatStatus: val });
-                      }}
-                      options={[
-                        { label: "Not Started", value: "Not Started" },
-                        { label: "In Progress", value: "In Progress" },
-                        { label: "Issues Found", value: "Issues Found" },
-                        { label: "Passed", value: "Passed" },
-                        { label: "Client Accepted", value: "Client Accepted" },
-                        { label: "Rejected", value: "Rejected" },
-                      ]}
-                    />
-                  </div>
-                  {(currentUser?.role !== "SALES" && currentUser?.role !== "SALES_TEAM") && (
-                    <Button type="primary" icon={<Plus size={14} />} onClick={() => setIsTestCaseModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
-                      Create Test Case
-                    </Button>
-                  )}
-                </div>
-
-                <Table
-                  dataSource={testCases}
-                  rowKey="_id"
-                  size="small"
-                  columns={[
-                    {
-                      title: "Test Case Title",
-                      dataIndex: "title",
-                      key: "title",
-                      render: (t) => <Text strong>{t}</Text>
-                    },
-                    {
-                      title: "Steps / Expected",
-                      key: "steps_expected",
-                      render: (_, record) => (
-                        <div style={{ fontSize: 11 }}>
-                          <div><span style={{ color: "#6b7280" }}>Steps: </span>{record.steps || "None"}</div>
-                          <div><span style={{ color: "#6b7280" }}>Expected: </span>{record.expectedResult || "None"}</div>
-                        </div>
-                      )
-                    },
-                    {
-                      title: "Actual Result",
-                      dataIndex: "actualResult",
-                      key: "actualResult",
-                      render: (act) => act || <Text type="secondary">Not recorded</Text>
-                    },
-                    {
-                      title: "Status",
-                      dataIndex: "status",
-                      key: "status",
-                      render: (s: string) => {
-                        let color = "default";
-                        if (s === "Passed") color = "green";
-                        if (s === "Failed") color = "red";
-                        if (s === "Retest") color = "orange";
-                        if (s === "Blocked") color = "volcano";
-                        return <Tag color={color}>{s}</Tag>;
-                      }
-                    },
-                    {
-                      title: "Run By",
-                      dataIndex: ["testedBy", "name"],
-                      key: "testedBy",
-                      render: (n) => n || "N/A"
-                    },
-                    {
-                      title: "Actions",
-                      key: "actions",
-                      render: (_, record) => (
-                        <Space>
-                          {(currentUser?.role !== "SALES" && currentUser?.role !== "SALES_TEAM") && (
-                            <Button size="small" type="primary" onClick={() => { setSelectedTestCase(record); setIsRunTestModalOpen(true); }} style={{ backgroundColor: "#00897b", border: "none" }}>
-                              Run
-                            </Button>
-                          )}
-                          {record.status === "Failed" && (
-                            <Button size="small" danger onClick={() => handleQuickBugCreation(record)}>
-                              Log Bug
-                            </Button>
-                          )}
-                        </Space>
-                      )
-                    }
-                  ]}
-                />
-              </div>
-            )
-          },
-          {
-            key: "signoff",
-            label: "Delivery Signoff & Closure",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Row gutter={[24, 24]}>
-                  <Col xs={24} lg={16}>
-                    <Space direction="vertical" size={20} style={{ width: "100%" }}>
-                      <Card size="small" title="1. Handover Checklist">
-                        <Form
-                          layout="vertical"
-                          initialValues={{
-                            deliveredModules: project.deliveredModules,
-                            pendingItems: project.pendingItems,
-                            knownLimitations: project.knownLimitations,
-                            handoverDocs: project.handoverDocs,
-                            trainingCompleted: !!project.trainingCompleted,
-                            uatPassed: !!project.uatPassed,
-                          }}
-                          onFinish={(values) => {
-                            handleUpdateProjectField(values);
-                          }}
-                        >
-                          <Form.Item name="deliveredModules" label="Delivered Modules / Features checklist">
-                            <TextArea rows={2} placeholder="e.g. Visitor entry, Badge printing, Cloud sync" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                          </Form.Item>
-                          <Row gutter={16}>
-                            <Col xs={24} md={12}>
-                              <Form.Item name="pendingItems" label="Pending / Deferred scope items">
-                                <TextArea rows={2} placeholder="e.g. Biometric kiosk sync deferred to Phase 2" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                              </Form.Item>
-                            </Col>
-                            <Col xs={24} md={12}>
-                              <Form.Item name="knownLimitations" label="Known limitations / Bugs">
-                                <TextArea rows={2} placeholder="e.g. Offline queue holds max 100 entries before push" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                              </Form.Item>
-                            </Col>
-                          </Row>
-                          <Form.Item name="handoverDocs" label="Handover Documents links (PDF / Wikis)">
-                            <Input placeholder="e.g. https://wiki.biometrik.in/projects/doc1" disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"} />
-                          </Form.Item>
-                          <Space size={20} style={{ marginBottom: 12 }}>
-                            <Form.Item name="trainingCompleted" valuePropName="checked" noStyle>
-                              <Checkbox disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"}>End-User Training Completed</Checkbox>
-                            </Form.Item>
-                            <Form.Item name="uatPassed" valuePropName="checked" noStyle>
-                              <Checkbox disabled={currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM"}>UAT Passed Checklist</Checkbox>
-                            </Form.Item>
-                          </Space>
-                          {(currentUser?.role !== "SALES" && currentUser?.role !== "SALES_TEAM") && (
-                            <div style={{ textAlign: "right" }}>
-                              <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>
-                                Save Handover Details
-                              </Button>
-                            </div>
-                          )}
-                        </Form>
-                      </Card>
-
-                      <Card size="small" title="2. Signoffs & Approvals">
-                        <Row gutter={[16, 16]}>
-                          <Col xs={24} md={12}>
-                            <Card size="small" type="inner" title="Internal Tech Manager Approval">
-                              <div style={{ marginBottom: 12 }}>
-                                {project.internalApproval?.approved ? (
-                                  <Tag color="success">Approved By: {project.internalApproval.approvedBy?.name || "Manager"} at {project.internalApproval.approvedAt ? dayjs(project.internalApproval.approvedAt).format("DD MMM YYYY") : ""}</Tag>
-                                ) : (
-                                  <Tag color="orange">Pending approval</Tag>
-                                )}
-                              </div>
-                              {(currentUser?.role === "TECH_MANAGER" || currentUser?.role === "ADMIN") && (
-                                <Switch
-                                  checked={!!project.internalApproval?.approved}
-                                  onChange={(val) => {
-                                    handleUpdateProjectField({
-                                      internalApproval: { approved: val }
-                                    });
-                                  }}
-                                  checkedChildren="Approved"
-                                  unCheckedChildren="Pending"
-                                />
-                              )}
-                            </Card>
-                          </Col>
-
-                          <Col xs={24} md={12}>
-                            <Card size="small" type="inner" title="Sales Signoff">
-                              <div style={{ marginBottom: 12 }}>
-                                {project.salesApproval?.approved ? (
-                                  <Tag color="success">Approved By: {project.salesApproval.approvedBy?.name || "Sales Rep"} at {project.salesApproval.approvedAt ? dayjs(project.salesApproval.approvedAt).format("DD MMM YYYY") : ""}</Tag>
-                                ) : (
-                                  <Tag color="orange">Pending approval</Tag>
-                                )}
-                              </div>
-                              {(currentUser?.role === "SALES_TEAM" || currentUser?.role === "SALES" || currentUser?.role === "ADMIN") && (
-                                <Switch
-                                  checked={!!project.salesApproval?.approved}
-                                  onChange={(val) => {
-                                    handleUpdateProjectField({
-                                      salesApproval: { approved: val }
-                                    });
-                                  }}
-                                  checkedChildren="Approved"
-                                  unCheckedChildren="Pending"
-                                />
-                              )}
-                            </Card>
-                          </Col>
-
-                          <Col span={24}>
-                            <Card size="small" type="inner" title="Client Acceptance Signoff">
-                              <Form
-                                layout="horizontal"
-                                initialValues={{
-                                  clientSignoffStatus: project.clientSignoffStatus || "Pending",
-                                  clientApprover: project.clientApprover,
-                                  finalRemarks: project.finalRemarks,
-                                }}
-                                onFinish={(values) => {
-                                  handleUpdateProjectField(values);
-                                }}
-                              >
-                                <Row gutter={[16, 16]} align="middle">
-                                  <Col xs={24} sm={12} md={8}>
-                                    <Form.Item name="clientSignoffStatus" label="Client Status" style={{ marginBottom: 0 }}>
-                                      <Select options={[
-                                        { label: "Pending Signoff", value: "Pending" },
-                                        { label: "Approved & Signed", value: "Approved" },
-                                        { label: "Waived / Excluded", value: "Waived" },
-                                      ]} />
-                                    </Form.Item>
-                                  </Col>
-                                  <Col xs={24} sm={12} md={8}>
-                                    <Form.Item name="clientApprover" label="Client Approver" style={{ marginBottom: 0 }}>
-                                      <Input placeholder="Client Name / Email" />
-                                    </Form.Item>
-                                  </Col>
-                                  <Col xs={24} md={8} style={{ alignSelf: "flex-end", textAlign: "right", marginTop: 8 }}>
-                                    <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none", width: "100%" }}>
-                                      Save Client Signoff
-                                    </Button>
-                                  </Col>
-                                </Row>
-                                <div style={{ marginTop: 12 }}>
-                                  <Form.Item name="finalRemarks" label="Final Closure Remarks" style={{ marginBottom: 0 }}>
-                                    <TextArea rows={2} placeholder="Add final remarks for archive references..." />
-                                  </Form.Item>
-                                </div>
-                              </Form>
-                            </Card>
-                          </Col>
-                        </Row>
-                      </Card>
-                    </Space>
-                  </Col>
-
-                  <Col xs={24} lg={8}>
-                    <Card size="small" title="Project Closure Gate" style={{ borderRadius: 8, backgroundColor: "#fafafa" }}>
-                      <Text strong style={{ display: "block", marginBottom: 12 }}>Strict Closure checklist:</Text>
-                      <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                        <div>
-                          {closureVerification.workItemsDone ? (
-                            <Tag color="success">✓ All Work Items Done/Cancelled</Tag>
-                          ) : (
-                            <Tag color="error">✗ Active Work Items Pending</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.criticalBlockersResolved ? (
-                            <Tag color="success">✓ Critical Blockers Resolved</Tag>
-                          ) : (
-                            <Tag color="error">✗ Open Critical Blockers Exist</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.testCasesPassed ? (
-                            <Tag color="success">✓ All Test Cases Passed</Tag>
-                          ) : (
-                            <Tag color="error">✗ Incomplete/Failed Test Cases</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.uatPassed ? (
-                            <Tag color="success">✓ UAT Passed / Accepted</Tag>
-                          ) : (
-                            <Tag color="error">✗ UAT Not Passed</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.internalApproved ? (
-                            <Tag color="success">✓ Internal Delivery Approved</Tag>
-                          ) : (
-                            <Tag color="error">✗ Internal Delivery Pending</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.salesApproved ? (
-                            <Tag color="success">✓ Sales Signoff Approved</Tag>
-                          ) : (
-                            <Tag color="error">✗ Sales Signoff Pending</Tag>
-                          )}
-                        </div>
-                        <div>
-                          {closureVerification.clientSignoff ? (
-                            <Tag color="success">✓ Client Signoff Completed/Waived</Tag>
-                          ) : (
-                            <Tag color="error">✗ Client Signoff Pending</Tag>
-                          )}
-                        </div>
-                      </Space>
-                      
-                      <Divider style={{ margin: "16px 0" }} />
-
-                      {project.status === "Closed" ? (
-                        <div style={{ textAlign: "center", padding: 12 }}>
-                          <CheckCircle size={32} color="#52c41a" style={{ margin: "0 auto 8px" }} />
-                          <Title level={5} style={{ margin: 0 }}>Project Closed</Title>
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            Closed by: {project.projectClosedBy?.name || "N/A"} at {project.projectClosedAt ? dayjs(project.projectClosedAt).format("DD MMM YYYY") : ""}
-                          </Text>
-                        </div>
-                      ) : (
-                        <div>
-                          {!isClosureGatePassed && (
-                            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 12, padding: 8, backgroundColor: "#fff2f0", border: "1px solid #ffccc7", borderRadius: 6 }}>
-                              <ShieldAlert size={16} color="#ff4d4f" style={{ marginTop: 2 }} />
-                              <Text type="danger" style={{ fontSize: 11 }}>
-                                Closure gate is locked. All checklist requirements must pass before closure is permitted.
-                              </Text>
-                            </div>
-                          )}
-                          <Button
-                            type="primary"
-                            danger
-                            block
-                            disabled={!isClosureGatePassed || (currentUser?.role !== "TECH_MANAGER" && currentUser?.role !== "ADMIN")}
-                            onClick={() => {
-                              handleUpdateProjectField({ status: "Closed" });
-                            }}
-                          >
-                            Close & Archive Project
-                          </Button>
-                        </div>
-                      )}
-                    </Card>
-                  </Col>
-                </Row>
-              </div>
-            )
-          },
-          {
             key: "3",
-            label: "Collaborative Chat",
+            label: (
+              <Space size={6}>
+                <MessageSquare size={14} />
+                <span>Project Chat</span>
+                <Badge count="Live" style={{ backgroundColor: "#25D366", fontSize: 10 }} />
+              </Space>
+            ),
             children: (
               <div style={{ padding: "12px 0" }}>
-                <Row gutter={[24, 24]}>
-                  {/* Messages list */}
+                <Row gutter={[20, 20]}>
+                  {/* WhatsApp Messages Board */}
                   <Col xs={24} lg={18}>
-                    <Card size="small" bodyStyle={{ padding: 0 }} style={{ borderRadius: 8, overflow: "hidden" }}>
-                      <div style={{ height: 420, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12, backgroundColor: "#fafafa" }}>
+                    <Card
+                      size="small"
+                      bodyStyle={{ padding: 0 }}
+                      style={{
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        border: "1px solid #dcdad5",
+                        boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                      }}
+                    >
+                      {/* WhatsApp Chat Header */}
+                      <div style={{
+                        padding: "10px 16px",
+                        backgroundColor: "#075e54",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}>
+                        <Space size={10}>
+                          <Avatar style={{ backgroundColor: "#128c7e", color: "#fff" }}>
+                            {project.title ? project.title.charAt(0).toUpperCase() : "P"}
+                          </Avatar>
+                          <div>
+                            <Text strong style={{ color: "#fff", fontSize: 14, display: "block" }}>
+                              {project.title} - Team Chat
+                            </Text>
+                            <span style={{ fontSize: 11, color: "#d1fae5" }}>
+                              ● Live realtime updates &bull; {projectTeamMembers.length} members
+                            </span>
+                          </div>
+                        </Space>
+                        <Tag color="#128c7e" style={{ border: "none", color: "#fff", fontSize: 11 }}>
+                          Real-time
+                        </Tag>
+                      </div>
+
+                      {/* WhatsApp Messages Scrollable Area */}
+                      <div
+                        ref={chatContainerRef}
+                        style={{
+                          height: 440,
+                          overflowY: "auto",
+                          padding: "16px 20px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                          backgroundColor: "#efeae2",
+                          backgroundImage: "radial-gradient(#e0d9cf 1px, transparent 1px)",
+                          backgroundSize: "16px 16px",
+                        }}
+                      >
                         {chatMessages.length === 0 ? (
-                          <div style={{ textAlign: "center", marginTop: 100 }}>
-                            <MessageSquare size={32} color="#ccc" style={{ margin: "0 auto 8px" }} />
-                            <Text type="secondary">No messages yet. Start conversation between tech and sales team!</Text>
+                          <div style={{ textAlign: "center", marginTop: 120 }}>
+                            <div style={{ display: "inline-block", padding: "10px 18px", backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+                              <MessageSquare size={24} color="#075e54" style={{ margin: "0 auto 6px" }} />
+                              <Text style={{ fontSize: 12, color: "#555", display: "block" }}>No messages in this project yet.</Text>
+                              <Text type="secondary" style={{ fontSize: 11 }}>Start chatting with your team or share project files!</Text>
+                            </div>
                           </div>
                         ) : (
-                          chatMessages.map((msg) => (
-                            <div key={msg._id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                              <Avatar icon={<UserIcon size={14} />} style={{ backgroundColor: msg.senderId?.role === "TECH_TEAM" || msg.senderId?.role === "TECH_MANAGER" ? "#1890ff" : "#ffcd00" }} />
-                              <div style={{ flex: 1, backgroundColor: "#fff", padding: "8px 12px", borderRadius: 8, border: "1px solid #e8e8e8" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                                  <Space size={6}>
-                                    <Text strong style={{ fontSize: 12 }}>{msg.senderId?.name}</Text>
-                                    <Tag color={msg.senderId?.role === "TECH_TEAM" || msg.senderId?.role === "TECH_MANAGER" ? "blue" : msg.senderId?.role === "ADMIN" ? "red" : "gold"} style={{ fontSize: 9 }}>
-                                      {msg.senderId?.role}
-                                    </Tag>
-                                  </Space>
-                                  <Text type="secondary" style={{ fontSize: 10 }}>{dayjs(msg.createdAt).format("h:mm A")}</Text>
+                          chatMessages.map((msg) => {
+                            const isMe = String(msg.senderId?._id || msg.senderId) === String(currentUserId);
+                            const senderName = msg.senderId?.name || "Team Member";
+                            const senderRole = msg.senderId?.role || "Member";
+                            const isLead = String(msg.senderId?._id || msg.senderId) === String(techOwnerId);
+
+                            // Collect all attachments (both schema array and legacy single attachment)
+                            const allAttachments = [...(msg.attachments || [])];
+                            if (msg.attachment?.url && !allAttachments.some(a => a.path === msg.attachment.url)) {
+                              allAttachments.push({
+                                name: msg.attachment.name || "Attachment",
+                                path: msg.attachment.url,
+                                mimeType: "application/octet-stream",
+                                size: 0,
+                              });
+                            }
+
+                            return (
+                              <div
+                                key={msg._id}
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignSelf: isMe ? "flex-end" : "flex-start",
+                                  maxWidth: "80%",
+                                  minWidth: "160px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    backgroundColor: isMe ? "#d9fdd3" : "#ffffff",
+                                    border: isMe ? "1px solid #c7f0bf" : "1px solid #e9edef",
+                                    borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
+                                    padding: "8px 12px",
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                  }}
+                                >
+                                  {/* Sender info (for incoming messages) */}
+                                  {!isMe && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                      <Text strong style={{ fontSize: 12, color: "#075e54" }}>{senderName}</Text>
+                                      <Tag color={isLead ? "gold" : senderRole === "TECH_TEAM" || senderRole === "TECH_MANAGER" ? "blue" : "default"} style={{ fontSize: 9, margin: 0, lineHeight: "14px" }}>
+                                        {isLead ? "Project Lead" : senderRole}
+                                      </Tag>
+                                    </div>
+                                  )}
+
+                                  {/* Text Message Content */}
+                                  {msg.message && (
+                                    <div style={{
+                                      fontSize: 13,
+                                      color: "#111b21",
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      lineHeight: "18px",
+                                    }}>
+                                      {msg.message}
+                                    </div>
+                                  )}
+
+                                  {/* Mentions */}
+                                  {msg.mentions && msg.mentions.length > 0 && (
+                                    <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                      {msg.mentions.map((m: any) => (
+                                        <Tag key={m._id} color="cyan" style={{ fontSize: 10, margin: 0 }}>
+                                          @{m.name}
+                                        </Tag>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Attachments & Documents */}
+                                  {allAttachments.length > 0 && (
+                                    <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                                      {allAttachments.map((att: any, idx: number) => {
+                                        const isImg = att.mimeType?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(att.name || att.path);
+                                        if (isImg) {
+                                          return (
+                                            <div key={idx} style={{ borderRadius: 6, overflow: "hidden", cursor: "pointer" }} onClick={() => window.open(att.path, "_blank")}>
+                                              <img
+                                                src={att.path}
+                                                alt={att.name}
+                                                style={{ maxWidth: "100%", maxHeight: 200, objectFit: "cover", display: "block", borderRadius: 6 }}
+                                              />
+                                              <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>{att.name}</div>
+                                            </div>
+                                          );
+                                        }
+
+                                        return (
+                                          <div
+                                            key={idx}
+                                            onClick={() => window.open(att.path, "_blank")}
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              gap: 8,
+                                              padding: "6px 10px",
+                                              backgroundColor: isMe ? "#cbf0c2" : "#f4f6f8",
+                                              borderRadius: 6,
+                                              cursor: "pointer",
+                                              border: "1px solid rgba(0,0,0,0.06)",
+                                            }}
+                                          >
+                                            <FileText size={20} color="#075e54" />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <Text strong ellipsis style={{ fontSize: 12, display: "block" }}>{att.name}</Text>
+                                              <Text type="secondary" style={{ fontSize: 10 }}>
+                                                {att.size ? `${(att.size / 1024).toFixed(0)} KB` : "Document"} &bull; Click to download
+                                              </Text>
+                                            </div>
+                                            <Download size={14} color="#555" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {/* Timestamp & Status */}
+                                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, marginTop: 4 }}>
+                                    <span style={{ fontSize: 10, color: "#667781" }}>
+                                      {dayjs(msg.createdAt).format("h:mm A")}
+                                    </span>
+                                    {isMe && (
+                                      <CheckCheck size={13} color="#53bdeb" style={{ marginLeft: 2 }} />
+                                    )}
+                                  </div>
                                 </div>
-                                <Paragraph style={{ margin: "4px 0 0 0", fontSize: 12 }}>{msg.message}</Paragraph>
-
-                                {msg.mentions && msg.mentions.length > 0 && (
-                                  <div style={{ marginTop: 4 }}>
-                                    {msg.mentions.map((m: any) => (
-                                      <Tag key={m._id} color="geekblue" style={{ fontSize: 10 }}>@{m.name}</Tag>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {msg.attachment?.url && (
-                                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", backgroundColor: "#f0f2f5", borderRadius: 4, width: "fit-content" }}>
-                                    <Paperclip size={12} />
-                                    <a href={msg.attachment.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#1890ff" }}>
-                                      {msg.attachment.name}
-                                    </a>
-                                  </div>
-                                )}
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                         <div ref={chatBottomRef} />
                       </div>
 
-                      {/* Chat Input panel */}
-                      <div style={{ padding: 12, borderTop: "1px solid #e8e8e8" }}>
+                      {/* WhatsApp Input Panel */}
+                      <div style={{ padding: "10px 14px", borderTop: "1px solid #e0e0e0", backgroundColor: "#f0f2f5" }}>
                         <form onSubmit={handleSendChatMessage}>
-                          <Row gutter={8}>
-                            <Col flex="auto">
-                              <Input
-                                placeholder="Type a message... Type @ to mention team members"
-                                value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
-                              />
-                            </Col>
-                            <Col flex="180px">
-                              <Select
-                                mode="multiple"
-                                style={{ width: "100%" }}
-                                placeholder="Mention team..."
-                                maxTagCount={1}
-                                value={chatMentions}
-                                onChange={setChatMentions}
-                                options={users.map((u) => ({ label: `@${u.name} (${u.role})`, value: u._id }))}
-                              />
-                            </Col>
-                            <Col flex="32px">
+                          <Row gutter={8} align="middle">
+                            <Col flex="36px">
                               <Upload
                                 customRequest={handleChatFileUpload}
                                 showUploadList={false}
                                 disabled={chatUploading}
                               >
-                                <Button icon={<Paperclip size={14} />} loading={chatUploading} />
+                                <Button
+                                  shape="circle"
+                                  icon={<Paperclip size={16} />}
+                                  loading={chatUploading}
+                                  title="Attach document or file"
+                                />
                               </Upload>
                             </Col>
-                            <Col flex="60px">
-                              <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Send</Button>
+                            <Col flex="auto">
+                              <Input
+                                placeholder="Type a message or press Enter to send..."
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                style={{ borderRadius: 20, padding: "6px 16px" }}
+                              />
+                            </Col>
+                            <Col flex="150px">
+                              <Select
+                                mode="multiple"
+                                style={{ width: "100%" }}
+                                placeholder="@mention"
+                                maxTagCount={1}
+                                value={chatMentions}
+                                onChange={setChatMentions}
+                                options={projectTeamMembers.map((u: any) => ({ label: `@${u.name}`, value: u._id }))}
+                              />
+                            </Col>
+                            <Col flex="40px">
+                              <Button
+                                type="primary"
+                                shape="circle"
+                                htmlType="submit"
+                                icon={<Send size={16} />}
+                                style={{ backgroundColor: "#075e54", borderColor: "#075e54" }}
+                              />
                             </Col>
                           </Row>
+
+                          {/* Chat file attachment staged pill */}
                           {chatFile && (
-                            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                              <Paperclip size={12} color="#52c41a" />
-                              <Text style={{ fontSize: 11 }}>Selected file: <strong style={{ color: "#52c41a" }}>{chatFile.name}</strong></Text>
-                              <Button size="small" type="link" danger onClick={() => setChatFile(null)}>Remove</Button>
+                            <div style={{
+                              marginTop: 8,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                              backgroundColor: "#e8f5e9",
+                              padding: "4px 10px",
+                              borderRadius: 16,
+                              border: "1px solid #c8e6c9",
+                            }}>
+                              <Paperclip size={12} color="#2e7d32" />
+                              <Text style={{ fontSize: 11, color: "#2e7d32" }}>
+                                Ready to share: <strong>{chatFile.name}</strong>
+                              </Text>
+                              <Button size="small" type="link" danger onClick={() => setChatFile(null)} style={{ padding: 0 }}>
+                                Remove
+                              </Button>
                             </div>
                           )}
                         </form>
@@ -2271,22 +2677,47 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     </Card>
                   </Col>
 
-                  {/* Members list */}
+                  {/* Right Column: Project Members & Roles */}
                   <Col xs={24} lg={6}>
-                    <Card size="small" title="Project Stakeholders" style={{ borderRadius: 8 }}>
+                    <Card
+                      size="small"
+                      title="Project Team"
+                      style={{ borderRadius: 12, border: "1px solid #e8e8e8" }}
+                      extra={
+                        currentUser?.role === "SYSTEM_ADMIN" ? (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={openTeamModal}
+                            style={{ padding: 0, color: "#00897b", fontWeight: 600 }}
+                          >
+                            Manage
+                          </Button>
+                        ) : null
+                      }
+                    >
                       <List
                         size="small"
                         dataSource={[
-                          { name: project.createdBy?.name, role: "Sales Owner", email: project.createdBy?.email },
-                          { name: project.techOwner?.name, role: "Tech Owner", email: project.techOwner?.email },
-                          ...(project.techTeamMembers?.map((m: any) => ({ name: m.name, role: "Developer", email: m.email })) || [])
+                          { name: project.techOwner?.name, role: "Project Lead", email: project.techOwner?.email, isLead: true },
+                          ...(project.techTeamMembers?.map((m: any) => ({ name: m.name, role: m.role || "Developer", email: m.email, isLead: false })) || []),
+                          { name: project.createdBy?.name, role: "Sales Owner", email: project.createdBy?.email, isLead: false },
                         ].filter(member => member.name)}
                         renderItem={item => (
-                          <List.Item>
+                          <List.Item style={{ padding: "8px 0" }}>
                             <List.Item.Meta
-                              avatar={<Avatar icon={<UserIcon size={12} />} />}
+                              avatar={
+                                <Avatar
+                                  icon={<UserIcon size={12} />}
+                                  style={{ backgroundColor: item.isLead ? "#f59e0b" : "#00897b" }}
+                                />
+                              }
                               title={<Text strong style={{ fontSize: 12 }}>{item.name}</Text>}
-                              description={<div><Tag color="blue" style={{ fontSize: 9 }}>{item.role}</Tag></div>}
+                              description={
+                                <div>
+                                  <Tag color={item.isLead ? "gold" : "blue"} style={{ fontSize: 9 }}>{item.role}</Tag>
+                                </div>
+                              }
                             />
                           </List.Item>
                         )}
@@ -2298,183 +2729,273 @@ function ProjectDetailsClient({ id }: { id: string }) {
             )
           },
           {
-            key: "4",
-            label: "Blockers & Risks",
+            key: "5",
+            label: (
+              <Space size={6}>
+                <HardDrive size={14} />
+                <span>Project Drive</span>
+              </Space>
+            ),
             children: (
               <div style={{ padding: "12px 0" }}>
-                <div style={{ textAlign: "right", marginBottom: 16 }}>
-                  <Button type="primary" danger icon={<Plus size={14} />} onClick={() => setIsBlockerModalOpen(true)}>
-                    Raise Blocker
-                  </Button>
+                {/* Drive Header Bar & Breadcrumbs */}
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  marginBottom: 16,
+                  padding: "12px 16px",
+                  backgroundColor: "#f8fafc",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                }}>
+                  {/* Breadcrumb path */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<HardDrive size={15} color="#00897b" />}
+                      onClick={() => setCurrentFolder("/")}
+                      style={{ fontWeight: currentFolder === "/" ? 700 : 400, color: "#00897b" }}
+                    >
+                      Drive Root
+                    </Button>
+                    {currentFolder !== "/" && (() => {
+                      const segments = currentFolder.split("/").filter(Boolean);
+                      let accumulated = "";
+                      return segments.map((seg, idx) => {
+                        accumulated += "/" + seg;
+                        const thisPath = accumulated;
+                        const isLast = idx === segments.length - 1;
+                        return (
+                          <React.Fragment key={thisPath}>
+                            <ChevronRight size={14} color="#94a3b8" />
+                            <Button
+                              type="text"
+                              size="small"
+                              onClick={() => setCurrentFolder(thisPath)}
+                              style={{
+                                fontWeight: isLast ? 700 : 400,
+                                color: isLast ? "#1e293b" : "#64748b",
+                                padding: "0 4px",
+                              }}
+                            >
+                              <Folder size={14} color="#f59e0b" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
+                              {seg}
+                            </Button>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  {/* Drive Action Buttons */}
+                  <Space size={8} wrap>
+                    {currentFolder !== "/" && (
+                      <Button
+                        size="small"
+                        icon={<ArrowUp size={13} />}
+                        onClick={() => {
+                          const lastSlash = currentFolder.lastIndexOf("/");
+                          const parent = lastSlash <= 0 ? "/" : currentFolder.substring(0, lastSlash);
+                          setCurrentFolder(parent);
+                        }}
+                      >
+                        Up One Level
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      icon={<FolderPlus size={14} />}
+                      onClick={() => setIsFolderModalOpen(true)}
+                    >
+                      New Folder
+                    </Button>
+                    <Upload
+                      customRequest={handleDriveFileUpload}
+                      showUploadList={false}
+                      disabled={driveUploading}
+                    >
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<Plus size={14} />}
+                        loading={driveUploading}
+                        style={{ backgroundColor: "#00897b", border: "none" }}
+                      >
+                        Upload to this Folder
+                      </Button>
+                    </Upload>
+                  </Space>
                 </div>
 
-                <Table
-                  dataSource={blockers}
-                  rowKey="_id"
-                  size="small"
-                  columns={[
-                    {
-                      title: "Blocker Title",
-                      dataIndex: "title",
-                      key: "title",
-                      render: (t) => <Text strong>{t}</Text>
-                    },
-                    {
-                      title: "Type",
-                      dataIndex: "type",
-                      key: "type",
-                    },
-                    {
-                      title: "Priority / Impact",
-                      key: "priority_impact",
-                      render: (_, record) => (
-                        <div>
-                          <Tag color={getPriorityColor(record.priority)}>{record.priority} Priority</Tag>
-                          {record.impact && <Tag color="volcano">{record.impact} Impact</Tag>}
+                {/* Folders Section */}
+                {(() => {
+                  const folders = attachments.filter((a: any) => a.isFolder);
+                  const files = attachments.filter((a: any) => !a.isFolder);
+
+                  return (
+                    <div>
+                      {folders.length > 0 && (
+                        <div style={{ marginBottom: 20 }}>
+                          <Text type="secondary" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, display: "block", marginBottom: 10 }}>
+                            Folders ({folders.length})
+                          </Text>
+                          <Row gutter={[12, 12]}>
+                            {folders.map((f: any) => (
+                              <Col xs={24} sm={12} md={8} lg={6} key={f._id}>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "10px 14px",
+                                    backgroundColor: "#fff",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 8,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                                  }}
+                                  onClick={() => {
+                                    const nextPath = currentFolder === "/" ? `/${f.originalName}` : `${currentFolder}/${f.originalName}`;
+                                    setCurrentFolder(nextPath);
+                                  }}
+                                >
+                                  <Space size={10} style={{ minWidth: 0, flex: 1 }}>
+                                    <Folder size={22} color="#f59e0b" fill="#fef3c7" style={{ flexShrink: 0 }} />
+                                    <Text strong ellipsis style={{ fontSize: 13, color: "#1e293b" }}>
+                                      {f.originalName}
+                                    </Text>
+                                  </Space>
+                                  <Popconfirm
+                                    title="Delete Folder"
+                                    description="Delete this folder and all contents inside?"
+                                    onConfirm={(e) => {
+                                      e?.stopPropagation();
+                                      handleDeleteAttachment(f._id);
+                                    }}
+                                    onCancel={(e) => e?.stopPropagation()}
+                                    okText="Delete"
+                                    cancelText="Cancel"
+                                  >
+                                    <Button
+                                      type="text"
+                                      size="small"
+                                      danger
+                                      icon={<Trash2 size={13} />}
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{ padding: "0 4px" }}
+                                    />
+                                  </Popconfirm>
+                                </div>
+                              </Col>
+                            ))}
+                          </Row>
                         </div>
-                      )
-                    },
-                    {
-                      title: "Owner (To Resolve)",
-                      dataIndex: ["ownerId", "name"],
-                      key: "ownerId",
-                    },
-                    {
-                      title: "Status",
-                      dataIndex: "status",
-                      key: "status",
-                      render: (s: string) => <Tag color={s === "Resolved" ? "green" : s === "Open" ? "red" : "orange"}>{s}</Tag>
-                    },
-                    {
-                      title: "Resolution Note",
-                      key: "resolution",
-                      render: (_, record) => (
-                        record.status === "Resolved" ? (
-                          <div>
-                            <Text type="secondary" style={{ fontSize: 11 }}>{record.resolutionNote}</Text>
-                            <div style={{ fontSize: 9, color: "#999" }}>Resolved by {record.resolvedBy?.name || "N/A"}</div>
+                      )}
+
+                      {/* Files Table Section */}
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, display: "block", marginBottom: 10 }}>
+                          Files in {currentFolder === "/" ? "Root" : currentFolder} ({files.length})
+                        </Text>
+                        {files.length === 0 && folders.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "40px 0", backgroundColor: "#fff", borderRadius: 8, border: "1px dashed #d9d9d9" }}>
+                            <HardDrive size={36} color="#cbd5e1" style={{ margin: "0 auto 8px" }} />
+                            <Paragraph style={{ color: "#64748b", margin: 0 }}>This folder is empty.</Paragraph>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Create a subfolder or upload documents above.</Text>
                           </div>
                         ) : (
-                          <Text type="secondary" style={{ fontStyle: "italic", fontSize: 11 }}>Pending resolution</Text>
-                        )
-                      )
-                    },
-                    {
-                      title: "Action",
-                      key: "action",
-                      render: (_, record) => (
-                        record.status !== "Resolved" ? (
-                          <Button size="small" type="primary" onClick={() => { setSelectedBlocker(record); setIsResolveModalOpen(true); }} style={{ backgroundColor: "#52c41a", border: "none" }}>
-                            Resolve
-                          </Button>
-                        ) : null
-                      )
-                    }
-                  ]}
-                />
-              </div>
-            )
-          },
-          {
-            key: "5",
-            label: "Attachments",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Table
-                  dataSource={attachments}
-                  rowKey="_id"
-                  size="small"
-                  columns={[
-                    {
-                      title: "File Name",
-                      dataIndex: "originalName",
-                      key: "originalName",
-                      render: (name, record) => (
-                        <Space>
-                          <FilePdfOutlined style={{ color: "#ef4444" }} />
-                          <Text strong>{name}</Text>
-                        </Space>
-                      )
-                    },
-                    {
-                      title: "Size",
-                      dataIndex: "size",
-                      key: "size",
-                      render: (bytes) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-                    },
-                    {
-                      title: "Uploaded By",
-                      dataIndex: ["uploadedBy", "name"],
-                      key: "uploadedBy",
-                    },
-                    {
-                      title: "Date",
-                      dataIndex: "createdAt",
-                      key: "createdAt",
-                      render: (d) => dayjs(d).format("DD MMM YYYY h:mm A")
-                    },
-                    {
-                      title: "Actions",
-                      key: "actions",
-                      render: (_, record) => (
-                        <Button size="small" icon={<Download size={12} />} onClick={() => window.open(record.url, "_blank")} style={{ border: "1px solid #d9d9d9" }}>
-                          Download
-                        </Button>
-                      )
-                    }
-                  ]}
-                />
-              </div>
-            )
-          },
-          {
-            key: "6",
-            label: "Requirements History",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Timeline
-                  mode="left"
-                  items={versions.map((ver) => ({
-                    label: dayjs(ver.editedAt).format("MMM DD, YYYY h:mm A"),
-                    children: (
-                      <Card size="small" style={{ marginBottom: 16, borderRadius: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-                          <Text style={{ fontWeight: 600 }}>Version {ver.version} snapshot</Text>
-                          <Text type="secondary" style={{ fontSize: 11 }}>Edited by: {ver.editedBy?.name} ({ver.editedBy?.role})</Text>
-                        </div>
-                        <Paragraph style={{ marginTop: 8, fontStyle: "italic", fontSize: 12 }}>
-                          Reason: "{ver.changeReason || "No explanation provided."}"
-                        </Paragraph>
-
-                        {ver.changedFields && ver.changedFields.length > 0 && (
-                          <div style={{ marginTop: 8, backgroundColor: "#fafafa", padding: 8, borderRadius: 6 }}>
-                            <Text style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#666", marginBottom: 4 }}>CHANGED FIELDS:</Text>
-                            {ver.changedFields.map((ch: any, i: number) => (
-                              <div key={i} style={{ fontSize: 11, marginBottom: 4 }}>
-                                <Tag color="blue">{ch.field}</Tag>
-                                <span style={{ textDecoration: "line-through", color: "#999", marginRight: 8 }}>
-                                  {typeof ch.oldValue === "object" ? JSON.stringify(ch.oldValue) : String(ch.oldValue)}
-                                </span>
-                                <strong>➔</strong>
-                                <span style={{ color: "#52c41a", marginLeft: 8 }}>
-                                  {typeof ch.newValue === "object" ? JSON.stringify(ch.newValue) : String(ch.newValue)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                          <Table
+                            dataSource={files}
+                            rowKey="_id"
+                            size="small"
+                            pagination={{ pageSize: 10 }}
+                            columns={[
+                              {
+                                title: "File Name",
+                                dataIndex: "originalName",
+                                key: "originalName",
+                                render: (name: string, record: any) => (
+                                  <Space size={8}>
+                                    {record.mimeType?.includes("pdf") ? (
+                                      <FilePdfOutlined style={{ color: "#ef4444", fontSize: 16 }} />
+                                    ) : (
+                                      <FileText size={16} color="#00897b" />
+                                    )}
+                                    <Text strong style={{ fontSize: 13 }}>{name}</Text>
+                                  </Space>
+                                )
+                              },
+                              {
+                                title: "Size",
+                                dataIndex: "size",
+                                key: "size",
+                                width: 110,
+                                render: (bytes: number) => {
+                                  if (!bytes) return "0 KB";
+                                  return bytes > 1024 * 1024
+                                    ? `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+                                    : `${(bytes / 1024).toFixed(1)} KB`;
+                                }
+                              },
+                              {
+                                title: "Uploaded By",
+                                dataIndex: ["uploadedBy", "name"],
+                                key: "uploadedBy",
+                                width: 160,
+                                render: (name: string, record: any) => (
+                                  <Space size={6}>
+                                    <Avatar size="small" icon={<UserIcon size={12} />} />
+                                    <Text style={{ fontSize: 12 }}>{name || "User"}</Text>
+                                  </Space>
+                                )
+                              },
+                              {
+                                title: "Upload Date",
+                                dataIndex: "createdAt",
+                                key: "createdAt",
+                                width: 170,
+                                render: (d: string) => dayjs(d).format("DD MMM YYYY h:mm A")
+                              },
+                              {
+                                title: "Actions",
+                                key: "actions",
+                                width: 150,
+                                render: (_: any, record: any) => {
+                                  const downloadUrl = `/api/projects/${id}/attachments/${record._id}`;
+                                  return (
+                                    <Space size={6}>
+                                      <Button
+                                        size="small"
+                                        icon={<Download size={12} />}
+                                        onClick={() => window.open(downloadUrl, "_blank")}
+                                      >
+                                        Download
+                                      </Button>
+                                      <Popconfirm
+                                        title="Delete File"
+                                        description="Are you sure you want to delete this file?"
+                                        onConfirm={() => handleDeleteAttachment(record._id)}
+                                        okText="Yes"
+                                        cancelText="No"
+                                      >
+                                        <Button size="small" danger icon={<Trash2 size={12} />} />
+                                      </Popconfirm>
+                                    </Space>
+                                  );
+                                }
+                              }
+                            ]}
+                          />
                         )}
-
-                        <div style={{ marginTop: 12, textAlign: "right" }}>
-                          <Popconfirm title="Are you sure you want to restore this version? This will overwrite the current project specifications." onConfirm={() => handleRestoreVersion(ver._id)}>
-                            <Button size="small" icon={<History size={12} />} style={{ border: "1px solid #d9d9d9" }}>
-                              Restore this version
-                            </Button>
-                          </Popconfirm>
-                        </div>
-                      </Card>
-                    )
-                  }))}
-                />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )
           },
@@ -3044,20 +3565,58 @@ function ProjectDetailsClient({ id }: { id: string }) {
         })()}
       </Modal>
 
+      {/* DRIVE NEW FOLDER MODAL */}
+      <Modal
+        title="Create New Folder in Drive"
+        open={isFolderModalOpen}
+        onCancel={() => { setIsFolderModalOpen(false); folderForm.resetFields(); }}
+        footer={null}
+        width={420}
+      >
+        <Form form={folderForm} layout="vertical" onFinish={handleCreateFolder}>
+          <div style={{ marginBottom: 12, color: "#64748b", fontSize: 13 }}>
+            Target Location: <strong style={{ color: "#00897b" }}>{currentFolder === "/" ? "Root (/)" : currentFolder}</strong>
+          </div>
+          <Form.Item
+            name="folderName"
+            label="Folder Name"
+            rules={[
+              { required: true, message: "Please enter folder name" },
+              { pattern: /^[^\\/:*?"<>|]+$/, message: "Folder name cannot contain special characters / \\ : * ? < > |" },
+            ]}
+          >
+            <Input placeholder="e.g. Specifications" prefix={<Folder size={16} color="#f59e0b" style={{ marginRight: 4 }} />} />
+          </Form.Item>
+          <div style={{ textAlign: "right", marginTop: 16 }}>
+            <Button onClick={() => { setIsFolderModalOpen(false); folderForm.resetFields(); }} style={{ marginRight: 8 }}>
+              Cancel
+            </Button>
+            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>
+              Create Folder
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
       {/* WORK ITEM MODAL */}
       <Modal
-        title="Create Jira-like Work Item"
+        title={
+          <Space size={8}>
+            <CheckSquare size={18} color="#00897b" />
+            <span>Create & Assign Work Item</span>
+          </Space>
+        }
         open={isWorkItemModalOpen}
         onCancel={() => setIsWorkItemModalOpen(false)}
         footer={null}
-        width={600}
+        width={620}
       >
         <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem}>
-          <Form.Item name="title" label="Work Item Title" rules={[{ required: true }]}>
+          <Form.Item name="title" label="Work Item Title" rules={[{ required: true, message: "Title is required" }]}>
             <Input placeholder="e.g. Implement visitor check-in form" />
           </Form.Item>
           <Form.Item name="description" label="Detailed Description">
-            <TextArea rows={3} />
+            <TextArea rows={3} placeholder="Provide task requirements, acceptance criteria, or technical details..." />
           </Form.Item>
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
@@ -3078,8 +3637,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="assignee" label="Assignee">
-                <Select placeholder="Select Assignee" allowClear options={users.map(u => ({ label: u.name, value: u._id }))} />
+              <Form.Item name="assignee" label="Assign To (Self or Team Member)">
+                <Select
+                  placeholder="Select Assignee"
+                  allowClear
+                  options={projectTeamMembers.map((u: any) => {
+                    const isLead = String(u._id) === String(techOwnerId);
+                    return {
+                      label: `${u.name} (${isLead ? "Project Lead" : (u.role || "Team Member")})`,
+                      value: u._id,
+                    };
+                  })}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -3100,7 +3669,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Form.Item>
           <div style={{ textAlign: "right" }}>
             <Button onClick={() => setIsWorkItemModalOpen(false)} style={{ marginRight: 8 }}>Cancel</Button>
-            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Create Work Item</Button>
+            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Create & Assign Task</Button>
           </div>
         </Form>
       </Modal>
@@ -3167,6 +3736,124 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <Button onClick={() => setIsRunTestModalOpen(false)} style={{ marginRight: 8 }}>Cancel</Button>
             <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Submit Run Verdict</Button>
           </div>
+        </Form>
+      </Modal>
+
+      {/* System Admin Manage Team & Project Lead Modal */}
+      <Modal
+        title={
+          <Space>
+            <UsersIcon size={18} color="#00897b" />
+            <span>Manage Project Lead & Team Members</span>
+            <Tag color="purple">System Admin Only</Tag>
+          </Space>
+        }
+        open={isTeamModalOpen}
+        onCancel={() => setIsTeamModalOpen(false)}
+        onOk={() => teamForm.submit()}
+        okText="Save Team"
+        okButtonProps={{ style: { background: "#00897b", borderColor: "#00897b" } }}
+        destroyOnClose
+      >
+        <Form
+          form={teamForm}
+          layout="vertical"
+          onFinish={handleSaveTeam}
+        >
+          <Form.Item
+            name="techOwner"
+            label="Project Lead / Tech Owner"
+            extra="Designate the primary lead responsible for technical direction and delivery."
+          >
+            <Select
+              placeholder="Select Project Lead"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={users.map((u) => ({
+                label: `${u.name} (${u.designation || u.role})`,
+                value: u._id,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="techTeamMembers"
+            label="Assigned Project Members"
+            extra="Select all employee members who will work on this project."
+          >
+            <Select
+              mode="multiple"
+              placeholder="Select Project Members"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={users.map((u) => ({
+                label: `${u.name} (${u.designation || u.role})`,
+                value: u._id,
+              }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Project Personal Task Modal */}
+      <Modal
+        title="Add Personal Task"
+        open={isPersonalTaskModalOpen}
+        onCancel={() => setIsPersonalTaskModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={personalTaskForm}
+          layout="vertical"
+          onFinish={handleCreatePersonalTask}
+          initialValues={{ priority: "Medium", status: "Todo", date: dayjs() }}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item
+            name="title"
+            label="Task Title"
+            rules={[{ required: true, message: "Please enter a task title" }]}
+          >
+            <Input placeholder="e.g. Finish component testing, write notes..." />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="date" label="Due Date" rules={[{ required: true }]}>
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
+                <Select>
+                  <Select.Option value="Low">Low</Select.Option>
+                  <Select.Option value="Medium">Medium</Select.Option>
+                  <Select.Option value="High">High</Select.Option>
+                  <Select.Option value="Urgent">Urgent</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value="Todo">Todo</Select.Option>
+              <Select.Option value="In Progress">In Progress</Select.Option>
+              <Select.Option value="Done">Done</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="description" label="Notes / Description">
+            <Input.TextArea rows={3} placeholder="Add personal notes, links or details..." />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0, textAlign: "right" }}>
+            <Space>
+              <Button onClick={() => setIsPersonalTaskModalOpen(false)}>Cancel</Button>
+              <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>
+                Add Task
+              </Button>
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
 

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { Project, FEATURE_KEYS } from "@/lib/models/Project";
 import { verifyJwt } from "@/lib/auth";
+import { Role } from "@/lib/constants";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,14 @@ export async function POST(req: Request) {
     const payload = await verifyJwt(token);
     if (!payload?.userId) {
       return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+    }
+
+    // STRICT RBAC: Only SYSTEM_ADMIN can create projects
+    if (payload.role !== Role.SYSTEM_ADMIN) {
+      return NextResponse.json(
+        { error: "Forbidden: Only System Administrator has access to create new projects." },
+        { status: 403 }
+      );
     }
 
     const data = await req.json();
@@ -46,6 +55,8 @@ export async function POST(req: Request) {
         endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
       },
       createdBy: payload.userId,
+      techOwner: data.techOwner || undefined,
+      techTeamMembers: Array.isArray(data.techTeamMembers) ? data.techTeamMembers : [],
     };
 
     // Basic Validation Strategy
@@ -56,9 +67,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!newProject.clientDetails.companyName || !newProject.clientDetails.email) {
+    if (!newProject.clientDetails.email && !newProject.clientDetails.contactPerson) {
       return NextResponse.json(
-        { error: "Company Name and Email are required." },
+        { error: "Contact Email or Contact Person is required." },
         { status: 400 }
       );
     }

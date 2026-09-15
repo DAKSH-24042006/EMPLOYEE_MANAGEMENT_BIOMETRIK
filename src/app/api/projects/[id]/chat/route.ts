@@ -94,20 +94,20 @@ export async function POST(
             projectId: id,
             type: "CHAT_MENTION",
             title: "Tagged in Chat",
-            message: `You were mentioned in a chat message by a team member for project "${project.clientDetails.companyName}".`,
+            message: `You were mentioned in a chat message by a team member for project "${project.title || "Project"}".`,
           });
         }
       }
     }
 
-    // If the sender is TECH_TEAM and project creator is SALES_TEAM, notify the creator about clarification
-    if (payload.role === "TECH_TEAM" && project.createdBy.toString() !== payload.userId) {
+    // If the sender is not project creator, notify the creator
+    if (project.createdBy && project.createdBy.toString() !== payload.userId) {
       await Notification.create({
         recipientId: project.createdBy,
         projectId: id,
-        type: "CHAT_CLARIFICATION",
-        title: "Clarification request in Chat",
-        message: `A member of the technical team has posted a message/clarification on project "${project.clientDetails.companyName}".`,
+        type: "CHAT_MESSAGE",
+        title: "New Message in Project Chat",
+        message: `New message posted in chat for project "${project.title || "Project"}".`,
       });
     }
 

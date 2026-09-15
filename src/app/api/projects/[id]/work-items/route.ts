@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { WorkItem } from "@/lib/models/WorkItem";
+import { Project } from "@/lib/models/Project";
+import { Role } from "@/lib/constants";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 
@@ -68,19 +70,32 @@ export async function POST(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Sales cannot create work items
-    if (payload.role === "SALES_TEAM" || payload.role === "SALES") {
-      return NextResponse.json({ error: "Forbidden: Sales cannot create work items" }, { status: 403 });
+    const { id } = await params;
+
+    await dbConnect();
+
+    const project = await Project.findById(id).select("techOwner");
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const { id } = await params;
+    // STRICT CHECK: Only the Project Lead (techOwner) or System Admin can create tasks
+    const isProjectLead =
+      payload.role === Role.SYSTEM_ADMIN ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    if (!isProjectLead) {
+      return NextResponse.json(
+        { error: "Forbidden: Only the Project Lead can create tasks and assign them to team members." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
 
     if (!body.title) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
-
-    await dbConnect();
 
     const newItem = await WorkItem.create({
       projectId: id,
