@@ -10,6 +10,9 @@ import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { Role } from "@/lib/constants";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -45,7 +48,21 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ data: project }, { status: 200 });
+    const canView = await canUserViewProject(project, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to view this project. Only assigned members, project lead, or system administrators can access it." },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      { data: project },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("GET Project Error:", error);
     return NextResponse.json(
@@ -73,6 +90,14 @@ export async function PATCH(
     const existingProject = await Project.findById(id);
     if (!existingProject) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const canView = await canUserViewProject(existingProject, userId, userRole);
+    if (!canView) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to access or modify this project." },
+        { status: 403 }
+      );
     }
 
     // --- Role-Based Access Control Checks ---
@@ -342,7 +367,7 @@ export async function DELETE(
   try {
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (payload.role !== "ADMIN") return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
+    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== Role.SYSTEM_ADMIN) return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
 
     const { id } = await params;
     await dbConnect();

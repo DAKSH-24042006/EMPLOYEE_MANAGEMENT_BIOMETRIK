@@ -5,6 +5,7 @@ import { Sprint } from "@/lib/models/Sprint";
 import { WorkItem } from "@/lib/models/WorkItem";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -24,6 +25,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const sprints = await Sprint.find({ projectId: id }).sort({ startDate: 1 }).exec();
 
@@ -87,7 +93,7 @@ export async function POST(
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // Only Admin and Tech Manager can manage sprints
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER") {
+    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== "TECH_MANAGER") {
       return NextResponse.json({ error: "Forbidden: Sprints can only be managed by Tech Managers or Admins" }, { status: 403 });
     }
 

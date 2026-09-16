@@ -5,6 +5,9 @@ import { ChatMessage } from "@/lib/models/ChatMessage";
 import { Notification } from "@/lib/models/Notification";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
@@ -24,11 +27,16 @@ export async function GET(
     }
 
     const { id } = await params;
+    await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
-
-    await dbConnect();
 
     const messages = await ChatMessage.find({ projectId: id })
       .populate("senderId", "name email role")
@@ -38,7 +46,13 @@ export async function GET(
       .limit(limit);
 
     // Return in chronological order for UI display
-    return NextResponse.json({ data: messages.reverse() }, { status: 200 });
+    return NextResponse.json(
+      { data: messages.reverse() },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -74,6 +88,11 @@ export async function POST(
     const project = await Project.findById(id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const canView = await canUserViewProject(project, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
     }
 
     // Save chat message

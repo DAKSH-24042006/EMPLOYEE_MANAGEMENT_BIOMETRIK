@@ -179,15 +179,49 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch("/api/user/me");
+      const response = await fetch("/api/user/me", { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+        return data.user;
       }
     } catch (error) {
       console.error("Failed to fetch user data:", error);
     }
+    return null;
   };
+
+  // Cross-tab session sync: reload if a different user logged in on another tab
+  useEffect(() => {
+    const handleSessionSync = async () => {
+      try {
+        const response = await fetch("/api/user/me", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          const newUserId = data.user?._id || data.user?.id;
+          const currentUserId = (user as any)?._id || (user as any)?.id;
+          if (currentUserId && newUserId && String(newUserId) !== String(currentUserId)) {
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        console.error("Session sync check error:", err);
+      }
+    };
+
+    window.addEventListener("focus", handleSessionSync);
+    const handleVis = () => {
+      if (document.visibilityState === "visible") {
+        handleSessionSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    return () => {
+      window.removeEventListener("focus", handleSessionSync);
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, [user]);
 
   const isMobile = mounted && !screens.md;
 

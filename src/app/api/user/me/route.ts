@@ -4,6 +4,8 @@ import { User } from "@/lib/models/User";
 import { verifyJwt } from "@/lib/auth";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // Get the JWT token from cookies
@@ -42,6 +44,7 @@ export async function GET() {
     return NextResponse.json(
       { 
         user: { 
+          _id: user._id,
           id: user._id,
           name: user.name, 
           username: user.username,
@@ -54,7 +57,10 @@ export async function GET() {
           location: user.location
         } 
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
     );
   } catch (error: any) {
     console.error("Fetch Current User Error:", error);

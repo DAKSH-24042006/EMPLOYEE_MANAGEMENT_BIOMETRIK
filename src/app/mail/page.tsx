@@ -285,7 +285,7 @@ export default function SendMailPage() {
                       </Button>
                       {selectedEmails.length > 0 && (
                         <>
-                          <Text orientation="vertical" type="secondary">|</Text>
+                          <Text type="secondary">|</Text>
                           <Button
                             type="link"
                             size="small"
@@ -444,7 +444,7 @@ export default function SendMailPage() {
                       <Text strong style={{ fontSize: 13, display: "block" }}>
                         {tpl.label}
                       </Text>
-                      <Text orientation="vertical" type="secondary" style={{ fontSize: 11 }}>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
                         {tpl.subject}
                       </Text>
                     </div>

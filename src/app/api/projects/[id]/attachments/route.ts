@@ -6,6 +6,9 @@ import { verifyJwt } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(
   req: Request,
@@ -27,6 +30,11 @@ export async function POST(
     const { id } = await params;
     await dbConnect();
 
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     const contentType = req.headers.get("content-type") || "";
 
     // Handle Folder Creation (JSON payload)
@@ -34,7 +42,7 @@ export async function POST(
       const body = await req.json();
       if (body.action === "create_folder") {
         const folderName = (body.folderName || "").trim();
-        const parentFolder = (body.parentFolder || "/").trim();
+        const parentFolder = (body.folder || body.parentFolder || "/").trim();
 
         if (!folderName) {
           return NextResponse.json({ error: "Folder name is required" }, { status: 400 });
@@ -54,6 +62,7 @@ export async function POST(
 
         const newFolder = await ProjectAttachment.create({
           projectId: id,
+          filename: `folder_${folderName}`,
           originalName: folderName,
           folder: parentFolder,
           isFolder: true,
@@ -65,7 +74,13 @@ export async function POST(
         const populatedFolder = await ProjectAttachment.findById(newFolder._id)
           .populate("uploadedBy", "name email role");
 
-        return NextResponse.json({ data: populatedFolder }, { status: 201 });
+        return NextResponse.json(
+          { data: populatedFolder },
+          {
+            status: 201,
+            headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+          }
+        );
       }
     }
 
@@ -163,21 +178,30 @@ export async function GET(
     }
 
     const { id } = await params;
-    const { searchParams } = new URL(req.url);
-    const folderFilter = searchParams.get("folder");
-
     await dbConnect();
 
-    const query: any = { projectId: id };
-    if (folderFilter !== null && folderFilter !== undefined) {
-      query.folder = folderFilter;
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const folderParam = searchParams.get("folder");
+    const folderFilter = folderParam !== null ? folderParam.trim() : "/";
+
+    const query: any = { projectId: id, folder: folderFilter };
 
     const attachments = await ProjectAttachment.find(query)
       .populate("uploadedBy", "name email role")
       .sort({ isFolder: -1, createdAt: -1 });
 
-    return NextResponse.json({ data: attachments }, { status: 200 });
+    return NextResponse.json(
+      { data: attachments },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

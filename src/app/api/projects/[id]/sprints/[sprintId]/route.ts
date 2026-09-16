@@ -22,7 +22,7 @@ export async function PUT(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER") {
+    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== "TECH_MANAGER") {
       return NextResponse.json({ error: "Forbidden: Sprints can only be managed by Tech Managers or Admins" }, { status: 403 });
     }
 
@@ -94,7 +94,7 @@ export async function DELETE(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER") {
+    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== "TECH_MANAGER") {
       return NextResponse.json({ error: "Forbidden: Sprints can only be managed by Tech Managers or Admins" }, { status: 403 });
     }
 

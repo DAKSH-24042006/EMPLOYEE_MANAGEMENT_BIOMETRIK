@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import { ProjectVersion } from "@/lib/models/ProjectVersion";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 export async function GET(
   req: Request,
@@ -23,6 +24,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const versions = await ProjectVersion.find({ projectId: id })
       .populate("editedBy", "name email role")

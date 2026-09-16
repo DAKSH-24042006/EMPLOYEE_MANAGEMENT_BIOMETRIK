@@ -31,6 +31,7 @@ import {
   Radio,
   Drawer,
   Switch,
+  Result,
 } from "antd";
 import {
   ArrowLeft,
@@ -99,6 +100,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [project, setProject] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // Modals & Drawers
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -333,7 +335,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   // Fetch functions
   const fetchCurrentUser = async () => {
     try {
-      const res = await fetch("/api/user/me");
+      const res = await fetch("/api/user/me", { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
         setCurrentUser(json.user);
@@ -345,7 +347,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchProject = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}`);
+      const res = await fetch(`/api/projects/${id}`, { cache: "no-store" });
+      if (res.status === 403) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
       const json = await res.json();
       if (res.ok) {
         setProject(json.data);
@@ -402,7 +409,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/tasks`);
+      const res = await fetch(`/api/projects/${id}/tasks`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setTasks(json.data);
     } catch (err) {
@@ -412,7 +419,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchChat = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/chat`);
+      const res = await fetch(`/api/projects/${id}/chat`, { cache: "no-store" });
+      if (res.status === 403) {
+        setAccessDenied(true);
+        return;
+      }
+      if (res.status === 401) {
+        window.location.href = "/auth/login";
+        return;
+      }
       const json = await res.json();
       if (res.ok) setChatMessages(json.data);
     } catch (err) {
@@ -422,7 +437,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchBlockers = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/blockers`);
+      const res = await fetch(`/api/projects/${id}/blockers`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setBlockers(json.data);
     } catch (err) {
@@ -433,7 +448,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const fetchAttachments = async (targetFolder?: string) => {
     try {
       const f = targetFolder !== undefined ? targetFolder : currentFolder;
-      const res = await fetch(`/api/projects/${id}/attachments?folder=${encodeURIComponent(f)}`);
+      const res = await fetch(`/api/projects/${id}/attachments?folder=${encodeURIComponent(f)}`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setAttachments(json.data || []);
     } catch (err) {
@@ -530,7 +545,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchSprints = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/sprints`);
+      const res = await fetch(`/api/projects/${id}/sprints`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setSprints(json.data);
     } catch (err) {
@@ -540,7 +555,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchWorkItems = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/work-items`);
+      const res = await fetch(`/api/projects/${id}/work-items`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setWorkItems(json.data);
     } catch (err) {
@@ -550,7 +565,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchTestCases = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/test-cases`);
+      const res = await fetch(`/api/projects/${id}/test-cases`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setTestCases(json.data);
     } catch (err) {
@@ -560,7 +575,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchActivities = async () => {
     try {
-      const res = await fetch(`/api/projects/${id}/activities`);
+      const res = await fetch(`/api/projects/${id}/activities`, { cache: "no-store" });
       const json = await res.json();
       if (res.ok) setActivities(json.data);
     } catch (err) {
@@ -702,6 +717,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         setIsTaskModalOpen(false);
         taskForm.resetFields();
         fetchTasks();
+        fetchActivities();
       } else {
         const err = await res.json();
         message.error(err.error || "Failed to create task");
@@ -803,6 +819,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (res.status === 403) {
+        setAccessDenied(true);
+        message.error("Access restricted: You are not an assigned member of this project.");
+        return;
+      }
+      if (res.status === 401) {
+        window.location.href = "/auth/login";
+        return;
+      }
 
       if (res.ok) {
         setChatInput("");
@@ -1209,6 +1235,40 @@ function ProjectDetailsClient({ id }: { id: string }) {
       default: return "processing";
     }
   };
+
+  if (accessDenied) {
+    return (
+      <div style={{ padding: "60px 20px", display: "flex", justifyContent: "center" }}>
+        <Card
+          variant="borderless"
+          style={{
+            maxWidth: 600,
+            width: "100%",
+            borderRadius: 16,
+            textAlign: "center",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+          }}
+        >
+          <Result
+            status="403"
+            title="Access Restricted"
+            subTitle="You do not have permission to view this project. Projects can only be accessed by assigned team members, the Project Lead, or System Administrators."
+            extra={
+              <Link href="/projects">
+                <Button
+                  type="primary"
+                  icon={<ArrowLeft size={16} />}
+                  style={{ background: "#00897b", borderColor: "#00897b" }}
+                >
+                  Back to Projects
+                </Button>
+              </Link>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
 
   if (loading || !project) {
     return (

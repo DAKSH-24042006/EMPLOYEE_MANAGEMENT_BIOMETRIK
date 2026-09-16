@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import type { ColumnsType } from "antd/es/table";
 import {
   Typography,
   Table,
@@ -698,7 +699,7 @@ export default function ProjectsPage() {
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/projects");
+      const res = await fetch("/api/projects", { cache: "no-store" });
       if (res.status === 401) {
         message.error("Session expired. Please log in again.");
         return;
@@ -718,6 +719,11 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects();
+    const onFocus = () => {
+      fetchProjects();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [fetchProjects]);
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -784,6 +790,11 @@ export default function ProjectsPage() {
 
   // ── Table columns ─────────────────────────────────────────────────────────
 
+    const isSystemAdmin =
+    currentUserRole === Role.SYSTEM_ADMIN ||
+    currentUserRole === "ADMIN" ||
+    currentUserRole === "SYSTEM_ADMIN";
+
   const columns: ColumnsType<IProject> = [
     {
       title: "Project & Client",
@@ -803,17 +814,8 @@ export default function ProjectsPage() {
       ),
     },
     {
-      title: "Owners",
-      key: "owners",
-      render: (_, record) => (
-        <div style={{ fontSize: 11 }}>
-          <div><span style={{ color: "#6b7280" }}>Sales: </span>{record.createdBy?.name || "N/A"}</div>
-          <div><span style={{ color: "#6b7280" }}>Tech: </span>{record.techOwner?.name || "None"}</div>
-        </div>
-      ),
-    },
-    {
       title: "Timeline",
+      key: "timeline",
       responsive: ["sm"] as any,
       render: (_, record) => (
         <div style={{ whiteSpace: "nowrap" }}>
@@ -828,146 +830,73 @@ export default function ProjectsPage() {
         </div>
       ),
     },
-    {
-      title: "Current Stage",
-      dataIndex: "status",
-      key: "status",
-      filters: Object.keys(STATUS_CONFIG).map((s) => ({ text: s, value: s })),
-      onFilter: (value, record) => record.status === value,
-      render: (status: string, record) => {
-        const cfg = STATUS_CONFIG[status] || { color: "default", icon: null };
-        return (
-          <Space direction="vertical" size={4} style={{ width: "100%" }}>
-            <Tag color={cfg.color} icon={cfg.icon} style={{ borderRadius: 12, padding: "0px 8px", fontSize: 11, margin: 0 }}>
-              {status}
-            </Tag>
-            {record.pendingSignoff && (
-              <Tag color="error" style={{ borderRadius: 12, padding: "0px 8px", fontSize: 10, margin: 0 }}>
-                Signoff Pending
-              </Tag>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: "Metrics",
-      key: "metrics",
-      render: (_, record) => (
-        <div style={{ fontSize: 11 }}>
-          <div>
-            <span style={{ color: "#6b7280" }}>Req. Completeness: </span>
-            <span style={{ fontWeight: 600 }}>{record.requirementCompletenessScore || 0}%</span>
-          </div>
-          <div>
-            <span style={{ color: "#6b7280" }}>Progress: </span>
-            <span style={{ fontWeight: 600 }}>{record.progressPercent || 0}%</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "Sprint & Blockers",
-      key: "sprint_blockers",
-      render: (_, record) => (
-        <div style={{ fontSize: 11 }}>
-          <div>
-            <span style={{ color: "#6b7280" }}>Sprint: </span>
-            <span style={{ fontWeight: 500 }}>{record.activeSprint || "None"}</span>
-          </div>
-          <Space size={4} style={{ marginTop: 2 }}>
-            {record.openBlockersCount ? (
-              <Tag color="red" style={{ fontSize: 10, margin: 0, padding: "0 4px" }}>
-                {record.openBlockersCount} Blockers
-              </Tag>
-            ) : null}
-            {record.overdueWorkItemsCount ? (
-              <Tag color="volcano" style={{ fontSize: 10, margin: 0, padding: "0 4px" }}>
-                {record.overdueWorkItemsCount} Overdue
-              </Tag>
-            ) : null}
-          </Space>
-        </div>
-      ),
-    },
-    {
-      title: "Last Updated",
-      dataIndex: "updatedAt",
-      key: "updatedAt",
-      responsive: ["md"] as any,
-      sorter: (a, b) =>
-        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
-      render: (date: string) => (
-        <Tooltip title={dayjs(date).format("DD MMM YYYY, hh:mm A")}>
-          <Text style={{ fontSize: 11, color: "#6b7280" }}>
-            {dayjs(date).format("DD MMM YYYY")}
-          </Text>
-        </Tooltip>
-      ),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (_, record) => {
-        const anyModalOpen = editOpen || detailOpen;
-        const shouldForceClose = anyModalOpen || isTouchDevice;
+    ...(isSystemAdmin
+      ? [
+          {
+            title: "Actions",
+            key: "actions",
+            render: (_: any, record: IProject) => {
+              const anyModalOpen = editOpen || detailOpen;
+              const shouldForceClose = anyModalOpen || isTouchDevice;
 
-        const handleSafeClick = (cb: () => void) => {
-          if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
-          }
-          document.body.click();
-          cb();
-        };
+              const handleSafeClick = (cb: () => void) => {
+                if (document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
+                document.body.click();
+                cb();
+              };
 
-        return (
-          <Space>
-            <Tooltip
-              title="View Details"
-              trigger="hover"
-              open={shouldForceClose ? false : undefined}
-              destroyOnHidden
-            >
-              <Link href={`/projects/${record._id}`}>
-                <Button
-                  type="text"
-                  icon={<EyeOutlined />}
-                  style={{ color: "#6366f1" }}
-                />
-              </Link>
-            </Tooltip>
+              return (
+                <Space>
+                  <Tooltip
+                    title="View Details"
+                    trigger="hover"
+                    open={shouldForceClose ? false : undefined}
+                    destroyOnHidden
+                  >
+                    <Link href={`/projects/${record._id}`}>
+                      <Button
+                        type="text"
+                        icon={<EyeOutlined />}
+                        style={{ color: "#6366f1" }}
+                      />
+                    </Link>
+                  </Tooltip>
 
-            <Tooltip
-              title="Edit Project"
-              trigger="hover"
-              open={shouldForceClose ? false : undefined}
-              destroyOnHidden
-            >
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => handleSafeClick(() => openEdit(record))}
-                style={{ color: "#00897b" }}
-              />
-            </Tooltip>
+                  <Tooltip
+                    title="Edit Project"
+                    trigger="hover"
+                    open={shouldForceClose ? false : undefined}
+                    destroyOnHidden
+                  >
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      onClick={() => handleSafeClick(() => openEdit(record))}
+                      style={{ color: "#00897b" }}
+                    />
+                  </Tooltip>
 
-            <Tooltip
-              title="Delete Project"
-              trigger="hover"
-              open={shouldForceClose ? false : undefined}
-              destroyOnHidden
-            >
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleSafeClick(() => handleDelete(record))}
-              />
-            </Tooltip>
-          </Space>
-        );
-      },
-    },
+                  <Tooltip
+                    title="Delete Project"
+                    trigger="hover"
+                    open={shouldForceClose ? false : undefined}
+                    destroyOnHidden
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleSafeClick(() => handleDelete(record))}
+                    />
+                  </Tooltip>
+                </Space>
+              );
+            },
+          },
+        ]
+      : []),
   ];
 
   // ─── Render ───────────────────────────────────────────────────────────────

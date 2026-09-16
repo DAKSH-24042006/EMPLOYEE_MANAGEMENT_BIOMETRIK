@@ -6,6 +6,7 @@ import { Project } from "@/lib/models/Project";
 import { Role } from "@/lib/constants";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -24,9 +25,14 @@ export async function GET(
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    const { searchParams } = new URL(req.url);
-
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
 
     // Build query object
     const query: any = { projectId: id };

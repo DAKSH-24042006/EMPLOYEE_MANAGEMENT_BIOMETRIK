@@ -4,6 +4,7 @@ import dbConnect from "@/lib/db";
 import { TestCase } from "@/lib/models/TestCase";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -23,6 +24,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const testCases = await TestCase.find({ projectId: id })
       .populate("testedBy", "name email role")
@@ -59,6 +65,11 @@ export async function POST(
     }
 
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const newTest = await TestCase.create({
       projectId: id,

@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import { ProjectAttachment } from "@/lib/models/ProjectAttachment";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
 import fs from "fs";
 import path from "path";
 
@@ -23,21 +24,30 @@ export async function GET(
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
-    const { attachmentId } = await params;
+    const { id, attachmentId } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access restricted to project members" }, { status: 403 });
+    }
 
     const attachment = await ProjectAttachment.findById(attachmentId);
     if (!attachment) {
       return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
     }
 
-    const filePath = path.join(process.cwd(), "uploads", attachment.filename);
+    if (attachment.isFolder) {
+      return NextResponse.json({ error: "Cannot download a folder directly" }, { status: 400 });
+    }
+
+    const filePath = path.join(process.cwd(), "uploads", attachment.filename || "");
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "File not found on disk" }, { status: 404 });
     }
 
-    // Read file as stream or buffer
+    // Read file as buffer
     const fileBuffer = fs.readFileSync(filePath);
 
     // Return the file with proper headers to download/preview
@@ -45,9 +55,9 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Disposition": `attachment; filename="${encodeURIComponent(
-          attachment.originalName
+          attachment.originalName || "download"
         )}"`,
-        "Content-Type": attachment.mimeType,
+        "Content-Type": attachment.mimeType || "application/octet-stream",
       },
     });
   } catch (error: any) {
@@ -73,8 +83,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
-    const { attachmentId } = await params;
+    const { id, attachmentId } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access restricted to project members" }, { status: 403 });
+    }
 
     const attachment = await ProjectAttachment.findById(attachmentId);
     if (!attachment) {
@@ -85,7 +100,7 @@ export async function DELETE(
     if (attachment.isFolder) {
       const parentPath = attachment.folder === "/" ? "" : attachment.folder;
       const folderPrefix = `${parentPath}/${attachment.originalName}`;
-      
+
       // Find all nested items to delete disk files
       const children = await ProjectAttachment.find({
         projectId: id,
@@ -108,8 +123,11 @@ export async function DELETE(
     }
 
     // Remove from disk if file
-    if (!attachment.isFolder && fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (e) {}
+    if (!attachment.isFolder && attachment.filename) {
+      const filePath = path.join(process.cwd(), "uploads", attachment.filename);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
+      }
     }
 
     // Delete database entry

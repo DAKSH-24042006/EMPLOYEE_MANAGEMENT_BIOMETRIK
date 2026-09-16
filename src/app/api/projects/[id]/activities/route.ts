@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { ProjectActivity } from "@/lib/models/ProjectActivity";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -24,6 +25,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const activities = await ProjectActivity.find({ projectId: id })
       .populate("performedBy", "name email role")

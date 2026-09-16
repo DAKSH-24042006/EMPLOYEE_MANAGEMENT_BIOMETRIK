@@ -4,12 +4,17 @@ import dbConnect from "@/lib/db";
 import { CalendarTask } from "@/lib/models/CalendarTask";
 import { WorkItem } from "@/lib/models/WorkItem";
 import { Sprint } from "@/lib/models/Sprint";
-import "@/lib/models/Project";
-import "@/lib/models/User";
+import { Project } from "@/lib/models/Project";
+import { Task } from "@/lib/models/Task";
+import { User } from "@/lib/models/User";
+import { Role } from "@/lib/constants";
+import { getProjectViewFilter } from "@/lib/projectAccess";
 import { verifyJwt } from "@/lib/auth";
 
 import { GoogleToken } from "@/lib/models/GoogleToken";
 import { createCalendarEvent } from "@/lib/googleCalendar";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
@@ -60,34 +65,73 @@ export async function GET(req: Request) {
     }));
 
     if (!includeAll) {
-      return NextResponse.json(formattedPersonalTasks);
+      return NextResponse.json(formattedPersonalTasks, {
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      });
     }
 
-    // Also fetch Work Items and Sprints
+    const isSystemAdmin =
+      payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "SYSTEM_ADMIN" ||
+      payload.role === "ADMIN";
+
+    // Build scoped queries to prevent seeing other users' tasks
     let workItemQuery: any = {};
+    let taskQuery: any = {};
+    let sprintQuery: any = {};
+
     if (dateFilter) {
       workItemQuery.dueDate = dateFilter;
-    }
-    if (projectId) {
-      workItemQuery.projectId = projectId;
-    }
-
-    let sprintQuery: any = {};
-    if (dateFilter) {
+      taskQuery.dueDate = dateFilter;
       sprintQuery.$or = [
         { endDate: dateFilter },
         { startDate: dateFilter }
       ];
     }
-    if (projectId) {
-      sprintQuery.projectId = projectId;
+
+    if (!isSystemAdmin) {
+      // Regular employees can ONLY see tasks and work items assigned to THEM
+      workItemQuery.assignee = payload.userId;
+      taskQuery.assignedTo = payload.userId;
+
+      // Ensure projects are also restricted to projects they have permission to access
+      const projectFilter = await getProjectViewFilter(payload.userId, payload.role);
+      const allowedProjects = await Project.find(projectFilter).distinct("_id");
+
+      if (projectId) {
+        const hasAccess = allowedProjects.some((id: any) => String(id) === String(projectId));
+        if (hasAccess) {
+          workItemQuery.projectId = projectId;
+          taskQuery.projectId = projectId;
+          sprintQuery.projectId = projectId;
+        } else {
+          workItemQuery.projectId = null;
+          taskQuery.projectId = null;
+          sprintQuery.projectId = null;
+        }
+      } else {
+        workItemQuery.projectId = { $in: allowedProjects };
+        taskQuery.projectId = { $in: allowedProjects };
+        sprintQuery.projectId = { $in: allowedProjects };
+      }
+    } else {
+      // System admin can filter by specific project if requested
+      if (projectId) {
+        workItemQuery.projectId = projectId;
+        taskQuery.projectId = projectId;
+        sprintQuery.projectId = projectId;
+      }
     }
 
-    const [workItems, sprints] = await Promise.all([
+    const [workItems, regularTasks, sprints] = await Promise.all([
       WorkItem.find(workItemQuery)
         .populate("projectId", "title clientDetails")
         .populate("assignee", "name email")
         .populate("sprint", "name")
+        .lean(),
+      Task.find(taskQuery)
+        .populate("projectId", "title clientDetails")
+        .populate("assignedTo", "name email")
         .lean(),
       Sprint.find(sprintQuery)
         .populate("projectId", "title")
@@ -116,6 +160,22 @@ export async function GET(req: Request) {
       };
     });
 
+    const formattedRegularTasks = regularTasks.map((t: any) => ({
+      _id: String(t._id),
+      title: t.title,
+      description: t.description || "",
+      date: t.dueDate ? new Date(t.dueDate).toISOString() : new Date().toISOString(),
+      priority: "Medium",
+      status: t.status === "Completed" ? "Done" : "Todo",
+      rawStatus: t.status,
+      color: "#00897b",
+      itemType: "task",
+      isPersonal: false,
+      projectName: t.projectId?.title || "Project Task",
+      projectId: t.projectId?._id ? String(t.projectId._id) : undefined,
+      assigneeName: t.assignedTo?.name || "Assigned",
+    }));
+
     const formattedSprints = sprints.map((s: any) => ({
       _id: String(s._id),
       title: `Sprint Deadline: ${s.name}`,
@@ -133,11 +193,13 @@ export async function GET(req: Request) {
       endDate: s.endDate,
     }));
 
-    const allEvents = [...formattedPersonalTasks, ...formattedWorkItems, ...formattedSprints].sort(
+    const allEvents = [...formattedPersonalTasks, ...formattedWorkItems, ...formattedRegularTasks, ...formattedSprints].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    return NextResponse.json(allEvents);
+    return NextResponse.json(allEvents, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error: any) {
     console.error("GET Calendar Tasks Error:", error);
     return NextResponse.json(
