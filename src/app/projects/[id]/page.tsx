@@ -134,7 +134,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workFilterPriority, setWorkFilterPriority] = useState<string>("All");
   const [workFilterOverdue, setWorkFilterOverdue] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("work-items");
-  const [todoStatusFilter, setTodoStatusFilter] = useState<"all" | "pending" | "done" | "overdue">("all");
+  const [todoStatusFilter, setTodoStatusFilter] = useState<"all" | "todo" | "inprogress" | "blocked" | "completed" | "overdue">("all");
 
   // Project Calendar & Personal Tasks states
   const [projectPersonalTasks, setProjectPersonalTasks] = useState<any[]>([]);
@@ -189,7 +189,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [folderForm] = Form.useForm();
   const [driveUploading, setDriveUploading] = useState(false);
 
-  // Project Lead & Team determination
+  // Project Manager & Team determination
   const currentUserId = currentUser?._id || currentUser?.id;
   const techOwnerId = project?.techOwner?._id || project?.techOwner;
   const isProjectLead = Boolean(
@@ -199,6 +199,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
       (techOwnerId && String(currentUserId) === String(techOwnerId))
     )
   );
+
+  // Ensure regular employees default to todo-progress if they cannot view work-items
+  useEffect(() => {
+    if (currentUser && !isProjectLead && activeTab === "work-items") {
+      setActiveTab("todo-progress");
+    }
+  }, [currentUser, isProjectLead, activeTab]);
 
   const projectTeamMembers = React.useMemo(() => {
     const list: any[] = [];
@@ -705,7 +712,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const handleCreateTask = async (values: any) => {
     if (!isProjectLead) {
-      message.error("Only the Project Lead or System Admin can create and assign tasks.");
+      message.error("Only the Project Manager or System Admin can create and assign tasks.");
       return;
     }
     try {
@@ -1006,7 +1013,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   // --- Work Items Operations ---
   const handleCreateWorkItem = async (values: any) => {
     if (!isProjectLead) {
-      message.error("Only the Project Lead or System Admin can create and assign work items.");
+      message.error("Only the Project Manager or System Admin can create and assign work items.");
       return;
     }
     try {
@@ -1260,7 +1267,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           <Result
             status="403"
             title="Access Restricted"
-            subTitle="You do not have permission to view this project. Projects can only be accessed by assigned team members, the Project Lead, or System Administrators."
+            subTitle="You do not have permission to view this project. Projects can only be accessed by assigned team members, the Project Manager, or System Administrators."
             extra={
               <Link href="/projects">
                 <Button
@@ -1323,70 +1330,106 @@ function ProjectDetailsClient({ id }: { id: string }) {
   return (
     <div style={{ width: "100%", maxWidth: 1300, margin: "0 auto", paddingBottom: 50, minWidth: 0 }}>
       {/* Header Bar */}
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-        <Space direction="vertical" size={4}>
-          <Link href="/projects" style={{ display: "flex", alignItems: "center", gap: 8, color: "#676879", fontSize: 13 }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 12 }}>
+          <Link href="/projects" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#64748b", fontSize: 13, fontWeight: 500 }}>
             <ArrowLeft size={14} /> Back to Projects
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
-            <Title level={3} style={{ margin: 0 }}>
-              {project.title || "Unnamed Project"}
-            </Title>
-            <Tag color={getPriorityColor(project.priority)}>{project.priority} Priority</Tag>
-            <Tag color={getStatusColor(project.status)}>{project.status}</Tag>
-            {openBlockersList.length > 0 && (
-              <Badge count={openBlockersList.length} style={{ backgroundColor: "#ff4d4f" }}>
-                <Tag color="error" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                  <AlertOctagon size={12} /> Blocked
-                </Tag>
-              </Badge>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 320 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+              <Title level={2} style={{ margin: 0, fontWeight: 700, color: "#0f172a", fontSize: 24 }}>
+                {project.title || project.clientDetails?.companyName || "Unnamed Project"}
+              </Title>
+              <Tag color={getStatusColor(project.status)} style={{ borderRadius: 12, padding: "2px 10px", fontWeight: 600, margin: 0 }}>
+                {project.status || "Active"}
+              </Tag>
+              <Tag color={getPriorityColor(project.priority)} style={{ borderRadius: 12, padding: "2px 10px", fontWeight: 600, margin: 0 }}>
+                {project.priority || "Medium"} Priority
+              </Tag>
+              {openBlockersList.length > 0 && (
+                <Badge count={openBlockersList.length} style={{ backgroundColor: "#ff4d4f" }}>
+                  <Tag color="error" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4, borderRadius: 12 }}>
+                    <AlertOctagon size={12} /> Blocked
+                  </Tag>
+                </Badge>
+              )}
+            </div>
+
+            {/* Leadership & System Metadata */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, margin: "14px 0 16px", fontSize: 13 }}>
+              <div>
+                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
+                  Project Manager
+                </Text>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "#0f172a", marginTop: 3 }}>
+                  <Avatar size={20} icon={<UserIcon size={12} />} style={{ backgroundColor: "#00897b" }} />
+                  <span>{project.techOwner?.name || "Daksh Sheregar"}</span>
+                </div>
+              </div>
+
+              <div>
+                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
+                  System Administrator
+                </Text>
+                <div style={{ fontWeight: 600, color: "#334155", marginTop: 3 }}>
+                  {project.createdBy?.name || "System Administrator"}
+                </div>
+              </div>
+
+              <div>
+                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
+                  Timeline
+                </Text>
+                <div style={{ fontWeight: 500, color: "#475569", marginTop: 3 }}>
+                  {dayjs(project.timeline?.startDate).format("DD MMM YYYY")} – {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
+                </div>
+              </div>
+            </div>
+
+            {project.description && (
+              <div style={{
+                marginTop: 10,
+                padding: "12px 16px",
+                background: "#f0fdfa",
+                border: "1px solid #ccfbf1",
+                borderRadius: 10,
+                maxWidth: 950,
+              }}>
+                <Text strong style={{ fontSize: 12, color: "#00897b", display: "block", marginBottom: 3 }}>
+                  Project Description:
+                </Text>
+                <Paragraph style={{ margin: 0, fontSize: 13, color: "#334155", whiteSpace: "pre-wrap", lineHeight: "20px" }}>
+                  {project.description}
+                </Paragraph>
+              </div>
             )}
           </div>
-          <Text type="secondary">
-            Company: {project.clientDetails.companyName} | 
-            Sales Owner: {project.createdBy?.name || "N/A"} | 
-            Tech Owner: {project.techOwner?.name || "Unassigned"}
-          </Text>
-          {project.description && (
-            <div style={{
-              marginTop: 6,
-              padding: "10px 14px",
-              background: "#f0fdfa",
-              border: "1px solid #ccfbf1",
-              borderRadius: 8,
-              maxWidth: 900,
-            }}>
-              <Text strong style={{ fontSize: 12, color: "#00897b", display: "block", marginBottom: 2 }}>
-                Project Description:
-              </Text>
-              <Paragraph style={{ margin: 0, fontSize: 13, color: "#374151", whiteSpace: "pre-wrap" }}>
-                {project.description}
-              </Paragraph>
-            </div>
-          )}
-        </Space>
 
-        <Space>
-          <Button
-            icon={<FilePdfOutlined />}
-            loading={generatingPDF}
-            onClick={handleGeneratePDF}
-            style={{ color: "#00897b", borderColor: "#00897b" }}
-          >
-            Generate PDF
-          </Button>
-          {(currentUser?.role === "ADMIN" || currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM") && (
-            <Button type="primary" onClick={() => setIsEditModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
-              Edit Specifications
+          <Space>
+            <Button
+              icon={<FilePdfOutlined />}
+              loading={generatingPDF}
+              onClick={handleGeneratePDF}
+              style={{ color: "#00897b", borderColor: "#00897b" }}
+            >
+              Generate PDF
             </Button>
-          )}
-        </Space>
+            {(currentUser?.role === "SYSTEM_ADMIN" || currentUser?.role === "ADMIN" || currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM") && (
+              <Button type="primary" onClick={() => setIsEditModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
+                Edit Specifications
+              </Button>
+            )}
+          </Space>
+        </div>
       </div>
 
       {/* Main Tabs */}
       <Card variant="borderless" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", minWidth: 0, maxWidth: "100%" }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
-          {
+          ...(isProjectLead ? [{
             key: "work-items",
             label: "Work Items & Tasks",
             children: (
@@ -1400,18 +1443,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         <Select.Option key={s} value={s}>{s}</Select.Option>
                       ))}
                     </Select>
-                    {isProjectLead ? (
-                      <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 160 }} placeholder="Assignee">
-                        <Select.Option value="All">All Assignees</Select.Option>
-                        {users.map(u => (
-                          <Select.Option key={u._id} value={u._id}>{u.name}</Select.Option>
-                        ))}
-                      </Select>
-                    ) : (
-                      <Tag color="cyan" style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, margin: 0 }}>
-                        My Assigned Tasks Only
-                      </Tag>
-                    )}
+                    <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 160 }} placeholder="Assignee">
+                      <Select.Option value="All">All Assignees</Select.Option>
+                      {users.map(u => (
+                        <Select.Option key={u._id} value={u._id}>{u.name}</Select.Option>
+                      ))}
+                    </Select>
                     <Select value={workFilterSprint} onChange={setWorkFilterSprint} style={{ width: 140 }} placeholder="Sprint">
                       <Select.Option value="All">All Sprints</Select.Option>
                       {sprints.map(s => (
@@ -1430,44 +1467,39 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   </Space>
 
                   <Space>
-                    {isProjectLead ? (
-                      <Button
-                        type="primary"
-                        icon={<Plus size={14} />}
-                        onClick={() => setIsWorkItemModalOpen(true)}
-                        style={{ backgroundColor: "#00897b", border: "none" }}
-                      >
-                        Create Work Item
-                      </Button>
-                    ) : (
-                      <Tag color="orange" style={{ padding: "4px 8px", borderRadius: 6, fontSize: 12 }}>
-                        Lead only can assign tasks
-                      </Tag>
-                    )}
+                    <Button
+                      type="primary"
+                      icon={<Plus size={14} />}
+                      onClick={() => setIsWorkItemModalOpen(true)}
+                      style={{ backgroundColor: "#00897b", border: "none" }}
+                    >
+                      Create Work Item
+                    </Button>
                   </Space>
                 </div>
 
-                {/* Table View */}
                 <Table
                   dataSource={filteredWorkItems}
                   rowKey="_id"
-                  size="small"
-                  onRow={(record) => ({
-                    onClick: () => {
-                      setSelectedWorkItem(record);
-                      setWorkItemDetailOpen(true);
-                    }
-                  })}
+                  pagination={{ pageSize: 15 }}
                   columns={[
                     {
-                      title: "ID/Title",
+                      title: "Title",
+                      dataIndex: "title",
                       key: "title",
-                      render: (_, record) => (
-                        <div>
-                          <Text strong style={{ color: "#00897b", cursor: "pointer" }}>{record.title}</Text>
-                          <div style={{ fontSize: 10, color: "#999" }}>Type: {record.type} | Module: {record.module || "General"}</div>
-                        </div>
-                      ),
+                      render: (text, record: any) => (
+                        <Space direction="vertical" size={2}>
+                          <a onClick={() => { setSelectedWorkItem(record); setWorkItemDetailOpen(true); }} style={{ fontWeight: 600, color: "#00897b" }}>
+                            {text}
+                          </a>
+                          <Space size={4}>
+                            <Tag color={record.type === "Bug" ? "red" : record.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10 }}>{record.type}</Tag>
+                            {record.dueDate && dayjs(record.dueDate).isBefore(dayjs(), "day") && record.status !== "Done" && (
+                              <Tag color="error" style={{ fontSize: 10 }}>Overdue</Tag>
+                            )}
+                          </Space>
+                        </Space>
+                      )
                     },
                     {
                       title: "Assignee",
@@ -1500,11 +1532,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       render: (p) => <Progress percent={p} size="small" />
                     },
                     {
-                      title: "Hours",
-                      key: "hours",
-                      render: (_, record) => `${record.actualHours || 0}/${record.estimatedHours || 0} hrs`
-                    },
-                    {
                       title: "Due Date",
                       dataIndex: "dueDate",
                       key: "dueDate",
@@ -1514,17 +1541,17 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 />
               </div>
             )
-          },
+          }] : []),
           {
             key: "todo-progress",
             label: (
               <Space size={6}>
                 <ListTodo size={14} />
-                <span>To-Do & Progress</span>
+                <span>My To-Do & Progress</span>
                 {(() => {
                   const myCount = workItems.filter(w => {
                     const aid = w.assignee?._id || w.assignee;
-                    return String(aid) === String(currentUserId) && w.status !== "Done";
+                    return String(aid) === String(currentUserId) && w.status !== "Done" && w.status !== "Completed";
                   }).length;
                   return myCount > 0 ? <Badge count={myCount} size="small" style={{ backgroundColor: "#00897b" }} /> : null;
                 })()}
@@ -1538,201 +1565,251 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   style={{
                     borderRadius: 12,
                     boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                    border: "1px solid #e6f4ea",
-                    backgroundColor: "#fcfdfc",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#ffffff",
                     marginBottom: 24,
                   }}
-                  title={
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                      <Space size={8}>
-                        <CheckSquare size={18} color="#00897b" />
-                        <Text strong style={{ fontSize: 16 }}>My Personal To-Do Checklist</Text>
-                      </Space>
-                      <Tag color="cyan" style={{ borderRadius: 12 }}>
-                        {currentUser?.name || "My Tasks"}
+                >
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                      <div>
+                        <Title level={4} style={{ margin: 0, fontWeight: 700, color: "#0f172a" }}>
+                          My To-Do & Progress
+                        </Title>
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                          Track your assigned tasks, deadlines, progress, and completed work.
+                        </Text>
+                      </div>
+                      <Tag color="cyan" style={{ borderRadius: 12, padding: "2px 10px", fontSize: 12 }}>
+                        {currentUser?.name || "Assigned Team Member"}
                       </Tag>
                     </div>
-                  }
-                >
+                  </div>
+
                   {(() => {
                     const myTasks = workItems.filter(w => {
                       const aid = w.assignee?._id || w.assignee;
                       return String(aid) === String(currentUserId);
                     });
-                    const completedTasks = myTasks.filter(w => w.status === "Done");
+
+                    const todoCount = myTasks.filter(w => w.status === "To Do" || w.status === "Backlog").length;
                     const inProgressTasks = myTasks.filter(w => w.status === "In Progress");
                     const blockedTasks = myTasks.filter(w => w.status === "Blocked");
+                    const completedTasks = myTasks.filter(w => w.status === "Done" || w.status === "Completed");
+                    const overdueTasks = myTasks.filter(w => w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done" && w.status !== "Completed");
+
                     const myPct = myTasks.length > 0 ? Math.round((completedTasks.length / myTasks.length) * 100) : 0;
 
                     return (
                       <div>
-                        {/* Metrics Bar */}
-                        <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-                          <Col xs={24} sm={12} md={6}>
-                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
-                              <Text type="secondary" style={{ fontSize: 12 }}>Total Assigned</Text>
-                              <Title level={4} style={{ margin: "4px 0 0" }}>{myTasks.length}</Title>
+                        {/* 6 Summary Metric Cards */}
+                        <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>Total Assigned</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#0f172a", fontWeight: 700 }}>{myTasks.length}</Title>
                             </Card>
                           </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
-                              <Text type="secondary" style={{ fontSize: 12 }}>In Progress</Text>
-                              <Title level={4} style={{ margin: "4px 0 0", color: "#1890ff" }}>{inProgressTasks.length}</Title>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>To Do</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#64748b", fontWeight: 700 }}>{todoCount}</Title>
                             </Card>
                           </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
-                              <Text type="secondary" style={{ fontSize: 12 }}>Blocked</Text>
-                              <Title level={4} style={{ margin: "4px 0 0", color: "#ff4d4f" }}>{blockedTasks.length}</Title>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "#1d4ed8" }}>In Progress</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#2563eb", fontWeight: 700 }}>{inProgressTasks.length}</Title>
                             </Card>
                           </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Card size="small" style={{ borderRadius: 8, background: "#fff" }}>
-                              <Text type="secondary" style={{ fontSize: 12 }}>Completed</Text>
-                              <Title level={4} style={{ margin: "4px 0 0", color: "#52c41a" }}>{completedTasks.length}</Title>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "#b91c1c" }}>Blocked</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#dc2626", fontWeight: 700 }}>{blockedTasks.length}</Title>
+                            </Card>
+                          </Col>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "#15803d" }}>Completed</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#16a34a", fontWeight: 700 }}>{completedTasks.length}</Title>
+                            </Card>
+                          </Col>
+                          <Col xs={12} sm={8} md={4}>
+                            <Card size="small" style={{ borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", textAlign: "center" }}>
+                              <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "#c2410c" }}>Overdue</Text>
+                              <Title level={3} style={{ margin: "4px 0 0", color: "#ea580c", fontWeight: 700 }}>{overdueTasks.length}</Title>
                             </Card>
                           </Col>
                         </Row>
 
-                        {/* Personal Progress Bar */}
-                        <div style={{ marginBottom: 20, background: "#fff", padding: "14px 16px", borderRadius: 8, border: "1px solid #f0f0f0" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                            <Text strong style={{ fontSize: 13 }}>Personal Completion Progress</Text>
-                            <Text strong style={{ color: "#00897b" }}>{myPct}% ({completedTasks.length}/{myTasks.length} tasks completed)</Text>
+                        {/* Overall Progress Section */}
+                        <div style={{ marginBottom: 24, background: "#f8fafc", padding: "16px 20px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                            <div>
+                              <Text strong style={{ fontSize: 14, color: "#0f172a" }}>Overall Completion</Text>
+                              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+                                ({completedTasks.length} of {myTasks.length} tasks completed)
+                              </Text>
+                            </div>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: myPct === 100 ? "#16a34a" : "#00897b" }}>
+                              {myPct}%
+                            </span>
                           </div>
-                          <Progress percent={myPct} strokeColor={{ from: "#00897b", to: "#52c41a" }} status={myPct === 100 ? "success" : "active"} />
+                          <Progress
+                            percent={myPct}
+                            strokeColor={myPct === 100 ? "#16a34a" : "#00897b"}
+                            status={myPct === 100 ? "success" : "active"}
+                            strokeWidth={10}
+                            style={{ borderRadius: 6 }}
+                          />
                         </div>
 
-                        {/* Filter Bar */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                        {/* Task Organization / Filter Pills */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
                           <Radio.Group
                             value={todoStatusFilter}
                             onChange={(e) => setTodoStatusFilter(e.target.value)}
-                            size="small"
+                            size="middle"
                             buttonStyle="solid"
                           >
                             <Radio.Button value="all">All ({myTasks.length})</Radio.Button>
-                            <Radio.Button value="pending">Pending ({inProgressTasks.length + blockedTasks.length})</Radio.Button>
-                            <Radio.Button value="done">Completed ({completedTasks.length})</Radio.Button>
-                            <Radio.Button value="overdue">
-                              Overdue ({myTasks.filter(w => w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done").length})
-                            </Radio.Button>
+                            <Radio.Button value="todo">To Do ({todoCount})</Radio.Button>
+                            <Radio.Button value="inprogress">In Progress ({inProgressTasks.length})</Radio.Button>
+                            <Radio.Button value="blocked">Blocked ({blockedTasks.length})</Radio.Button>
+                            <Radio.Button value="completed">Completed ({completedTasks.length})</Radio.Button>
+                            <Radio.Button value="overdue">Overdue ({overdueTasks.length})</Radio.Button>
                           </Radio.Group>
                         </div>
 
-                        {/* Checklist Table */}
+                        {/* Task Cards List (NO CHECKBOXES, Status Dropdown is the primary control) */}
                         {(() => {
                           const displayedTasks = myTasks.filter((w) => {
-                            if (todoStatusFilter === "pending") return w.status !== "Done" && w.status !== "Cancelled";
-                            if (todoStatusFilter === "done") return w.status === "Done";
-                            if (todoStatusFilter === "overdue") return w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done";
+                            if (todoStatusFilter === "todo") return w.status === "To Do" || w.status === "Backlog";
+                            if (todoStatusFilter === "inprogress") return w.status === "In Progress";
+                            if (todoStatusFilter === "blocked") return w.status === "Blocked";
+                            if (todoStatusFilter === "completed") return w.status === "Done" || w.status === "Completed";
+                            if (todoStatusFilter === "overdue") return w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done" && w.status !== "Completed";
                             return true;
                           });
 
                           if (displayedTasks.length === 0) {
                             return (
-                              <div style={{ textAlign: "center", padding: "30px 0", color: "#8c8c8c" }}>
-                                <CheckCircle size={36} color="#d9d9d9" style={{ margin: "0 auto 8px" }} />
-                                <Paragraph>No tasks match the selected filter ({todoStatusFilter}).</Paragraph>
+                              <div style={{ textAlign: "center", padding: "40px 0", background: "#f8fafc", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
+                                <CheckCircle size={36} color="#94a3b8" style={{ margin: "0 auto 8px" }} />
+                                <Title level={5} style={{ color: "#475569", margin: 0 }}>No tasks found</Title>
+                                <Text type="secondary">No tasks match the selected filter.</Text>
                               </div>
                             );
                           }
 
                           return (
-                            <List
-                              itemLayout="horizontal"
-                              dataSource={displayedTasks}
-                            renderItem={(item) => {
-                              const isDone = item.status === "Done";
-                              return (
-                                <List.Item
-                                  key={item._id}
-                                  style={{
-                                    backgroundColor: isDone ? "#fafafa" : "#fff",
-                                    marginBottom: 8,
-                                    padding: "12px 16px",
-                                    borderRadius: 8,
-                                    border: isDone ? "1px solid #f0f0f0" : "1px solid #e6f4ea",
-                                    transition: "all 0.2s ease",
-                                  }}
-                                  actions={[
-                                    <Select
-                                      key="status"
-                                      size="small"
-                                      value={item.status}
-                                      onChange={(newStatus) => {
-                                        const newProg = newStatus === "Done" ? 100 : newStatus === "In Progress" ? (item.progress || 50) : (item.progress || 0);
-                                        handleUpdateWorkItem(item._id, { status: newStatus, progress: newProg });
-                                      }}
-                                      style={{ width: 120 }}
-                                    >
-                                      {["Backlog", "To Do", "In Progress", "Blocked", "Testing", "Done"].map(s => (
-                                        <Select.Option key={s} value={s}>{s}</Select.Option>
-                                      ))}
-                                    </Select>,
-                                    <Button
-                                      key="detail"
-                                      size="small"
-                                      onClick={() => {
-                                        setSelectedWorkItem(item);
-                                        setWorkItemDetailOpen(true);
-                                      }}
-                                    >
-                                      Details
-                                    </Button>
-                                  ]}
-                                >
-                                  <List.Item.Meta
-                                    avatar={
-                                      <Checkbox
-                                        checked={isDone}
-                                        onChange={(e) => {
-                                          const checked = e.target.checked;
-                                          handleUpdateWorkItem(item._id, {
-                                            status: checked ? "Done" : "In Progress",
-                                            progress: checked ? 100 : 50,
-                                          });
-                                        }}
-                                        style={{ transform: "scale(1.2)", marginTop: 4 }}
-                                      />
-                                    }
-                                    title={
-                                      <Space size={8} wrap>
-                                        <Text delete={isDone} strong={!isDone} style={{ fontSize: 14, color: isDone ? "#8c8c8c" : "#262626" }}>
-                                          {item.title}
-                                        </Text>
-                                        <Tag color={item.type === "Bug" ? "red" : item.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10 }}>
-                                          {item.type}
-                                        </Tag>
-                                        <Tag color={getPriorityColor(item.priority)} style={{ fontSize: 10 }}>
-                                          {item.priority}
-                                        </Tag>
-                                      </Space>
-                                    }
-                                    description={
-                                      <Space size={14} wrap style={{ fontSize: 12, marginTop: 4, color: "#8c8c8c" }}>
-                                        {item.dueDate && (
-                                          <span style={{ color: dayjs(item.dueDate).isBefore(dayjs(), "day") && !isDone ? "#ff4d4f" : "#8c8c8c" }}>
-                                            <CalendarIcon size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
-                                            Due: {dayjs(item.dueDate).format("DD MMM YYYY")}
-                                          </span>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                              {displayedTasks.map((item) => {
+                                const isDone = item.status === "Done" || item.status === "Completed";
+                                const isOverdue = item.dueDate && dayjs(item.dueDate).isBefore(dayjs(), "day") && !isDone;
+                                const displayStatus = item.status === "Done" ? "Completed" : item.status;
+
+                                return (
+                                  <Card
+                                    key={item._id}
+                                    size="small"
+                                    style={{
+                                      borderRadius: 10,
+                                      border: isDone ? "1px solid #e2e8f0" : isOverdue ? "1px solid #fed7aa" : "1px solid #cbd5e1",
+                                      backgroundColor: isDone ? "#f8fafc" : isOverdue ? "#fffaf5" : "#ffffff",
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                    styles={{ body: { padding: "14px 18px" } }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                                      {/* Left Info */}
+                                      <div style={{ flex: 1, minWidth: 260 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                                          <Text strong style={{ fontSize: 15, color: isDone ? "#64748b" : "#0f172a" }}>
+                                            {item.title}
+                                          </Text>
+                                          <Tag color={item.type === "Bug" ? "red" : item.type === "Feature" ? "cyan" : "blue"} style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                                            {item.type || "Task"}
+                                          </Tag>
+                                          <Tag color={getPriorityColor(item.priority)} style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                                            {item.priority} Priority
+                                          </Tag>
+                                          {isOverdue && (
+                                            <Tag color="error" style={{ borderRadius: 6, margin: 0, fontSize: 11, fontWeight: 600 }}>
+                                              ⚠️ Overdue
+                                            </Tag>
+                                          )}
+                                        </div>
+
+                                        {item.description && (
+                                          <div style={{ fontSize: 13, color: "#475569", marginBottom: 8, lineHeight: "18px" }}>
+                                            {item.description}
+                                          </div>
                                         )}
-                                        {item.estimatedHours > 0 && (
-                                          <span>
-                                            <Clock size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
-                                            Est: {item.estimatedHours}h
-                                          </span>
-                                        )}
-                                        {item.sprint?.name && (
-                                          <Tag color="geekblue" style={{ fontSize: 10 }}>{item.sprint.name}</Tag>
-                                        )}
-                                      </Space>
-                                    }
-                                  />
-                                </List.Item>
-                              );
-                            }}
-                            />
+
+                                        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", fontSize: 12, color: "#64748b" }}>
+                                          <div>
+                                            <span style={{ fontWeight: 500, color: "#334155" }}>Project: </span>
+                                            {project.title || "Client Project"}
+                                          </div>
+                                          {item.dueDate && (
+                                            <div>
+                                              <span style={{ fontWeight: 500, color: isOverdue ? "#dc2626" : "#334155" }}>Due: </span>
+                                              <span style={{ color: isOverdue ? "#dc2626" : "#475569", fontWeight: isOverdue ? 600 : 400 }}>
+                                                {dayjs(item.dueDate).format("DD MMM YYYY")}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {item.sprint?.name && (
+                                            <Tag color="geekblue" style={{ borderRadius: 4, margin: 0, fontSize: 10 }}>
+                                              {item.sprint.name}
+                                            </Tag>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Right Controls: Primary Status Dropdown and Details */}
+                                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                                        <div>
+                                          <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>
+                                            Status
+                                          </div>
+                                          <Select
+                                            size="middle"
+                                            value={displayStatus}
+                                            onChange={(newStatus) => {
+                                              const targetDbStatus = newStatus === "Completed" ? "Done" : newStatus;
+                                              const newProg = (newStatus === "Completed" || newStatus === "Done") ? 100 : (newStatus === "In Progress" ? 50 : 0);
+                                              handleUpdateWorkItem(item._id, { status: targetDbStatus, progress: newProg });
+                                            }}
+                                            style={{ width: 140 }}
+                                            options={[
+                                              { label: "Backlog", value: "Backlog" },
+                                              { label: "To Do", value: "To Do" },
+                                              { label: "In Progress", value: "In Progress" },
+                                              { label: "Blocked", value: "Blocked" },
+                                              { label: "Completed", value: "Completed" },
+                                            ]}
+                                          />
+                                        </div>
+
+                                        <Button
+                                          size="middle"
+                                          onClick={() => {
+                                            setSelectedWorkItem(item);
+                                            setWorkItemDetailOpen(true);
+                                          }}
+                                          style={{ marginTop: 14 }}
+                                        >
+                                          Details
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                );
+                              })}
+                            </div>
                           );
                         })()}
                       </div>
@@ -1740,7 +1817,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   })()}
                 </Card>
 
-                {/* 2. PROJECT LEAD: TEAM PROGRESS DASHBOARD */}
+                {/* 2. PROJECT MANAGER: TEAM PROGRESS DASHBOARD */}
+
                 {isProjectLead && (
                   <Card
                     variant="borderless"
@@ -1754,7 +1832,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                         <Space size={8}>
                           <Crown size={20} color="#f59e0b" />
-                          <Text strong style={{ fontSize: 16 }}>Project Lead: Team Delivery & Performance Progress</Text>
+                          <Text strong style={{ fontSize: 16 }}>Project Manager: Team Delivery & Performance Progress</Text>
                         </Space>
                         <Button
                           type="primary"
@@ -1844,7 +1922,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                           <Text strong style={{ fontSize: 13 }}>{member.name}</Text>
                                           <div>
                                             <Tag color={isLeadMember ? "gold" : "blue"} style={{ fontSize: 9, lineHeight: "14px" }}>
-                                              {isLeadMember ? "Project Lead" : (member.role || "Member")}
+                                              {isLeadMember ? "Project Manager" : (member.role || "Member")}
                                             </Tag>
                                           </div>
                                         </div>
@@ -2021,7 +2099,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                                       <Text strong style={{ fontSize: 12, color: "#075e54" }}>{senderName}</Text>
                                       <Tag color={isLead ? "gold" : senderRole === "TECH_TEAM" || senderRole === "TECH_MANAGER" ? "blue" : "default"} style={{ fontSize: 9, margin: 0, lineHeight: "14px" }}>
-                                        {isLead ? "Project Lead" : senderRole}
+                                        {isLead ? "Project Manager" : senderRole}
                                       </Tag>
                                     </div>
                                   )}
@@ -2210,7 +2288,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       <List
                         size="small"
                         dataSource={[
-                          { name: project.techOwner?.name, role: "Project Lead", email: project.techOwner?.email, isLead: true },
+                          { name: project.techOwner?.name, role: "Project Manager", email: project.techOwner?.email, isLead: true },
                           ...(project.techTeamMembers?.map((m: any) => ({ name: m.name, role: m.role || "Developer", email: m.email, isLead: false })) || []),
                           { name: project.createdBy?.name, role: "Sales Owner", email: project.createdBy?.email, isLead: false },
                         ].filter(member => member.name)}
@@ -2262,9 +2340,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       <Space size={8}>
                         <CalendarIcon size={18} color="#00897b" />
                         <div>
-                          <Text strong style={{ fontSize: 16, display: "block" }}>Project Schedule & Personal Tasks</Text>
+                          <Text strong style={{ fontSize: 16, display: "block" }}>Project Calendar</Text>
                           <Text type="secondary" style={{ fontSize: 12, fontWeight: "normal" }}>
-                            Calendar view of all work item deadlines, sprint milestones, and your personal to-dos
+                            View project deadlines, meetings, tasks, and important events.
                           </Text>
                         </div>
                       </Space>
@@ -2291,22 +2369,30 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     </div>
                   }
                 >
-                  {/* Legend */}
-                  <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", fontSize: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>📝</span>
-                      <Text type="secondary">Personal Tasks</Text>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>💼</span>
-                      <Text type="secondary">Work Items (Due Dates)</Text>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>🏁</span>
-                      <Text type="secondary">Sprint Milestones</Text>
+                  {/* Legend & Categories */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap", fontSize: 12 }}>
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>📋</span>
+                        <Text type="secondary">Task Due</Text>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>📅</span>
+                        <Text type="secondary">Sprint Milestone</Text>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>📝</span>
+                        <Text type="secondary">Personal Task</Text>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>⚠️</span>
+                        <Text type="secondary">Overdue Deadline</Text>
+                      </div>
                     </div>
                   </div>
 
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} lg={18}>
                   {/* Calendar Grid */}
                   {(() => {
                     const startOfMonth = projectCalendarMonth.startOf("month");
@@ -2469,6 +2555,144 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       </div>
                     );
                   })()}
+                    </Col>
+
+                    {/* Upcoming Events Panel */}
+                    <Col xs={24} lg={6}>
+                      <Card
+                        size="small"
+                        style={{
+                          borderRadius: 10,
+                          border: "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                          height: "100%",
+                        }}
+                        title={
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Clock size={15} color="#00897b" />
+                            <Text strong style={{ fontSize: 13 }}>Upcoming Events</Text>
+                          </div>
+                        }
+                      >
+                        {(() => {
+                          const today = dayjs().startOf("day");
+                          const upcomingItems: any[] = [];
+
+                          // Add work items due within next 14 days
+                          workItems.forEach((wi) => {
+                            if (wi.dueDate && (wi.status !== "Done" && wi.status !== "Completed")) {
+                              const d = dayjs(wi.dueDate).startOf("day");
+                              const diffDays = d.diff(today, "day");
+                              if (diffDays >= 0 && diffDays <= 14) {
+                                upcomingItems.push({
+                                  id: wi._id,
+                                  title: wi.title,
+                                  type: "task",
+                                  date: d,
+                                  diffDays,
+                                  priority: wi.priority,
+                                  status: wi.status,
+                                });
+                              }
+                            }
+                          });
+
+                          // Add sprints ending/starting
+                          sprints.forEach((sp) => {
+                            if (sp.endDate) {
+                              const d = dayjs(sp.endDate).startOf("day");
+                              const diffDays = d.diff(today, "day");
+                              if (diffDays >= 0 && diffDays <= 14) {
+                                upcomingItems.push({
+                                  id: sp._id,
+                                  title: `Sprint: ${sp.name}`,
+                                  type: "sprint",
+                                  date: d,
+                                  diffDays,
+                                  status: sp.status,
+                                });
+                              }
+                            }
+                          });
+
+                          // Add personal tasks
+                          projectPersonalTasks.forEach((pt) => {
+                            if (pt.date && pt.status !== "Done") {
+                              const d = dayjs(pt.date).startOf("day");
+                              const diffDays = d.diff(today, "day");
+                              if (diffDays >= 0 && diffDays <= 14) {
+                                upcomingItems.push({
+                                  id: pt._id,
+                                  title: pt.title,
+                                  type: "personal",
+                                  date: d,
+                                  diffDays,
+                                  priority: pt.priority,
+                                });
+                              }
+                            }
+                          });
+
+                          upcomingItems.sort((a, b) => a.date.valueOf() - b.date.valueOf());
+
+                          if (upcomingItems.length === 0) {
+                            return (
+                              <div style={{ textAlign: "center", padding: "24px 8px", color: "#94a3b8" }}>
+                                <CalendarIcon size={24} color="#cbd5e1" style={{ margin: "0 auto 8px" }} />
+                                <div style={{ fontSize: 12 }}>No upcoming deadlines in the next 14 days.</div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                              {upcomingItems.slice(0, 7).map((ev) => {
+                                const timeLabel = ev.diffDays === 0 ? "Today" : ev.diffDays === 1 ? "Tomorrow" : ev.date.format("DD MMM");
+                                const isToday = ev.diffDays === 0;
+
+                                return (
+                                  <div
+                                    key={ev.id}
+                                    style={{
+                                      padding: "8px 10px",
+                                      borderRadius: 6,
+                                      background: "#ffffff",
+                                      border: isToday ? "1px solid #fde68a" : "1px solid #f1f5f9",
+                                      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                                      <Tag
+                                        color={isToday ? "gold" : ev.diffDays === 1 ? "blue" : "default"}
+                                        style={{ fontSize: 10, margin: 0, padding: "0 6px", fontWeight: 600 }}
+                                      >
+                                        {timeLabel}
+                                      </Tag>
+                                      {ev.priority && (
+                                        <Tag
+                                          color={ev.priority === "Urgent" ? "red" : ev.priority === "High" ? "orange" : "blue"}
+                                          style={{ fontSize: 9, margin: 0, padding: "0 4px" }}
+                                        >
+                                          {ev.priority}
+                                        </Tag>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", marginTop: 4 }}>
+                                      {ev.type === "task" ? "📋 " : ev.type === "sprint" ? "📅 " : "📝 "}
+                                      {ev.title}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: isToday ? "#b45309" : "#64748b", marginTop: 2 }}>
+                                      {isToday ? "Due today" : ev.diffDays === 1 ? "Due tomorrow" : `Due in ${ev.diffDays} days`}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </Card>
+                    </Col>
+                  </Row>
                 </Card>
               </div>
             )
@@ -3364,20 +3588,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} md={12}>
-              <Form.Item name="companyName" label="Company Name" rules={[{ required: true }]}>
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="contactPerson" label="Contact Person">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item name="email" label="Contact Email" rules={[{ required: true, type: "email" }]}>
+              <Form.Item name="companyName" label="Company / Client Name" rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
@@ -3745,65 +3956,61 @@ function ProjectDetailsClient({ id }: { id: string }) {
         footer={null}
         width={620}
       >
-        <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem}>
-          <Form.Item name="title" label="Work Item Title" rules={[{ required: true, message: "Title is required" }]}>
-            <Input placeholder="e.g. Implement visitor check-in form" />
+        <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem} initialValues={{ type: "Task", priority: "High" }}>
+          <Form.Item name="title" label="* Work Item Title" rules={[{ required: true, message: "Title is required" }]} style={{ marginBottom: 16 }}>
+            <Input size="large" placeholder="e.g. Implement visitor check-in form" />
           </Form.Item>
-          <Form.Item name="description" label="Detailed Description">
+          
+          <Form.Item name="description" label="Detailed Description" style={{ marginBottom: 16 }}>
             <TextArea rows={3} placeholder="Provide task requirements, acceptance criteria, or technical details..." />
           </Form.Item>
+          
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
-              <Form.Item name="type" label="Type" rules={[{ required: true }]}>
-                <Select options={["Feature", "Bug", "Task", "Chore"].map(t => ({ label: t, value: t }))} />
+              <Form.Item name="type" label="* Type" rules={[{ required: true }]}>
+                <Select size="large" options={["Task", "Feature", "Bug", "Chore"].map(t => ({ label: t, value: t }))} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="module" label="Scope Module">
-                <Input placeholder="e.g. Visitor Mgmt" />
+              <Form.Item name="priority" label="* Priority" rules={[{ required: true }]}>
+                <Select size="large" options={["High", "Medium", "Low", "Urgent"].map(p => ({ label: p, value: p }))} />
               </Form.Item>
             </Col>
           </Row>
+          
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
-              <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
-                <Select options={["Low", "Medium", "High", "Urgent"].map(p => ({ label: p, value: p }))} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="assignee" label="Assign To (Self or Team Member)">
+              <Form.Item name="assignee" label="Assign To">
                 <Select
-                  placeholder="Select Assignee"
+                  size="large"
+                  placeholder="Select Employee"
                   allowClear
                   options={projectTeamMembers.map((u: any) => {
                     const isLead = String(u._id) === String(techOwnerId);
                     return {
-                      label: `${u.name} (${isLead ? "Project Lead" : (u.role || "Team Member")})`,
+                      label: `${u.name} (${isLead ? "Project Manager" : (u.role || "Team Member")})`,
                       value: u._id,
                     };
                   })}
                 />
               </Form.Item>
             </Col>
-          </Row>
-          <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
               <Form.Item name="sprint" label="Sprint Assignment">
-                <Select placeholder="Assign to Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="dueDate" label="Target Due Date">
-                <DatePicker style={{ width: "100%" }} />
+                <Select size="large" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="estimatedHours" label="Estimated Development Hours">
-            <Input type="number" defaultValue={0} />
+
+          <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 24 }}>
+            <DatePicker size="large" style={{ width: "100%" }} placeholder="Select date" />
           </Form.Item>
-          <div style={{ textAlign: "right" }}>
-            <Button onClick={() => setIsWorkItemModalOpen(false)} style={{ marginRight: 8 }}>Cancel</Button>
-            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Create & Assign Task</Button>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Button size="large" onClick={() => setIsWorkItemModalOpen(false)}>Cancel</Button>
+            <Button size="large" type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", borderColor: "#00897b", padding: "0 24px" }}>
+              Create & Assign Task
+            </Button>
           </div>
         </Form>
       </Modal>
@@ -3873,12 +4080,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
         </Form>
       </Modal>
 
-      {/* System Admin Manage Team & Project Lead Modal */}
+      {/* System Admin Manage Team & Project Manager Modal */}
       <Modal
         title={
           <Space>
             <UsersIcon size={18} color="#00897b" />
-            <span>Manage Project Lead & Team Members</span>
+            <span>Manage Project Manager & Team Members</span>
             <Tag color="purple">System Admin Only</Tag>
           </Space>
         }
@@ -3896,11 +4103,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
         >
           <Form.Item
             name="techOwner"
-            label="Project Lead / Tech Owner"
+            label="Project Manager / Tech Owner"
             extra="Designate the primary lead responsible for technical direction and delivery."
           >
             <Select
-              placeholder="Select Project Lead"
+              placeholder="Select Project Manager"
               allowClear
               showSearch
               optionFilterProp="label"

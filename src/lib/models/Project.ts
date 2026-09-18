@@ -110,12 +110,12 @@ const ProjectSchema: Schema = new Schema(
         type: String,
         default: "",
       },
-      contactPerson: String,
+      contactPerson: { type: String, default: "" },
       email: {
         type: String,
-        required: [true, "Email is required"],
+        default: "",
       },
-      contactNumber: String,
+      contactNumber: { type: String, default: "" },
     },
     features: {
       visitorManagement: { type: Boolean, default: false },

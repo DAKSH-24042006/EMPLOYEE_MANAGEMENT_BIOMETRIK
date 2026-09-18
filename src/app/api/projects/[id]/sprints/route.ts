@@ -109,7 +109,7 @@ export async function POST(
       (project.techOwner && project.techOwner.toString() === payload.userId);
 
     if (!isProjectLead) {
-      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Lead or Admins" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Manager or Admins" }, { status: 403 });
     }
 
     const body = await req.json();

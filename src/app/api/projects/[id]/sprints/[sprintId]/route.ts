@@ -41,7 +41,7 @@ export async function PUT(
       (project.techOwner && project.techOwner.toString() === payload.userId);
 
     if (!isProjectLead) {
-      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Lead or Admins" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Manager or Admins" }, { status: 403 });
     }
     const sprint = await Sprint.findById(sprintId);
     if (!sprint) {
@@ -122,7 +122,7 @@ export async function DELETE(
       (project.techOwner && project.techOwner.toString() === payload.userId);
 
     if (!isProjectLead) {
-      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Lead or Admins" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Manager or Admins" }, { status: 403 });
     }
 
     const sprint = await Sprint.findById(sprintId);

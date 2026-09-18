@@ -51,7 +51,7 @@ export async function GET(
     const canView = await canUserViewProject(project, payload.userId, payload.role);
     if (!canView) {
       return NextResponse.json(
-        { error: "Forbidden: You do not have permission to view this project. Only assigned members, project lead, or system administrators can access it." },
+        { error: "Forbidden: You do not have permission to view this project. Only assigned members, the Project Manager, or system administrators can access it." },
         { status: 403 }
       );
     }
@@ -101,11 +101,11 @@ export async function PATCH(
     }
 
     // --- Role-Based Access Control Checks ---
-    // STRICT SECURITY: Only SYSTEM_ADMIN can decide project lead (techOwner) and manage members (techTeamMembers)
+    // STRICT SECURITY: Only SYSTEM_ADMIN can decide project manager (techOwner) and manage members (techTeamMembers)
     if (userRole !== Role.SYSTEM_ADMIN) {
       if (body.techOwner !== undefined) {
         return NextResponse.json(
-          { error: "Forbidden: Only System Administrator has access to decide or change the Project Lead." },
+          { error: "Forbidden: Only System Administrator has access to decide or change the Project Manager." },
           { status: 403 }
         );
       }

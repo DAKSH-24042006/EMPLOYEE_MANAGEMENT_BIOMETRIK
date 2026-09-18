@@ -88,7 +88,7 @@ export async function POST(
 
     if (!isProjectLead) {
       return NextResponse.json(
-        { error: "Forbidden: Only the Project Lead can create tasks and assign them to team members." },
+        { error: "Forbidden: Only the Project Manager or System Administrator can create tasks and assign them to team members." },
         { status: 403 }
       );
     }

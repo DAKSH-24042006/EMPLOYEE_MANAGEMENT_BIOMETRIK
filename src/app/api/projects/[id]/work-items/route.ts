@@ -101,14 +101,15 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // STRICT CHECK: Only the Project Lead (techOwner) or System Admin can create tasks
+    // STRICT CHECK: Only the Project Manager (techOwner) or System Admin can create tasks
     const isProjectLead =
       payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "ADMIN" ||
       (project.techOwner && project.techOwner.toString() === payload.userId);
 
     if (!isProjectLead) {
       return NextResponse.json(
-        { error: "Forbidden: Only the Project Lead can create tasks and assign them to team members." },
+        { error: "Forbidden: Only the Project Manager or System Administrator can create tasks and assign them to team members." },
         { status: 403 }
       );
     }

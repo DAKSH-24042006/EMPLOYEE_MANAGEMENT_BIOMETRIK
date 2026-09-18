@@ -56,7 +56,7 @@ export default function NewProjectPage() {
             router.push("/projects");
             return;
           }
-          // Fetch registered employees for project lead and team assignment
+          // Fetch registered employees for Project Manager and team assignment
           const usersRes = await fetch("/api/users");
           if (usersRes.ok) {
             const usersData = await usersRes.json();
@@ -140,14 +140,6 @@ export default function NewProjectPage() {
     }
   };
 
-  const contactValidator = () => ({
-    validator(_: any, value: string) {
-      if (form.getFieldValue("contactPerson") || form.getFieldValue("email")) {
-        return Promise.resolve();
-      }
-      return Promise.reject(new Error("Providing either a Contact Person or Email is required!"));
-    },
-  });
 
   if (authChecking || mounting) {
     return (
@@ -191,7 +183,7 @@ export default function NewProjectPage() {
             Create New Project
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
-            Set up the project details, leadership assignments, and roadmap timeline.
+            Set up the project details, Project Manager assignment, and roadmap timeline.
           </Text>
         </div>
         <Link href="/projects">
@@ -210,7 +202,7 @@ export default function NewProjectPage() {
               priority: "Medium",
             }}
           >
-            {/* Section 1: Project Identity & Contact Details */}
+            {/* Section 1: Client & Project Identity */}
             <Card
               variant="borderless"
               style={{
@@ -220,7 +212,7 @@ export default function NewProjectPage() {
                 border: "1px solid #f0f0f0"
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                 <div style={{
                   width: 36,
                   height: 36,
@@ -233,74 +225,33 @@ export default function NewProjectPage() {
                 }}>
                   <UserOutlined />
                 </div>
-                <Title level={4} style={{ margin: 0 }}>Client & Project Identity</Title>
+                <div>
+                  <Title level={4} style={{ margin: 0 }}>Client & Project Identity</Title>
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    Specify the client company name or project identity and detailed description.
+                  </Text>
+                </div>
               </div>
 
               <Form.Item
                 name="title"
-                label={<span style={{ fontWeight: 500 }}>Requirement / Project Title</span>}
-                rules={[{ required: true, message: "Requirement title is required" }]}
-                style={{ marginBottom: 16 }}
+                label={<span style={{ fontWeight: 600 }}>Requirement / Project Title</span>}
+                rules={[{ required: true, message: "Project title is required" }]}
+                style={{ marginBottom: 20 }}
               >
-                <Input size="large" placeholder="E.g., Android Rider Delivery App" />
+                <Input size="large" placeholder="E.g., NovaTech Solutions, Apex Healthcare Systems" />
               </Form.Item>
 
               <Form.Item
                 name="description"
-                label={<span style={{ fontWeight: 500 }}>Project Description</span>}
-                style={{ marginBottom: 24 }}
+                label={<span style={{ fontWeight: 600 }}>Project Description</span>}
+                style={{ marginBottom: 8 }}
               >
-                <TextArea rows={3} placeholder="Provide an executive summary, scope, and objectives for this project..." />
+                <TextArea
+                  rows={4}
+                  placeholder="Provide an executive summary, scope, deliverables, and objectives for this client project..."
+                />
               </Form.Item>
-
-              <Row gutter={24}>
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    name="contactPerson"
-                    label={<span style={{ fontWeight: 500 }}>Contact Person</span>}
-                    dependencies={["email"]}
-                    rules={[contactValidator]}
-                  >
-                    <Input size="large" placeholder="E.g., John Smith" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    name="email"
-                    label={<span style={{ fontWeight: 500 }}>Contact Email</span>}
-                    dependencies={["contactPerson"]}
-                    rules={[
-                      { type: "email", message: "Please enter a valid email address" },
-                      contactValidator
-                    ]}
-                  >
-                    <Input size="large" placeholder="contact@company.com" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    name="contactNumber"
-                    label={<span style={{ fontWeight: 500 }}>Contact Number</span>}
-                    rules={[
-                      { pattern: /^[0-9]*$/, message: "Please enter only digits" },
-                      { len: 10, message: "Contact number must be exactly 10 digits" }
-                    ]}
-                  >
-                    <Input
-                      size="large"
-                      placeholder="E.g., 9876543210"
-                      maxLength={10}
-                      onKeyPress={(e) => {
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
             </Card>
 
             {/* Section 2: Project Roadmap & Timeline */}
@@ -357,7 +308,7 @@ export default function NewProjectPage() {
               </Row>
             </Card>
 
-            {/* Section 3: Project Leadership & Team Assignment */}
+            {/* Section 3: Project Manager & Team Assignment */}
             <Card
               variant="borderless"
               style={{
@@ -382,9 +333,9 @@ export default function NewProjectPage() {
                     <TeamOutlined />
                   </div>
                   <div>
-                    <Title level={4} style={{ margin: 0 }}>Project Leadership & Team Assignment</Title>
+                    <Title level={4} style={{ margin: 0 }}>Project Manager & Team Assignment</Title>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      Appoint the project lead and assign team members.
+                      Appoint the Project Manager and assign project team members.
                     </Text>
                   </div>
                 </div>
@@ -395,12 +346,12 @@ export default function NewProjectPage() {
                 <Col xs={24} md={12}>
                   <Form.Item
                     name="techOwner"
-                    label={<span style={{ fontWeight: 500 }}>Project Lead / Tech Owner</span>}
-                    extra="Designate the primary lead responsible for technical oversight and delivery."
+                    label={<span style={{ fontWeight: 500 }}>Project Manager</span>}
+                    extra="Designate the primary Project Manager responsible for technical oversight, work items, and delivery."
                   >
                     <Select
                       size="large"
-                      placeholder="Select Project Lead (Optional)"
+                      placeholder="Select Project Manager (Optional)"
                       allowClear
                       showSearch
                       optionFilterProp="label"

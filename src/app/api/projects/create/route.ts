@@ -34,12 +34,12 @@ export async function POST(req: Request) {
       title: data.title || "",
       description: data.description || "",
       clientDetails: {
-        companyName: data.companyName,
+        companyName: data.companyName || data.title || "Client Project",
         contactPerson: data.contactPerson || "",
-        email: data.email,
+        email: data.email || "",
         contactNumber: data.contactNumber || "",
       },
-      features: FEATURE_KEYS.reduce((acc, key) => {
+      features: FEATURE_KEYS.reduce((acc: any, key: string) => {
         acc[key] = !!data[key];
         return acc;
       }, {} as Record<string, boolean>),
@@ -64,13 +64,6 @@ export async function POST(req: Request) {
     if (!newProject.title) {
       return NextResponse.json(
         { error: "Project Title is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!newProject.clientDetails.email && !newProject.clientDetails.contactPerson) {
-      return NextResponse.json(
-        { error: "Contact Email or Contact Person is required." },
         { status: 400 }
       );
     }
