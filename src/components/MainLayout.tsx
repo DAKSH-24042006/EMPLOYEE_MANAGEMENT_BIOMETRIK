@@ -18,7 +18,6 @@ import {
   Check,
   Bell,
   ShieldCheck,
-  Mail,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
 import logo from '../../public/Biometrik_New_Logo.png'
@@ -156,7 +155,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(null);
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const router = useRouter();
 
   useEffect(() => {
@@ -244,11 +243,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       key: "/calendar",
       icon: <Calendar size={18} />,
       label: <Link href="/calendar">Calendar</Link>,
-    },
-    {
-      key: "/mail",
-      icon: <Mail size={18} />,
-      label: <Link href="/mail">Send Mail</Link>,
     },
     {
       key: "/profile",

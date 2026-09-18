@@ -34,14 +34,30 @@ export async function GET(
 
     const { searchParams } = new URL(req.url);
 
+    const project = await Project.findById(id).select("techOwner");
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isProjectLead =
+      payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "ADMIN" ||
+      payload.role === "TECH_MANAGER" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
     // Build query object
     const query: any = { projectId: id };
 
-    const status = searchParams.get("status");
-    if (status) query.status = status;
+    // Strict access control: regular members can only see their own assigned tasks
+    if (!isProjectLead) {
+      query.assignee = payload.userId;
+    } else {
+      const assignee = searchParams.get("assignee");
+      if (assignee && assignee !== "All") query.assignee = assignee;
+    }
 
-    const assignee = searchParams.get("assignee");
-    if (assignee) query.assignee = assignee;
+    const status = searchParams.get("status");
+    if (status && status !== "All") query.status = status;
 
     const sprint = searchParams.get("sprint");
     if (sprint) query.sprint = sprint;

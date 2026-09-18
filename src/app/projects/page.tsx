@@ -24,6 +24,9 @@ import {
   Checkbox,
   Grid,
   List,
+  Progress,
+  Segmented,
+  Avatar,
 } from "antd";
 import {
   EditOutlined,
@@ -38,6 +41,10 @@ import {
   FilePdfOutlined,
   EyeOutlined,
   CalendarOutlined,
+  AppstoreOutlined,
+  BarsOutlined,
+  UserOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -54,6 +61,7 @@ const { Option } = Select;
 interface IProject {
   _id: string;
   title: string;
+  description?: string;
   clientDetails: {
     companyName: string;
     contactPerson?: string;
@@ -160,6 +168,8 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
   useEffect(() => {
     if (project && open) {
       form.setFieldsValue({
+        title: project.title || "",
+        description: project.description || "",
         companyName: project.clientDetails.companyName,
         contactPerson: project.clientDetails.contactPerson || "",
         email: project.clientDetails.email,
@@ -191,6 +201,8 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
       setSaving(true);
 
       const body = {
+        title: values.title,
+        description: values.description,
         companyName: values.companyName,
         contactPerson: values.contactPerson,
         email: values.email,
@@ -281,8 +293,29 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
           onPremise: false,
         }}
       >
-        {/* Client Details */}
+        {/* Project Details */}
         <Title level={5} style={{ marginBottom: 16, color: "#374151" }}>
+          Project Overview
+        </Title>
+        <Row gutter={16}>
+          <Col xs={24}>
+            <Form.Item
+              name="title"
+              label="Project Title"
+              rules={[{ required: true, message: "Project title is required" }]}
+            >
+              <Input placeholder="E.g., Requirement Dashboard" />
+            </Form.Item>
+          </Col>
+          <Col xs={24}>
+            <Form.Item name="description" label="Project Description">
+              <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {/* Client Details */}
+        <Title level={5} style={{ marginBottom: 16, marginTop: 8, color: "#374151" }}>
           Client Details
         </Title>
         <Row gutter={16}>
@@ -676,6 +709,7 @@ export default function ProjectsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
 
@@ -810,6 +844,11 @@ export default function ProjectsPage() {
           <div style={{ fontSize: 11, color: "#6b7280" }}>
             Client: {record.clientDetails.companyName}
           </div>
+          {record.description && (
+            <div style={{ fontSize: 11, color: "#4b5563", marginTop: 2, maxWidth: 320, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={record.description}>
+              {record.description}
+            </div>
+          )}
         </div>
       ),
     },
@@ -923,7 +962,15 @@ export default function ProjectsPage() {
             Manage client projects and track progress.
           </Text>
         </div>
-        <Space>
+        <Space wrap>
+          <Segmented
+            value={viewMode}
+            onChange={(val) => setViewMode(val as "cards" | "table")}
+            options={[
+              { label: "Cards View", value: "cards", icon: <AppstoreOutlined /> },
+              { label: "Table View", value: "table", icon: <BarsOutlined /> },
+            ]}
+          />
           <Tooltip title="Refresh">
             <Button
               icon={<ReloadOutlined />}
@@ -946,110 +993,233 @@ export default function ProjectsPage() {
       </div>
 
 
-      {/* ── Table ── */}
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: 12,
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          minWidth: 0,
-          maxWidth: "100%"
-        }}
-        styles={{
-          body: {
-            padding: 0,
+      {/* ── Content View (Cards or Table) ── */}
+      {viewMode === "cards" ? (
+        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 24 }}>
+          {loading ? (
+            <Row gutter={[20, 20]}>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Col xs={24} sm={12} lg={8} key={i}>
+                  <Card style={{ borderRadius: 14 }}><Skeleton active paragraph={{ rows: 4 }} /></Card>
+                </Col>
+              ))}
+            </Row>
+          ) : projects.length === 0 ? (
+            <div style={{ padding: "60px 0", textAlign: "center", background: "#fff", borderRadius: 14, border: "1px dashed #d9d9d9" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+              <Title level={4} style={{ color: "#374151", margin: 0 }}>No projects found</Title>
+              <Text type="secondary">Get started by creating a new project with client specifications.</Text>
+              {currentUserRole === Role.SYSTEM_ADMIN && (
+                <div style={{ marginTop: 16 }}>
+                  <Link href="/projects/new">
+                    <Button type="primary" icon={<PlusOutlined />} style={{ background: "#00897b", borderColor: "#00897b" }}>
+                      New Project
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Row gutter={[20, 20]}>
+              {projects.map((project) => {
+                const statusInfo = STATUS_CONFIG[project.status] || { color: "default", icon: <ClockCircleOutlined /> };
+                const pct = project.progressPercent || 0;
+                const safeClick = (cb: () => void) => {
+                  if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                  document.body.click();
+                  cb();
+                };
+
+                return (
+                  <Col xs={24} sm={12} lg={8} key={project._id}>
+                    <Card
+                      hoverable
+                      style={{
+                        borderRadius: 14,
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        transition: "all 0.2s ease",
+                      }}
+                      styles={{
+                        body: {
+                          padding: "18px 20px",
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%",
+                          justifyContent: "space-between",
+                        },
+                      }}
+                    >
+                      <div>
+                        {/* Top: Header & Status */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                          <Link href={`/projects/${project._id}`} style={{ flex: 1 }}>
+                            <div
+                              style={{
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: "#00897b",
+                                lineHeight: 1.3,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {project.title || "Unnamed Project"}
+                            </div>
+                          </Link>
+                          <Tag
+                            color={statusInfo.color}
+                            icon={statusInfo.icon}
+                            style={{ borderRadius: 12, margin: 0, fontSize: 11, padding: "2px 8px", flexShrink: 0 }}
+                          >
+                            {project.status}
+                          </Tag>
+                        </div>
+
+                        {/* Client details */}
+                        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>
+                          Client: <strong style={{ color: "#374151" }}>{project.clientDetails.companyName}</strong>
+                          {project.clientDetails.contactPerson && <span> ({project.clientDetails.contactPerson})</span>}
+                        </div>
+
+                        {/* Project Description snippet */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#4b5563",
+                            lineHeight: "18px",
+                            marginBottom: 16,
+                            minHeight: 36,
+                            maxHeight: 54,
+                            overflow: "hidden",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            background: "#f9fafb",
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #f3f4f6",
+                          }}
+                          title={project.description || "No description provided"}
+                        >
+                          {project.description ? project.description : <span style={{ fontStyle: "italic", color: "#9ca3af" }}>No description provided.</span>}
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                            <span style={{ color: "#6b7280", fontWeight: 500 }}>Overall Progress</span>
+                            <span style={{ fontWeight: 700, color: pct === 100 ? "#10b981" : "#00897b" }}>{pct}%</span>
+                          </div>
+                          <Progress
+                            percent={pct}
+                            showInfo={false}
+                            strokeColor={pct === 100 ? "#10b981" : "#00897b"}
+                            size="small"
+                          />
+                        </div>
+
+                        {/* Tags / Metadata Badges */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                          <Tag color="geekblue" style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                            Sprint: {project.activeSprint || "Backlog"}
+                          </Tag>
+                          {project.openBlockersCount !== undefined && project.openBlockersCount > 0 ? (
+                            <Tag color="error" style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                              {project.openBlockersCount} Blocker(s)
+                            </Tag>
+                          ) : (
+                            <Tag color="success" style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                              No Blockers
+                            </Tag>
+                          )}
+                          <Tag color="default" style={{ borderRadius: 6, margin: 0, fontSize: 11 }}>
+                            <CalendarOutlined style={{ marginRight: 4 }} />
+                            {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
+                          </Tag>
+                        </div>
+                      </div>
+
+                      {/* Footer & Actions */}
+                      <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12, marginTop: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: "#00897b" }} />
+                            <span style={{ fontSize: 12, color: "#4b5563" }}>
+                              {project.techOwner?.name ? project.techOwner.name : "Unassigned Lead"}
+                            </span>
+                          </div>
+
+                          <Space size={4}>
+                            <Link href={`/projects/${project._id}`}>
+                              <Button
+                                size="small"
+                                type="primary"
+                                style={{ background: "#00897b", borderColor: "#00897b", fontSize: 12 }}
+                              >
+                                Workspace <RightOutlined style={{ fontSize: 10 }} />
+                              </Button>
+                            </Link>
+
+                            {currentUserRole === Role.SYSTEM_ADMIN && (
+                              <>
+                                <Tooltip title="Edit Specifications">
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    icon={<EditOutlined />}
+                                    onClick={() => safeClick(() => openEdit(project))}
+                                    style={{ color: "#00897b" }}
+                                  />
+                                </Tooltip>
+                                <Tooltip title="Delete Project">
+                                  <Button
+                                    size="small"
+                                    size-="small"
+                                    type="text"
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => safeClick(() => handleDelete(project))}
+                                  />
+                                </Tooltip>
+                              </>
+                            )}
+                          </Space>
+                        </div>
+                      </div>
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          )}
+        </div>
+      ) : (
+        <Card
+          variant="borderless"
+          style={{
+            borderRadius: 12,
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden"
-          }
-        }}
-      >
-        {isMobile ? (
-          <div style={{ padding: "16px 12px", overflowY: "auto", flex: 1 }}>
-            {loading ? (
-              <div style={{ padding: 40, textAlign: "center" }}><Skeleton active /></div>
-            ) : projects.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>No projects found</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                {projects.map((project) => {
-                  const anyModalOpen = editOpen || detailOpen;
-                  const shouldForceClose = anyModalOpen || isTouchDevice;
-
-                  const safeClick = (cb: () => void) => {
-                    if (document.activeElement instanceof HTMLElement) {
-                      document.activeElement.blur();
-                    }
-                    document.body.click();
-                    cb();
-                  };
-
-                  return (
-                    <Card
-                      key={project._id}
-                      size="small"
-                      hoverable
-                      style={{
-                        marginBottom: 12,
-                        borderRadius: 12,
-                        border: "1px solid #f3f4f6",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-                      }}
-                      styles={{ body: { padding: "12px 16px" } }}
-                      actions={[
-                        <Tooltip title="View" key="view" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
-                          <Link href={`/projects/${project._id}`} style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%" }}>
-                            <EyeOutlined style={{ color: "#6366f1" }} />
-                          </Link>
-                        </Tooltip>,
-                        <Tooltip title="Edit" key="edit" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
-                          <EditOutlined onClick={() => safeClick(() => openEdit(project))} style={{ color: "#00897b" }} />
-                        </Tooltip>,
-                        <Tooltip title="Delete" key="delete" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
-                          <DeleteOutlined onClick={() => safeClick(() => handleDelete(project))} style={{ color: "#ef4444" }} />
-                        </Tooltip>
-                      ]}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: "#111827", flex: 1, marginRight: 8 }}>
-                          {project.clientDetails.companyName}
-                        </div>
-                        <Tag
-                          color={STATUS_CONFIG[project.status].color}
-                          icon={STATUS_CONFIG[project.status].icon}
-                          style={{ borderRadius: 12, margin: 0, fontSize: 10, padding: "0 8px" }}
-                        >
-                          {project.status}
-                        </Tag>
-                      </div>
-
-                      <Row gutter={[0, 8]}>
-                        <Col span={24}>
-                          <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
-                            <ClockCircleOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
-                            <span><strong>Created:</strong> {dayjs(project.createdAt).format("DD MMM YYYY")}</span>
-                          </div>
-                        </Col>
-                        <Col span={24}>
-                          <div style={{ fontSize: 12, color: "#4b5563", display: "flex", alignItems: "center", gap: 8 }}>
-                            <CalendarOutlined style={{ fontSize: 12, color: "#9ca3af" }} />
-                            <span>
-                              <strong>Timeline:</strong> {dayjs(project.timeline.startDate).format("DD MMM")} – {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
-                            </span>
-                          </div>
-                        </Col>
-                      </Row>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
+            overflow: "hidden",
+            minWidth: 0,
+            maxWidth: "100%"
+          }}
+          styles={{
+            body: {
+              padding: 0,
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }
+          }}
+        >
           <Table
             columns={columns}
             dataSource={projects}
@@ -1087,8 +1257,8 @@ export default function ProjectsPage() {
             scroll={{ x: 1000, y: "calc(100vh - 320px)" }}
             style={{ borderRadius: 12 }}
           />
-        )}
-      </Card>
+        </Card>
+      )}
 
       {/* ── Edit Modal ── */}
       <EditModal

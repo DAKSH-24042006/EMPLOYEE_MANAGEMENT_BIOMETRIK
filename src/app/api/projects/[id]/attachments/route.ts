@@ -113,7 +113,17 @@ export async function POST(
       "application/json",
     ];
 
-    if (!allowedMimeTypes.includes(file.type) && !file.type.startsWith("image/") && !file.type.startsWith("text/")) {
+    const allowedExtensions = [
+      ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
+      ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+      ".txt", ".csv", ".zip", ".json", ".md"
+    ];
+    const fileExt = path.extname(file.name || "").toLowerCase();
+
+    const isMimeAllowed = allowedMimeTypes.includes(file.type) || file.type.startsWith("image/") || file.type.startsWith("text/");
+    const isExtAllowed = allowedExtensions.includes(fileExt);
+
+    if (!isMimeAllowed && !isExtAllowed) {
       return NextResponse.json({ error: "Unsupported file format. Please upload documents, images, spreadsheets, or PDFs." }, { status: 400 });
     }
 
@@ -187,7 +197,7 @@ export async function GET(
 
     const { searchParams } = new URL(req.url);
     const folderParam = searchParams.get("folder");
-    const folderFilter = folderParam !== null ? folderParam.trim() : "/";
+    const folderFilter = (folderParam && folderParam.trim()) ? folderParam.trim() : "/";
 
     const query: any = { projectId: id, folder: folderFilter };
 

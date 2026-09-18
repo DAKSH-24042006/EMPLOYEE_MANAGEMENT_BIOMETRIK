@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import dbConnect from "@/lib/db";
 import { User } from "@/lib/models/User";
 import { Role, UserStatus } from "@/lib/constants";
@@ -7,27 +8,57 @@ import { signJwt } from "@/lib/auth";
 /**
  * DEVELOPMENT / TESTING SIMULATION ROUTE
  * 
- * Simulates a verified Microsoft Entra ID callback for local development
- * and automated test verification.
- * Enforces the EXACT same authorization rules as the production callback:
- * 1. Checks SYSTEM_ADMIN_EMAIL bootstrap
- * 2. Queries database for user
- * 3. Rejects unregistered users (NO AUTO-CREATION)
- * 4. Rejects inactive users
- * 5. Issues JWT token and determines redirect (/admin vs /dashboard)
+ * Strictly disabled in production. Requires DEV_LOGIN_SECRET in dev/testing.
  */
 export async function POST(req: Request) {
-  try {
-    const { email } = await req.json();
-    const normalizedEmail = (email || "").toLowerCase().trim();
+  // 1. Strict production gate: Route 404s completely in production
+  if ((process.env.NODE_ENV as string) === "production") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
 
+  try {
+    const expectedSecret = process.env.DEV_LOGIN_SECRET;
+    if (!expectedSecret) {
+      return NextResponse.json(
+        { error: "DEV_LOGIN_SECRET is not configured on this server" },
+        { status: 500 }
+      );
+    }
+
+    const body = await req.json();
+    const { email } = body;
+    const headerSecret = req.headers.get("x-dev-login-secret");
+    const bodySecret = body.secret;
+    const providedSecret = headerSecret || bodySecret;
+
+    if (!providedSecret) {
+      return NextResponse.json(
+        { error: "Dev login secret required" },
+        { status: 401 }
+      );
+    }
+
+    const bufProvided = Buffer.from(String(providedSecret));
+    const bufExpected = Buffer.from(String(expectedSecret));
+
+    if (
+      bufProvided.length !== bufExpected.length ||
+      !crypto.timingSafeEqual(bufProvided, bufExpected)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid dev login secret" },
+        { status: 403 }
+      );
+    }
+
+    const normalizedEmail = (email || "").toLowerCase().trim();
     if (!normalizedEmail) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     await dbConnect();
 
-    // 1. System Admin bootstrap check
+    // 2. System Admin bootstrap check
     const systemAdminEmail = (process.env.SYSTEM_ADMIN_EMAIL || "").toLowerCase().trim();
     if (systemAdminEmail && normalizedEmail === systemAdminEmail) {
       let adminUser = await User.findOne({
@@ -35,7 +66,6 @@ export async function POST(req: Request) {
       });
 
       if (!adminUser) {
-        console.log(`[Dev Auth] Bootstrapping System Admin: ${normalizedEmail}`);
         adminUser = await User.create({
           name: "System Administrator",
           email: normalizedEmail,
@@ -53,7 +83,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Application Authorization Check
+    // 3. Application Authorization Check
     const user = await User.findOne({
       $or: [{ email: normalizedEmail }, { microsoftEmail: normalizedEmail }],
     });
@@ -82,7 +112,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Issue session JWT
+    // 4. Issue session JWT
     const token = await signJwt({
       userId: user._id.toString(),
       role: user.role,
@@ -108,7 +138,7 @@ export async function POST(req: Request) {
 
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Dev-only route (production always 404s above)
       path: "/",
       sameSite: "lax",
       maxAge: 60 * 60 * 24,

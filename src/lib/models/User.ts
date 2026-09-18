@@ -10,7 +10,6 @@ export interface IUser extends Document {
   designation?: string;
   status: UserStatus | string;
   password?: string;
-  faceReferenceImage?: string;
   role: Role | string;
   phoneNumber?: string;
   location?: string;
@@ -61,10 +60,6 @@ const UserSchema: Schema = new Schema(
     password: {
       type: String,
       required: false,
-      select: false,
-    },
-    faceReferenceImage: {
-      type: String,
       select: false,
     },
     role: {

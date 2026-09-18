@@ -134,6 +134,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workFilterPriority, setWorkFilterPriority] = useState<string>("All");
   const [workFilterOverdue, setWorkFilterOverdue] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("work-items");
+  const [todoStatusFilter, setTodoStatusFilter] = useState<"all" | "pending" | "done" | "overdue">("all");
 
   // Project Calendar & Personal Tasks states
   const [projectPersonalTasks, setProjectPersonalTasks] = useState<any[]>([]);
@@ -251,7 +252,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // When switching to the chat tab, scroll chat box to latest messages
   useEffect(() => {
-    if (activeTab === "3") {
+    if ((activeTab === "3" || activeTab === "chat")) {
       setTimeout(() => {
         scrollToChatBottom("auto");
       }, 100);
@@ -260,7 +261,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // When chat messages update, ONLY scroll container if activeTab is chat AND user is already near bottom
   useEffect(() => {
-    if (activeTab === "3" && chatContainerRef.current) {
+    if ((activeTab === "3" || activeTab === "chat") && chatContainerRef.current) {
       const container = chatContainerRef.current;
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 140;
       if (isNearBottom || chatMessages.length > prevMsgCountRef.current) {
@@ -358,6 +359,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         setProject(json.data);
         editForm.setFieldsValue({
           title: json.data.title,
+          description: json.data.description || "",
           companyName: json.data.clientDetails.companyName,
           contactPerson: json.data.clientDetails.contactPerson,
           email: json.data.clientDetails.email,
@@ -459,6 +461,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
   useEffect(() => {
     fetchAttachments(currentFolder);
   }, [currentFolder]);
+
+  useEffect(() => {
+    if (activeTab === "drive" || activeTab === "5") {
+      fetchAttachments(currentFolder);
+    }
+  }, [activeTab]);
 
   // Drive Operations
   const handleCreateFolder = async (values: { folderName: string }) => {
@@ -1296,9 +1304,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // Filtered work items
   const filteredWorkItems = workItems.filter((item) => {
+    // If not project lead or admin, strictly restrict to user's assigned items
+    if (!isProjectLead) {
+      const aid = item.assignee?._id || item.assignee;
+      if (String(aid) !== String(currentUserId)) return false;
+    }
     if (workFilterStatus !== "All" && item.status !== workFilterStatus) return false;
-    if (workFilterAssignee !== "All" && item.assignee?._id !== workFilterAssignee) return false;
-    if (workFilterSprint !== "All" && item.sprint?._id !== workFilterSprint) return false;
+    if (workFilterAssignee !== "All" && (item.assignee?._id || item.assignee) !== workFilterAssignee) return false;
+    if (workFilterSprint !== "All" && (item.sprint?._id || item.sprint) !== workFilterSprint) return false;
     if (workFilterPriority !== "All" && item.priority !== workFilterPriority) return false;
     if (workFilterOverdue) {
       const now = new Date();
@@ -1334,6 +1347,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
             Sales Owner: {project.createdBy?.name || "N/A"} | 
             Tech Owner: {project.techOwner?.name || "Unassigned"}
           </Text>
+          {project.description && (
+            <div style={{
+              marginTop: 6,
+              padding: "10px 14px",
+              background: "#f0fdfa",
+              border: "1px solid #ccfbf1",
+              borderRadius: 8,
+              maxWidth: 900,
+            }}>
+              <Text strong style={{ fontSize: 12, color: "#00897b", display: "block", marginBottom: 2 }}>
+                Project Description:
+              </Text>
+              <Paragraph style={{ margin: 0, fontSize: 13, color: "#374151", whiteSpace: "pre-wrap" }}>
+                {project.description}
+              </Paragraph>
+            </div>
+          )}
         </Space>
 
         <Space>
@@ -1370,12 +1400,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         <Select.Option key={s} value={s}>{s}</Select.Option>
                       ))}
                     </Select>
-                    <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 150 }} placeholder="Assignee">
-                      <Select.Option value="All">All Assignees</Select.Option>
-                      {users.map(u => (
-                        <Select.Option key={u._id} value={u._id}>{u.name}</Select.Option>
-                      ))}
-                    </Select>
+                    {isProjectLead ? (
+                      <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 160 }} placeholder="Assignee">
+                        <Select.Option value="All">All Assignees</Select.Option>
+                        {users.map(u => (
+                          <Select.Option key={u._id} value={u._id}>{u.name}</Select.Option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <Tag color="cyan" style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, margin: 0 }}>
+                        My Assigned Tasks Only
+                      </Tag>
+                    )}
                     <Select value={workFilterSprint} onChange={setWorkFilterSprint} style={{ width: 140 }} placeholder="Sprint">
                       <Select.Option value="All">All Sprints</Select.Option>
                       {sprints.map(s => (
@@ -1567,16 +1603,45 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           <Progress percent={myPct} strokeColor={{ from: "#00897b", to: "#52c41a" }} status={myPct === 100 ? "success" : "active"} />
                         </div>
 
+                        {/* Filter Bar */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                          <Radio.Group
+                            value={todoStatusFilter}
+                            onChange={(e) => setTodoStatusFilter(e.target.value)}
+                            size="small"
+                            buttonStyle="solid"
+                          >
+                            <Radio.Button value="all">All ({myTasks.length})</Radio.Button>
+                            <Radio.Button value="pending">Pending ({inProgressTasks.length + blockedTasks.length})</Radio.Button>
+                            <Radio.Button value="done">Completed ({completedTasks.length})</Radio.Button>
+                            <Radio.Button value="overdue">
+                              Overdue ({myTasks.filter(w => w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done").length})
+                            </Radio.Button>
+                          </Radio.Group>
+                        </div>
+
                         {/* Checklist Table */}
-                        {myTasks.length === 0 ? (
-                          <div style={{ textAlign: "center", padding: "30px 0", color: "#8c8c8c" }}>
-                            <CheckCircle size={36} color="#d9d9d9" style={{ margin: "0 auto 8px" }} />
-                            <Paragraph>No tasks are currently assigned to you in this project.</Paragraph>
-                          </div>
-                        ) : (
-                          <List
-                            itemLayout="horizontal"
-                            dataSource={myTasks}
+                        {(() => {
+                          const displayedTasks = myTasks.filter((w) => {
+                            if (todoStatusFilter === "pending") return w.status !== "Done" && w.status !== "Cancelled";
+                            if (todoStatusFilter === "done") return w.status === "Done";
+                            if (todoStatusFilter === "overdue") return w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done";
+                            return true;
+                          });
+
+                          if (displayedTasks.length === 0) {
+                            return (
+                              <div style={{ textAlign: "center", padding: "30px 0", color: "#8c8c8c" }}>
+                                <CheckCircle size={36} color="#d9d9d9" style={{ margin: "0 auto 8px" }} />
+                                <Paragraph>No tasks match the selected filter ({todoStatusFilter}).</Paragraph>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <List
+                              itemLayout="horizontal"
+                              dataSource={displayedTasks}
                             renderItem={(item) => {
                               const isDone = item.status === "Done";
                               return (
@@ -1667,8 +1732,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                 </List.Item>
                               );
                             }}
-                          />
-                        )}
+                            />
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -1839,622 +1905,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             )
           },
           {
-            key: "calendar",
-            label: (
-              <Space size={6}>
-                <CalendarIcon size={14} />
-                <span>Project Calendar</span>
-              </Space>
-            ),
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <Card
-                  variant="borderless"
-                  style={{
-                    borderRadius: 12,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                    border: "1px solid #e5e7eb",
-                    marginBottom: 20,
-                  }}
-                  title={
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                      <Space size={8}>
-                        <CalendarIcon size={18} color="#00897b" />
-                        <div>
-                          <Text strong style={{ fontSize: 16, display: "block" }}>Project Schedule & Personal Tasks</Text>
-                          <Text type="secondary" style={{ fontSize: 12, fontWeight: "normal" }}>
-                            Calendar view of all work item deadlines, sprint milestones, and your personal to-dos
-                          </Text>
-                        </div>
-                      </Space>
-                      <Space wrap>
-                        <Button size="small" onClick={() => setProjectCalendarMonth(dayjs())}>Today</Button>
-                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.subtract(1, "month"))}>&lt;</Button>
-                        <Text strong style={{ minWidth: 110, textAlign: "center", display: "inline-block", fontSize: 13 }}>
-                          {projectCalendarMonth.format("MMMM YYYY")}
-                        </Text>
-                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.add(1, "month"))}>&gt;</Button>
-                        <Button
-                          type="primary"
-                          size="small"
-                          icon={<Plus size={13} />}
-                          onClick={() => {
-                            personalTaskForm.setFieldsValue({ date: dayjs(), priority: "Medium", status: "Todo" });
-                            setIsPersonalTaskModalOpen(true);
-                          }}
-                          style={{ backgroundColor: "#00897b", border: "none" }}
-                        >
-                          Add Personal Task
-                        </Button>
-                      </Space>
-                    </div>
-                  }
-                >
-                  {/* Legend */}
-                  <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", fontSize: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>📝</span>
-                      <Text type="secondary">Personal Tasks</Text>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>💼</span>
-                      <Text type="secondary">Work Items (Due Dates)</Text>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>🏁</span>
-                      <Text type="secondary">Sprint Milestones</Text>
-                    </div>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  {(() => {
-                    const startOfMonth = projectCalendarMonth.startOf("month");
-                    const endOfMonth = projectCalendarMonth.endOf("month");
-                    const startDate = startOfMonth.startOf("week");
-                    const endDate = endOfMonth.endOf("week");
-
-                    const days = [];
-                    let d = startDate;
-                    while (d.isBefore(endDate)) {
-                      days.push(d);
-                      d = d.add(1, "day");
-                    }
-
-                    return (
-                      <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
-                        {/* Day headers */}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", backgroundColor: "#fafafa", borderBottom: "1px solid #f0f0f0" }}>
-                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
-                            <div key={idx} style={{ padding: "8px 0", textAlign: "center", fontWeight: 600, color: "#64748b", fontSize: 12 }}>
-                              {dayName}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Cells */}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-                          {days.map((dayDate, idx) => {
-                            const isCurrentMonth = dayDate.isSame(projectCalendarMonth, "month");
-                            const isToday = dayDate.isSame(dayjs(), "day");
-
-                            // Find project work items due this day
-                            const dayWorkItems = workItems.filter(w => w.dueDate && dayjs(w.dueDate).isSame(dayDate, "day"));
-                            // Find sprints ending/starting this day
-                            const daySprints = sprints.filter(s => dayjs(s.endDate).isSame(dayDate, "day") || dayjs(s.startDate).isSame(dayDate, "day"));
-                            // Find personal tasks on this day
-                            const dayPersonalTasks = projectPersonalTasks.filter(t => dayjs(t.date).isSame(dayDate, "day"));
-
-                            return (
-                              <div
-                                key={idx}
-                                style={{
-                                  minHeight: 90,
-                                  borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
-                                  borderBottom: "1px solid #f0f0f0",
-                                  padding: 6,
-                                  backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
-                                  transition: "background 0.2s",
-                                }}
-                              >
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                                  <span style={{
-                                    width: 22,
-                                    height: 22,
-                                    borderRadius: "50%",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    backgroundColor: isToday ? "#00897b" : "transparent",
-                                    color: isToday ? "#fff" : isCurrentMonth ? "#1e293b" : "#94a3b8",
-                                    fontWeight: isToday ? 700 : 500,
-                                    fontSize: 11,
-                                  }}>
-                                    {dayDate.format("D")}
-                                  </span>
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Plus size={10} color="#94a3b8" />}
-                                    onClick={() => {
-                                      personalTaskForm.setFieldsValue({ date: dayDate, priority: "Medium", status: "Todo" });
-                                      setIsPersonalTaskModalOpen(true);
-                                    }}
-                                    title="Add personal task on this date"
-                                    style={{ width: 18, height: 18, minWidth: 18, padding: 0 }}
-                                  />
-                                </div>
-
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  {/* Personal Tasks */}
-                                  {dayPersonalTasks.map((pt: any) => (
-                                    <div
-                                      key={pt._id}
-                                      style={{
-                                        backgroundColor: "#eef2ff",
-                                        borderLeft: `3px solid ${pt.color || "#6366f1"}`,
-                                        padding: "2px 4px",
-                                        borderRadius: 3,
-                                        fontSize: 10,
-                                        color: "#3730a3",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                        cursor: "pointer",
-                                      }}
-                                      onClick={() => {
-                                        personalTaskForm.setFieldsValue({
-                                          ...pt,
-                                          date: dayjs(pt.date),
-                                        });
-                                        setIsPersonalTaskModalOpen(true);
-                                      }}
-                                      title={`Personal Task: ${pt.title} (${pt.priority})`}
-                                    >
-                                      📝 {pt.title}
-                                    </div>
-                                  ))}
-
-                                  {/* Work Items */}
-                                  {dayWorkItems.map((wi: any) => (
-                                    <div
-                                      key={wi._id}
-                                      onClick={() => {
-                                        setSelectedWorkItem(wi);
-                                        setWorkItemDetailOpen(true);
-                                      }}
-                                      style={{
-                                        backgroundColor: "#f0fdfa",
-                                        borderLeft: `3px solid ${wi.priority === "Urgent" ? "#ff4d4f" : wi.priority === "High" ? "#fa8c16" : "#00897b"}`,
-                                        padding: "2px 4px",
-                                        borderRadius: 3,
-                                        fontSize: 10,
-                                        color: "#115e59",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                        cursor: "pointer",
-                                      }}
-                                      title={`Work Item: ${wi.title} (${wi.status})`}
-                                    >
-                                      💼 {wi.title}
-                                    </div>
-                                  ))}
-
-                                  {/* Sprints */}
-                                  {daySprints.map((sp: any) => (
-                                    <div
-                                      key={sp._id}
-                                      style={{
-                                        backgroundColor: "#f6ffed",
-                                        borderLeft: "3px solid #52c41a",
-                                        padding: "2px 4px",
-                                        borderRadius: 3,
-                                        fontSize: 10,
-                                        color: "#135200",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                      title={`Sprint Deadline: ${sp.name}`}
-                                    >
-                                      🏁 {sp.name}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </Card>
-              </div>
-            )
-          },
-          {
-            key: "sprints",
-            label: "Agile Sprints",
-            children: (
-              <div style={{ padding: "12px 0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-                  <div>
-                    <Title level={5} style={{ margin: 0 }}>Interactive Sprint Management Board</Title>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Drag and drop task cards to assign them between Active Sprint, Planned Sprints, or Product Backlog.
-                    </Text>
-                  </div>
-                  {(currentUser?.role === "TECH_MANAGER" || currentUser?.role === "ADMIN") && (
-                    <Button type="primary" icon={<Plus size={14} />} onClick={() => setIsSprintModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
-                      New Sprint
-                    </Button>
-                  )}
-                </div>
-
-                {/* SPRINT LAYOUT */}
-                <Space direction="vertical" size={24} style={{ width: "100%" }}>
-                  {/* 1. ACTIVE SPRINT SECTION */}
-                  {(() => {
-                    const activeSprint = sprints.find((s) => s.status === "Active");
-                    if (!activeSprint) {
-                      return (
-                        <Card size="small" style={{ backgroundColor: "#fffbe6", borderColor: "#ffe58f", borderRadius: 10 }}>
-                          <Row justify="space-between" align="middle">
-                            <Col>
-                              <Text strong style={{ color: "#d48806" }}>No Active Sprint currently running.</Text>
-                              <div style={{ fontSize: 12, color: "#8c6b00" }}>Start a planned sprint below or create a new sprint to begin iteration tracking.</div>
-                            </Col>
-                          </Row>
-                        </Card>
-                      );
-                    }
-
-                    const activeTasks = workItems.filter((w) => w.sprint?._id === activeSprint._id);
-                    const completedTasks = activeTasks.filter((w) => w.status === "Done");
-                    const openTasks = activeTasks.filter((w) => w.status !== "Done" && w.status !== "Cancelled");
-                    const totalEstHours = activeTasks.reduce((sum, w) => sum + (w.estimatedHours || 0), 0);
-                    const totalActHours = activeTasks.reduce((sum, w) => sum + (w.actualHours || 0), 0);
-                    const daysLeft = dayjs(activeSprint.endDate).diff(dayjs(), "day");
-
-                    return (
-                      <Card
-                        key={activeSprint._id}
-                        style={{
-                          borderRadius: 12,
-                          borderColor: dragOverSprintId === activeSprint._id ? "#00897b" : "#52c41a",
-                          borderWidth: dragOverSprintId === activeSprint._id ? 2 : 1,
-                          boxShadow: "0 4px 14px rgba(82,196,26,0.12)",
-                          backgroundColor: dragOverSprintId === activeSprint._id ? "#e6f7ff" : "#fafafa",
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          if (dragOverSprintId !== activeSprint._id) setDragOverSprintId(activeSprint._id);
-                        }}
-                        onDragLeave={() => {
-                          if (dragOverSprintId === activeSprint._id) setDragOverSprintId(null);
-                        }}
-                        onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, activeSprint._id)}
-                      >
-                        {/* Active Sprint Header */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                          <div>
-                            <Space align="center">
-                              <Tag color="success" style={{ fontWeight: 600, fontSize: 11, borderRadius: 4 }}>CURRENT ACTIVE SPRINT</Tag>
-                              <Title level={4} style={{ margin: 0 }}>{activeSprint.name}</Title>
-                            </Space>
-                            <div style={{ marginTop: 4 }}>
-                              <Text type="secondary" style={{ fontSize: 12 }}>Goal: </Text>
-                              <Text style={{ fontStyle: "italic", fontSize: 13 }}>{activeSprint.goal || "No specific goal provided."}</Text>
-                            </div>
-                          </div>
-
-                          <Space align="center" wrap>
-                            <Tag color={daysLeft < 0 ? "error" : daysLeft <= 2 ? "warning" : "blue"} style={{ borderRadius: 6, fontSize: 12, padding: "4px 8px" }}>
-                              <CalendarIcon size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
-                              {dayjs(activeSprint.startDate).format("DD MMM")} — {dayjs(activeSprint.endDate).format("DD MMM YYYY")}
-                              {daysLeft >= 0 ? ` (${daysLeft} days left)` : ` (Overdue by ${Math.abs(daysLeft)} days)`}
-                            </Tag>
-
-                            {(currentUser?.role === "TECH_MANAGER" || currentUser?.role === "ADMIN") && (
-                              <Button
-                                type="primary"
-                                onClick={() => handleOpenCompleteSprintModal(activeSprint)}
-                                style={{ backgroundColor: "#1890ff", border: "none", fontWeight: 600 }}
-                              >
-                                Complete Sprint ({openTasks.length} open)
-                              </Button>
-                            )}
-                          </Space>
-                        </div>
-
-                        {/* Progress Bar & Metrics Banner */}
-                        <Row gutter={[16, 16]} style={{ backgroundColor: "#fff", padding: 12, borderRadius: 8, marginBottom: 16, border: "1px solid #f0f0f0" }}>
-                          <Col xs={24} md={10}>
-                            <Text type="secondary" style={{ fontSize: 11 }}>SPRINT PROGRESS</Text>
-                            <Progress percent={activeSprint.progressPercent || 0} strokeColor="#52c41a" status="active" />
-                          </Col>
-                          <Col xs={12} md={7}>
-                            <Text type="secondary" style={{ fontSize: 11, display: "block" }}>WORK ITEMS</Text>
-                            <Text strong>{completedTasks.length} completed</Text> / <Text type="secondary">{activeTasks.length} total tasks</Text>
-                          </Col>
-                          <Col xs={12} md={7}>
-                            <Text type="secondary" style={{ fontSize: 11, display: "block" }}>HOURS ESTIMATE</Text>
-                            <Text strong>{totalActHours} hrs logged</Text> / <Text type="secondary">{totalEstHours} hrs estimated</Text>
-                          </Col>
-                        </Row>
-
-                        {/* Active Sprint Draggable Task List */}
-                        <div>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <Text strong style={{ fontSize: 13 }}>Tasks in Active Sprint ({activeTasks.length})</Text>
-                            <Text type="secondary" style={{ fontSize: 11 }}>Drop items here to assign to Active Sprint</Text>
-                          </div>
-
-                          {activeTasks.length === 0 ? (
-                            <div style={{ padding: 24, textAlign: "center", border: "2px dashed #d9d9d9", borderRadius: 8, backgroundColor: "#fff" }}>
-                              <Text type="secondary">No tasks assigned to Active Sprint. Drag work items from the Backlog below!</Text>
-                            </div>
-                          ) : (
-                            <Row gutter={[12, 12]}>
-                              {activeTasks.map((item) => (
-                                <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
-                                  <div
-                                    draggable
-                                    onDragStart={() => setDraggedWorkItemId(item._id)}
-                                    onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
-                                    style={{
-                                      padding: 12,
-                                      backgroundColor: "#fff",
-                                      borderRadius: 8,
-                                      border: "1px solid #e8e8e8",
-                                      cursor: "grab",
-                                      boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
-                                      transition: "all 0.2s ease",
-                                    }}
-                                  >
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                      <Tag color={item.type === "Bug" ? "red" : item.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10, margin: 0 }}>
-                                        {item.type}
-                                      </Tag>
-                                      <Tag color={item.priority === "Urgent" ? "red" : item.priority === "High" ? "orange" : "default"} style={{ fontSize: 10, margin: 0 }}>
-                                        {item.priority}
-                                      </Tag>
-                                    </div>
-                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 6, lineClamp: 2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                      {item.title}
-                                    </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #f5f5f5" }}>
-                                      <Tag color={item.status === "Done" ? "green" : item.status === "Blocked" ? "volcano" : "processing"} style={{ fontSize: 10, margin: 0 }}>
-                                        {item.status}
-                                      </Tag>
-                                      <Text type="secondary" style={{ fontSize: 11 }}>{item.assignee?.name || "Unassigned"}</Text>
-                                    </div>
-                                  </div>
-                                </Col>
-                              ))}
-                            </Row>
-                          )}
-                        </div>
-                      </Card>
-                    );
-                  })()}
-
-                  {/* 2. PLANNED / FUTURE SPRINTS SECTION */}
-                  <div>
-                    <Title level={5} style={{ marginBottom: 12 }}>Planned Sprints</Title>
-                    {(() => {
-                      const plannedSprints = sprints.filter((s) => s.status === "Planned");
-                      if (plannedSprints.length === 0) {
-                        return (
-                          <Card size="small" style={{ borderRadius: 8, backgroundColor: "#fafafa", textAlign: "center", color: "#8c8c8c" }}>
-                            No planned upcoming sprints. Create a new sprint to plan future iterations.
-                          </Card>
-                        );
-                      }
-
-                      return (
-                        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                          {plannedSprints.map((sprint) => {
-                            const sprintTasks = workItems.filter((w) => w.sprint?._id === sprint._id);
-                            const daysRange = `${dayjs(sprint.startDate).format("DD MMM")} — ${dayjs(sprint.endDate).format("DD MMM YYYY")}`;
-
-                            return (
-                              <Card
-                                key={sprint._id}
-                                size="small"
-                                style={{
-                                  borderRadius: 10,
-                                  borderColor: dragOverSprintId === sprint._id ? "#00897b" : "#d9d9d9",
-                                  borderWidth: dragOverSprintId === sprint._id ? 2 : 1,
-                                  backgroundColor: dragOverSprintId === sprint._id ? "#e6f7ff" : "#fff",
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = "move";
-                                  if (dragOverSprintId !== sprint._id) setDragOverSprintId(sprint._id);
-                                }}
-                                onDragLeave={() => {
-                                  if (dragOverSprintId === sprint._id) setDragOverSprintId(null);
-                                }}
-                                onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, sprint._id)}
-                              >
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-                                  <Space align="center">
-                                    <Tag color="blue" style={{ fontWeight: 600 }}>PLANNED</Tag>
-                                    <Title level={5} style={{ margin: 0 }}>{sprint.name}</Title>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>({daysRange})</Text>
-                                  </Space>
-
-                                  <Space>
-                                    <Badge count={`${sprintTasks.length} tasks`} style={{ backgroundColor: "#108ee9" }} />
-                                    {(currentUser?.role === "TECH_MANAGER" || currentUser?.role === "ADMIN") && (
-                                      <Button
-                                        size="small"
-                                        type="primary"
-                                        onClick={() => handleUpdateSprintStatus(sprint._id, "Active")}
-                                        style={{ backgroundColor: "#52c41a", border: "none" }}
-                                      >
-                                        Start Sprint
-                                      </Button>
-                                    )}
-                                  </Space>
-                                </div>
-
-                                {sprint.goal && (
-                                  <div style={{ fontSize: 12, color: "#666", marginBottom: 10, fontStyle: "italic" }}>
-                                    Goal: {sprint.goal}
-                                  </div>
-                                )}
-
-                                {/* Draggable Tasks in Planned Sprint */}
-                                <div style={{ minHeight: 45, padding: 8, backgroundColor: "#fafafa", borderRadius: 6, border: "1px dashed #e8e8e8" }}>
-                                  {sprintTasks.length === 0 ? (
-                                    <Text type="secondary" style={{ fontSize: 11 }}>No tasks assigned. Drag work items here to assign to this sprint.</Text>
-                                  ) : (
-                                    <Row gutter={[8, 8]}>
-                                      {sprintTasks.map((item) => (
-                                        <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
-                                          <div
-                                            draggable
-                                            onDragStart={() => setDraggedWorkItemId(item._id)}
-                                            onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
-                                            style={{
-                                              padding: 8,
-                                              backgroundColor: "#fff",
-                                              borderRadius: 6,
-                                              border: "1px solid #d9d9d9",
-                                              cursor: "grab",
-                                              fontSize: 12,
-                                            }}
-                                          >
-                                            <div style={{ fontWeight: 600, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                              {item.title}
-                                            </div>
-                                            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "#8c8c8c" }}>
-                                              <span>{item.type}</span>
-                                              <span>{item.assignee?.name || "Unassigned"}</span>
-                                            </div>
-                                          </div>
-                                        </Col>
-                                      ))}
-                                    </Row>
-                                  )}
-                                </div>
-                              </Card>
-                            );
-                          })}
-                        </Space>
-                      );
-                    })()}
-                  </div>
-
-                  {/* 3. PRODUCT BACKLOG (UNASSIGNED TASKS) */}
-                  {(() => {
-                    const backlogItems = workItems.filter((w) => !w.sprint || !w.sprint._id);
-                    return (
-                      <Card
-                        size="small"
-                        title={
-                          <Space align="center">
-                            <span>Product Backlog (Unassigned Tasks)</span>
-                            <Badge count={backlogItems.length} style={{ backgroundColor: "#8c8c8c" }} />
-                          </Space>
-                        }
-                        style={{
-                          borderRadius: 10,
-                          borderColor: dragOverSprintId === "backlog" ? "#00897b" : "#d9d9d9",
-                          borderWidth: dragOverSprintId === "backlog" ? 2 : 1,
-                          backgroundColor: dragOverSprintId === "backlog" ? "#e6f7ff" : "#fff",
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          if (dragOverSprintId !== "backlog") setDragOverSprintId("backlog");
-                        }}
-                        onDragLeave={() => {
-                          if (dragOverSprintId === "backlog") setDragOverSprintId(null);
-                        }}
-                        onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, null)}
-                      >
-                        <div style={{ minHeight: 60, padding: 8, borderRadius: 6 }}>
-                          {backlogItems.length === 0 ? (
-                            <Text type="secondary" style={{ fontSize: 12 }}>All work items are currently assigned to sprints!</Text>
-                          ) : (
-                            <Row gutter={[10, 10]}>
-                              {backlogItems.map((item) => (
-                                <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
-                                  <div
-                                    draggable
-                                    onDragStart={() => setDraggedWorkItemId(item._id)}
-                                    onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
-                                    style={{
-                                      padding: 10,
-                                      backgroundColor: "#fafafa",
-                                      borderRadius: 6,
-                                      border: "1px solid #e0e0e0",
-                                      cursor: "grab",
-                                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                                    }}
-                                  >
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                                      <Tag color={item.type === "Bug" ? "red" : "cyan"} style={{ fontSize: 10, margin: 0 }}>
-                                        {item.type}
-                                      </Tag>
-                                      <Tag color={item.priority === "Urgent" ? "red" : "default"} style={{ fontSize: 10, margin: 0 }}>
-                                        {item.priority}
-                                      </Tag>
-                                    </div>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: "#222", lineClamp: 2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                      {item.title}
-                                    </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 10, color: "#666" }}>
-                                      <span>Status: {item.status}</span>
-                                      <span>{item.assignee?.name || "Unassigned"}</span>
-                                    </div>
-                                  </div>
-                                </Col>
-                              ))}
-                            </Row>
-                          )}
-                        </div>
-                      </Card>
-                    );
-                  })()}
-
-                  {/* 4. COMPLETED SPRINTS ACCORDION / HISTORY */}
-                  {(() => {
-                    const completed = sprints.filter((s) => s.status === "Completed");
-                    if (completed.length === 0) return null;
-
-                    return (
-                      <Card size="small" title={`Completed Sprints (${completed.length})`} style={{ borderRadius: 10, backgroundColor: "#fafafa" }}>
-                        <List
-                          size="small"
-                          dataSource={completed}
-                          renderItem={(sprint) => (
-                            <List.Item key={sprint._id}>
-                              <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div>
-                                  <Text strong style={{ textDecoration: "line-through", color: "#8c8c8c" }}>{sprint.name}</Text>
-                                  <div style={{ fontSize: 11, color: "#8c8c8c" }}>
-                                    {dayjs(sprint.startDate).format("DD MMM YYYY")} — {dayjs(sprint.endDate).format("DD MMM YYYY")}
-                                  </div>
-                                </div>
-                                <Tag color="default">Completed</Tag>
-                              </div>
-                            </List.Item>
-                          )}
-                        />
-                      </Card>
-                    );
-                  })()}
-                </Space>
-              </div>
-            )
-          },
-          {
-            key: "3",
+            key: "chat",
             label: (
               <Space size={6}>
                 <MessageSquare size={14} />
@@ -2789,11 +2240,248 @@ function ProjectDetailsClient({ id }: { id: string }) {
             )
           },
           {
-            key: "5",
+            key: "calendar",
+            label: (
+              <Space size={6}>
+                <CalendarIcon size={14} />
+                <span>Project Calendar</span>
+              </Space>
+            ),
+            children: (
+              <div style={{ padding: "12px 0" }}>
+                <Card
+                  variant="borderless"
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                    border: "1px solid #e5e7eb",
+                    marginBottom: 20,
+                  }}
+                  title={
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                      <Space size={8}>
+                        <CalendarIcon size={18} color="#00897b" />
+                        <div>
+                          <Text strong style={{ fontSize: 16, display: "block" }}>Project Schedule & Personal Tasks</Text>
+                          <Text type="secondary" style={{ fontSize: 12, fontWeight: "normal" }}>
+                            Calendar view of all work item deadlines, sprint milestones, and your personal to-dos
+                          </Text>
+                        </div>
+                      </Space>
+                      <Space wrap>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(dayjs())}>Today</Button>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.subtract(1, "month"))}>&lt;</Button>
+                        <Text strong style={{ minWidth: 110, textAlign: "center", display: "inline-block", fontSize: 13 }}>
+                          {projectCalendarMonth.format("MMMM YYYY")}
+                        </Text>
+                        <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.add(1, "month"))}>&gt;</Button>
+                        <Button
+                          type="primary"
+                          size="small"
+                          icon={<Plus size={13} />}
+                          onClick={() => {
+                            personalTaskForm.setFieldsValue({ date: dayjs(), priority: "Medium", status: "Todo" });
+                            setIsPersonalTaskModalOpen(true);
+                          }}
+                          style={{ backgroundColor: "#00897b", border: "none" }}
+                        >
+                          Add Personal Task
+                        </Button>
+                      </Space>
+                    </div>
+                  }
+                >
+                  {/* Legend */}
+                  <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap", fontSize: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>📝</span>
+                      <Text type="secondary">Personal Tasks</Text>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>💼</span>
+                      <Text type="secondary">Work Items (Due Dates)</Text>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>🏁</span>
+                      <Text type="secondary">Sprint Milestones</Text>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  {(() => {
+                    const startOfMonth = projectCalendarMonth.startOf("month");
+                    const endOfMonth = projectCalendarMonth.endOf("month");
+                    const startDate = startOfMonth.startOf("week");
+                    const endDate = endOfMonth.endOf("week");
+
+                    const days = [];
+                    let d = startDate;
+                    while (d.isBefore(endDate)) {
+                      days.push(d);
+                      d = d.add(1, "day");
+                    }
+
+                    return (
+                      <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
+                        {/* Day headers */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", backgroundColor: "#fafafa", borderBottom: "1px solid #f0f0f0" }}>
+                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
+                            <div key={idx} style={{ padding: "8px 0", textAlign: "center", fontWeight: 600, color: "#64748b", fontSize: 12 }}>
+                              {dayName}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Cells */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                          {days.map((dayDate, idx) => {
+                            const isCurrentMonth = dayDate.isSame(projectCalendarMonth, "month");
+                            const isToday = dayDate.isSame(dayjs(), "day");
+
+                            // Find project work items due this day
+                            const dayWorkItems = workItems.filter(w => w.dueDate && dayjs(w.dueDate).isSame(dayDate, "day"));
+                            // Find sprints ending/starting this day
+                            const daySprints = sprints.filter(s => dayjs(s.endDate).isSame(dayDate, "day") || dayjs(s.startDate).isSame(dayDate, "day"));
+                            // Find personal tasks on this day
+                            const dayPersonalTasks = projectPersonalTasks.filter(t => dayjs(t.date).isSame(dayDate, "day"));
+
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  minHeight: 90,
+                                  borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
+                                  borderBottom: "1px solid #f0f0f0",
+                                  padding: 6,
+                                  backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
+                                  transition: "background 0.2s",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                  <span style={{
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: "50%",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: isToday ? "#00897b" : "transparent",
+                                    color: isToday ? "#fff" : isCurrentMonth ? "#1e293b" : "#94a3b8",
+                                    fontWeight: isToday ? 700 : 500,
+                                    fontSize: 11,
+                                  }}>
+                                    {dayDate.format("D")}
+                                  </span>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<Plus size={10} color="#94a3b8" />}
+                                    onClick={() => {
+                                      personalTaskForm.setFieldsValue({ date: dayDate, priority: "Medium", status: "Todo" });
+                                      setIsPersonalTaskModalOpen(true);
+                                    }}
+                                    title="Add personal task on this date"
+                                    style={{ width: 18, height: 18, minWidth: 18, padding: 0 }}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  {/* Personal Tasks */}
+                                  {dayPersonalTasks.map((pt: any) => (
+                                    <div
+                                      key={pt._id}
+                                      style={{
+                                        backgroundColor: "#eef2ff",
+                                        borderLeft: `3px solid ${pt.color || "#6366f1"}`,
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#3730a3",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                      }}
+                                      onClick={() => {
+                                        personalTaskForm.setFieldsValue({
+                                          ...pt,
+                                          date: dayjs(pt.date),
+                                        });
+                                        setIsPersonalTaskModalOpen(true);
+                                      }}
+                                      title={`Personal Task: ${pt.title} (${pt.priority})`}
+                                    >
+                                      📝 {pt.title}
+                                    </div>
+                                  ))}
+
+                                  {/* Work Items */}
+                                  {dayWorkItems.map((wi: any) => (
+                                    <div
+                                      key={wi._id}
+                                      onClick={() => {
+                                        setSelectedWorkItem(wi);
+                                        setWorkItemDetailOpen(true);
+                                      }}
+                                      style={{
+                                        backgroundColor: "#f0fdfa",
+                                        borderLeft: `3px solid ${wi.priority === "Urgent" ? "#ff4d4f" : wi.priority === "High" ? "#fa8c16" : "#00897b"}`,
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#115e59",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                      }}
+                                      title={`Work Item: ${wi.title} (${wi.status})`}
+                                    >
+                                      💼 {wi.title}
+                                    </div>
+                                  ))}
+
+                                  {/* Sprints */}
+                                  {daySprints.map((sp: any) => (
+                                    <div
+                                      key={sp._id}
+                                      style={{
+                                        backgroundColor: "#f6ffed",
+                                        borderLeft: "3px solid #52c41a",
+                                        padding: "2px 4px",
+                                        borderRadius: 3,
+                                        fontSize: 10,
+                                        color: "#135200",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                      title={`Sprint Deadline: ${sp.name}`}
+                                    >
+                                      🏁 {sp.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </Card>
+              </div>
+            )
+          },
+          {
+            key: "drive",
             label: (
               <Space size={6}>
                 <HardDrive size={14} />
                 <span>Project Drive</span>
+                {attachments.length > 0 && (
+                  <Badge count={attachments.length} size="small" style={{ backgroundColor: "#00897b" }} />
+                )}
               </Space>
             ),
             children: (
@@ -3081,6 +2769,387 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 />
               </div>
             )
+          },
+          {
+            key: "sprints",
+            label: "Agile Sprints",
+            children: (
+              <div style={{ padding: "12px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+                  <div>
+                    <Title level={5} style={{ margin: 0 }}>Interactive Sprint Management Board</Title>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Drag and drop task cards to assign them between Active Sprint, Planned Sprints, or Product Backlog.
+                    </Text>
+                  </div>
+                  {isProjectLead && (
+                    <Button type="primary" icon={<Plus size={14} />} onClick={() => setIsSprintModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
+                      New Sprint
+                    </Button>
+                  )}
+                </div>
+
+                {/* SPRINT LAYOUT */}
+                <Space direction="vertical" size={24} style={{ width: "100%" }}>
+                  {/* 1. ACTIVE SPRINT SECTION */}
+                  {(() => {
+                    const activeSprint = sprints.find((s) => s.status === "Active");
+                    if (!activeSprint) {
+                      return (
+                        <Card size="small" style={{ backgroundColor: "#fffbe6", borderColor: "#ffe58f", borderRadius: 10 }}>
+                          <Row justify="space-between" align="middle">
+                            <Col>
+                              <Text strong style={{ color: "#d48806" }}>No Active Sprint currently running.</Text>
+                              <div style={{ fontSize: 12, color: "#8c6b00" }}>Start a planned sprint below or create a new sprint to begin iteration tracking.</div>
+                            </Col>
+                          </Row>
+                        </Card>
+                      );
+                    }
+
+                    const activeTasks = workItems.filter((w) => w.sprint?._id === activeSprint._id);
+                    const completedTasks = activeTasks.filter((w) => w.status === "Done");
+                    const openTasks = activeTasks.filter((w) => w.status !== "Done" && w.status !== "Cancelled");
+                    const totalEstHours = activeTasks.reduce((sum, w) => sum + (w.estimatedHours || 0), 0);
+                    const totalActHours = activeTasks.reduce((sum, w) => sum + (w.actualHours || 0), 0);
+                    const daysLeft = dayjs(activeSprint.endDate).diff(dayjs(), "day");
+
+                    return (
+                      <Card
+                        key={activeSprint._id}
+                        style={{
+                          borderRadius: 12,
+                          borderColor: dragOverSprintId === activeSprint._id ? "#00897b" : "#52c41a",
+                          borderWidth: dragOverSprintId === activeSprint._id ? 2 : 1,
+                          boxShadow: "0 4px 14px rgba(82,196,26,0.12)",
+                          backgroundColor: dragOverSprintId === activeSprint._id ? "#e6f7ff" : "#fafafa",
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverSprintId !== activeSprint._id) setDragOverSprintId(activeSprint._id);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverSprintId === activeSprint._id) setDragOverSprintId(null);
+                        }}
+                        onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, activeSprint._id)}
+                      >
+                        {/* Active Sprint Header */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                          <div>
+                            <Space align="center">
+                              <Tag color="success" style={{ fontWeight: 600, fontSize: 11, borderRadius: 4 }}>CURRENT ACTIVE SPRINT</Tag>
+                              <Title level={4} style={{ margin: 0 }}>{activeSprint.name}</Title>
+                            </Space>
+                            <div style={{ marginTop: 4 }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>Goal: </Text>
+                              <Text style={{ fontStyle: "italic", fontSize: 13 }}>{activeSprint.goal || "No specific goal provided."}</Text>
+                            </div>
+                          </div>
+
+                          <Space align="center" wrap>
+                            <Tag color={daysLeft < 0 ? "error" : daysLeft <= 2 ? "warning" : "blue"} style={{ borderRadius: 6, fontSize: 12, padding: "4px 8px" }}>
+                              <CalendarIcon size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
+                              {dayjs(activeSprint.startDate).format("DD MMM")} — {dayjs(activeSprint.endDate).format("DD MMM YYYY")}
+                              {daysLeft >= 0 ? ` (${daysLeft} days left)` : ` (Overdue by ${Math.abs(daysLeft)} days)`}
+                            </Tag>
+
+                            {isProjectLead && (
+                              <Button
+                                type="primary"
+                                onClick={() => handleOpenCompleteSprintModal(activeSprint)}
+                                style={{ backgroundColor: "#1890ff", border: "none", fontWeight: 600 }}
+                              >
+                                Complete Sprint ({openTasks.length} open)
+                              </Button>
+                            )}
+                          </Space>
+                        </div>
+
+                        {/* Progress Bar & Metrics Banner */}
+                        <Row gutter={[16, 16]} style={{ backgroundColor: "#fff", padding: 12, borderRadius: 8, marginBottom: 16, border: "1px solid #f0f0f0" }}>
+                          <Col xs={24} md={10}>
+                            <Text type="secondary" style={{ fontSize: 11 }}>SPRINT PROGRESS</Text>
+                            <Progress percent={activeSprint.progressPercent || 0} strokeColor="#52c41a" status="active" />
+                          </Col>
+                          <Col xs={12} md={7}>
+                            <Text type="secondary" style={{ fontSize: 11, display: "block" }}>WORK ITEMS</Text>
+                            <Text strong>{completedTasks.length} completed</Text> / <Text type="secondary">{activeTasks.length} total tasks</Text>
+                          </Col>
+                          <Col xs={12} md={7}>
+                            <Text type="secondary" style={{ fontSize: 11, display: "block" }}>HOURS ESTIMATE</Text>
+                            <Text strong>{totalActHours} hrs logged</Text> / <Text type="secondary">{totalEstHours} hrs estimated</Text>
+                          </Col>
+                        </Row>
+
+                        {/* Active Sprint Draggable Task List */}
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <Text strong style={{ fontSize: 13 }}>Tasks in Active Sprint ({activeTasks.length})</Text>
+                            <Text type="secondary" style={{ fontSize: 11 }}>Drop items here to assign to Active Sprint</Text>
+                          </div>
+
+                          {activeTasks.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: "center", border: "2px dashed #d9d9d9", borderRadius: 8, backgroundColor: "#fff" }}>
+                              <Text type="secondary">No tasks assigned to Active Sprint. Drag work items from the Backlog below!</Text>
+                            </div>
+                          ) : (
+                            <Row gutter={[12, 12]}>
+                              {activeTasks.map((item) => (
+                                <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
+                                  <div
+                                    draggable
+                                    onDragStart={() => setDraggedWorkItemId(item._id)}
+                                    onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
+                                    style={{
+                                      padding: 12,
+                                      backgroundColor: "#fff",
+                                      borderRadius: 8,
+                                      border: "1px solid #e8e8e8",
+                                      cursor: "grab",
+                                      boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                      <Tag color={item.type === "Bug" ? "red" : item.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10, margin: 0 }}>
+                                        {item.type}
+                                      </Tag>
+                                      <Tag color={item.priority === "Urgent" ? "red" : item.priority === "High" ? "orange" : "default"} style={{ fontSize: 10, margin: 0 }}>
+                                        {item.priority}
+                                      </Tag>
+                                    </div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 6, lineClamp: 2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                      {item.title}
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #f5f5f5" }}>
+                                      <Tag color={item.status === "Done" ? "green" : item.status === "Blocked" ? "volcano" : "processing"} style={{ fontSize: 10, margin: 0 }}>
+                                        {item.status}
+                                      </Tag>
+                                      <Text type="secondary" style={{ fontSize: 11 }}>{item.assignee?.name || "Unassigned"}</Text>
+                                    </div>
+                                  </div>
+                                </Col>
+                              ))}
+                            </Row>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* 2. PLANNED / FUTURE SPRINTS SECTION */}
+                  <div>
+                    <Title level={5} style={{ marginBottom: 12 }}>Planned Sprints</Title>
+                    {(() => {
+                      const plannedSprints = sprints.filter((s) => s.status === "Planned");
+                      if (plannedSprints.length === 0) {
+                        return (
+                          <Card size="small" style={{ borderRadius: 8, backgroundColor: "#fafafa", textAlign: "center", color: "#8c8c8c" }}>
+                            No planned upcoming sprints. Create a new sprint to plan future iterations.
+                          </Card>
+                        );
+                      }
+
+                      return (
+                        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                          {plannedSprints.map((sprint) => {
+                            const sprintTasks = workItems.filter((w) => w.sprint?._id === sprint._id);
+                            const daysRange = `${dayjs(sprint.startDate).format("DD MMM")} — ${dayjs(sprint.endDate).format("DD MMM YYYY")}`;
+
+                            return (
+                              <Card
+                                key={sprint._id}
+                                size="small"
+                                style={{
+                                  borderRadius: 10,
+                                  borderColor: dragOverSprintId === sprint._id ? "#00897b" : "#d9d9d9",
+                                  borderWidth: dragOverSprintId === sprint._id ? 2 : 1,
+                                  backgroundColor: dragOverSprintId === sprint._id ? "#e6f7ff" : "#fff",
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = "move";
+                                  if (dragOverSprintId !== sprint._id) setDragOverSprintId(sprint._id);
+                                }}
+                                onDragLeave={() => {
+                                  if (dragOverSprintId === sprint._id) setDragOverSprintId(null);
+                                }}
+                                onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, sprint._id)}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                                  <Space align="center">
+                                    <Tag color="blue" style={{ fontWeight: 600 }}>PLANNED</Tag>
+                                    <Title level={5} style={{ margin: 0 }}>{sprint.name}</Title>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>({daysRange})</Text>
+                                  </Space>
+
+                                  <Space>
+                                    <Badge count={`${sprintTasks.length} tasks`} style={{ backgroundColor: "#108ee9" }} />
+                                    {isProjectLead && (
+                                      <Button
+                                        size="small"
+                                        type="primary"
+                                        onClick={() => handleUpdateSprintStatus(sprint._id, "Active")}
+                                        style={{ backgroundColor: "#52c41a", border: "none" }}
+                                      >
+                                        Start Sprint
+                                      </Button>
+                                    )}
+                                  </Space>
+                                </div>
+
+                                {sprint.goal && (
+                                  <div style={{ fontSize: 12, color: "#666", marginBottom: 10, fontStyle: "italic" }}>
+                                    Goal: {sprint.goal}
+                                  </div>
+                                )}
+
+                                {/* Draggable Tasks in Planned Sprint */}
+                                <div style={{ minHeight: 45, padding: 8, backgroundColor: "#fafafa", borderRadius: 6, border: "1px dashed #e8e8e8" }}>
+                                  {sprintTasks.length === 0 ? (
+                                    <Text type="secondary" style={{ fontSize: 11 }}>No tasks assigned. Drag work items here to assign to this sprint.</Text>
+                                  ) : (
+                                    <Row gutter={[8, 8]}>
+                                      {sprintTasks.map((item) => (
+                                        <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
+                                          <div
+                                            draggable
+                                            onDragStart={() => setDraggedWorkItemId(item._id)}
+                                            onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
+                                            style={{
+                                              padding: 8,
+                                              backgroundColor: "#fff",
+                                              borderRadius: 6,
+                                              border: "1px solid #d9d9d9",
+                                              cursor: "grab",
+                                              fontSize: 12,
+                                            }}
+                                          >
+                                            <div style={{ fontWeight: 600, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                              {item.title}
+                                            </div>
+                                            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "#8c8c8c" }}>
+                                              <span>{item.type}</span>
+                                              <span>{item.assignee?.name || "Unassigned"}</span>
+                                            </div>
+                                          </div>
+                                        </Col>
+                                      ))}
+                                    </Row>
+                                  )}
+                                </div>
+                              </Card>
+                            );
+                          })}
+                        </Space>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 3. PRODUCT BACKLOG (UNASSIGNED TASKS) */}
+                  {(() => {
+                    const backlogItems = workItems.filter((w) => !w.sprint || !w.sprint._id);
+                    return (
+                      <Card
+                        size="small"
+                        title={
+                          <Space align="center">
+                            <span>Product Backlog (Unassigned Tasks)</span>
+                            <Badge count={backlogItems.length} style={{ backgroundColor: "#8c8c8c" }} />
+                          </Space>
+                        }
+                        style={{
+                          borderRadius: 10,
+                          borderColor: dragOverSprintId === "backlog" ? "#00897b" : "#d9d9d9",
+                          borderWidth: dragOverSprintId === "backlog" ? 2 : 1,
+                          backgroundColor: dragOverSprintId === "backlog" ? "#e6f7ff" : "#fff",
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverSprintId !== "backlog") setDragOverSprintId("backlog");
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverSprintId === "backlog") setDragOverSprintId(null);
+                        }}
+                        onDrop={() => handleDropWorkItemToSprint(draggedWorkItemId, null)}
+                      >
+                        <div style={{ minHeight: 60, padding: 8, borderRadius: 6 }}>
+                          {backlogItems.length === 0 ? (
+                            <Text type="secondary" style={{ fontSize: 12 }}>All work items are currently assigned to sprints!</Text>
+                          ) : (
+                            <Row gutter={[10, 10]}>
+                              {backlogItems.map((item) => (
+                                <Col xs={24} sm={12} md={8} lg={6} key={item._id}>
+                                  <div
+                                    draggable
+                                    onDragStart={() => setDraggedWorkItemId(item._id)}
+                                    onClick={() => { setSelectedWorkItem(item); setWorkItemDetailOpen(true); }}
+                                    style={{
+                                      padding: 10,
+                                      backgroundColor: "#fafafa",
+                                      borderRadius: 6,
+                                      border: "1px solid #e0e0e0",
+                                      cursor: "grab",
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                      <Tag color={item.type === "Bug" ? "red" : "cyan"} style={{ fontSize: 10, margin: 0 }}>
+                                        {item.type}
+                                      </Tag>
+                                      <Tag color={item.priority === "Urgent" ? "red" : "default"} style={{ fontSize: 10, margin: 0 }}>
+                                        {item.priority}
+                                      </Tag>
+                                    </div>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: "#222", lineClamp: 2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                      {item.title}
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 10, color: "#666" }}>
+                                      <span>Status: {item.status}</span>
+                                      <span>{item.assignee?.name || "Unassigned"}</span>
+                                    </div>
+                                  </div>
+                                </Col>
+                              ))}
+                            </Row>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* 4. COMPLETED SPRINTS ACCORDION / HISTORY */}
+                  {(() => {
+                    const completed = sprints.filter((s) => s.status === "Completed");
+                    if (completed.length === 0) return null;
+
+                    return (
+                      <Card size="small" title={`Completed Sprints (${completed.length})`} style={{ borderRadius: 10, backgroundColor: "#fafafa" }}>
+                        <List
+                          size="small"
+                          dataSource={completed}
+                          renderItem={(sprint) => (
+                            <List.Item key={sprint._id}>
+                              <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div>
+                                  <Text strong style={{ textDecoration: "line-through", color: "#8c8c8c" }}>{sprint.name}</Text>
+                                  <div style={{ fontSize: 11, color: "#8c8c8c" }}>
+                                    {dayjs(sprint.startDate).format("DD MMM YYYY")} — {dayjs(sprint.endDate).format("DD MMM YYYY")}
+                                  </div>
+                                </div>
+                                <Tag color="default">Completed</Tag>
+                              </div>
+                            </List.Item>
+                          )}
+                        />
+                      </Card>
+                    );
+                  })()}
+                </Space>
+              </div>
+            )
           }
         ]} />
       </Card>
@@ -3284,6 +3353,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <Col span={24}>
               <Form.Item name="title" label="Requirement / Project Title" rules={[{ required: true, message: "Please input title" }]}>
                 <Input placeholder="e.g. Android Customer Delivery App" />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item name="description" label="Project Description">
+                <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
               </Form.Item>
             </Col>
           </Row>

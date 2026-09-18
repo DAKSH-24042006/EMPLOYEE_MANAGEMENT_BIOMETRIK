@@ -36,7 +36,7 @@ export async function GET() {
 
     await dbConnect();
     const users = await User.find({})
-      .select("-password -faceReferenceImage")
+      .select("-password")
       .sort({ createdAt: -1 });
 
     return NextResponse.json(users);
@@ -128,11 +128,11 @@ export async function POST(req: Request) {
       microsoftEmail: normalizedEmail,
       password: hashedPassword,
       designation: (designation || "").trim(),
-      role: role || Role.SYSTEM_ADMIN,
+      role: role || Role.EMPLOYEE,
       status: status || UserStatus.ACTIVE,
     });
 
-    const userResponse = await User.findById(employee._id).select("-password -faceReferenceImage");
+    const userResponse = await User.findById(employee._id).select("-password");
 
     return NextResponse.json(userResponse, { status: 201 });
   } catch (error: any) {

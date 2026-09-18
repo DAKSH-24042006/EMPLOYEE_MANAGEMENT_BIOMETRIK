@@ -38,7 +38,7 @@ export default function LoginForm() {
       }
 
       // Check callback URL if provided
-      const callbackUrl = searchParams.get("callbackUrl");
+      const callbackUrl = searchParams ? searchParams.get("callbackUrl") : null;
       const targetPath = callbackUrl && !callbackUrl.startsWith("/auth") ? callbackUrl : data.redirect || "/dashboard";
 
       window.location.href = targetPath;

@@ -32,6 +32,7 @@ export interface ITimeline {
 
 export interface IProject extends Document {
   title: string;
+  description?: string;
   clientDetails: IClientDetails;
   features: IFeatures;
   extraAddOns?: string;
@@ -97,6 +98,10 @@ export interface IProject extends Document {
 const ProjectSchema: Schema = new Schema(
   {
     title: {
+      type: String,
+      default: "",
+    },
+    description: {
       type: String,
       default: "",
     },

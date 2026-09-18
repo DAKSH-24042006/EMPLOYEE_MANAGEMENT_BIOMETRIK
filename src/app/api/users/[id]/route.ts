@@ -78,7 +78,7 @@ export async function PATCH(
       id,
       updateData,
       { new: true, runValidators: true }
-    ).select("-password -faceReferenceImage");
+    ).select("-password");
 
     if (!user) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });

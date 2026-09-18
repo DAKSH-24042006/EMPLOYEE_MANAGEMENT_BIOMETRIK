@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     // Data restructuring to map exactly against Schema constraints
     const newProject = {
       title: data.title || "",
+      description: data.description || "",
       clientDetails: {
         companyName: data.companyName,
         contactPerson: data.contactPerson || "",

@@ -54,7 +54,6 @@ interface UserRecord {
   role: Role;
   phoneNumber?: string;
   location?: string;
-  faceReferenceImage?: string;
   createdAt: string;
 }
 
@@ -254,16 +253,6 @@ export default function UsersPage() {
       dataIndex: "location",
       key: "location",
       render: (loc) => <span style={{ color: "#676879" }}>{loc || "N/A"}</span>,
-    },
-    {
-      title: "Face Status",
-      key: "faceStatus",
-      render: (_, record) => (
-        <Badge
-          status={record.faceReferenceImage ? "success" : "default"}
-          text={record.faceReferenceImage ? "Registered" : "Not Registered"}
-        />
-      ),
     },
     {
       title: "Created At",
@@ -538,9 +527,9 @@ export default function UsersPage() {
             <Col xs={24} sm={12}>
               <Form.Item
                 name="location"
-                label="Location (auto-filled during face registration)"
+                label="Location"
               >
-                <Input placeholder="Captured when the user registers face" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
+                <Input placeholder="Enter employee work location (e.g. Remote, Mumbai)" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
               </Form.Item>
             </Col>
           </Row>

@@ -28,28 +28,7 @@ export async function POST(req: Request) {
         { microsoftEmail: identifier },
       ],
     }).select("+password");
-
-    // Special auto-bootstrap for default System Admin (admin / admin)
-    if (identifier === "admin" && password === "admin") {
-      const hashedPassword = await bcrypt.hash("admin", 10);
-      if (!user) {
-        user = await User.create({
-          name: "System Administrator",
-          username: "admin",
-          email: "admin@company.com",
-          password: hashedPassword,
-          designation: "System Administrator",
-          role: Role.SYSTEM_ADMIN,
-          status: UserStatus.ACTIVE,
-        });
-      } else if (!user.password || !(await bcrypt.compare("admin", user.password))) {
-        user.password = hashedPassword;
-        user.username = "admin";
-        user.role = Role.SYSTEM_ADMIN;
-        user.status = UserStatus.ACTIVE;
-        await user.save();
-      }
-    }
+
 
     if (!user) {
       return NextResponse.json(

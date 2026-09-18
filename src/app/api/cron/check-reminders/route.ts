@@ -11,8 +11,14 @@ export async function GET(req: Request) {
     const token = searchParams.get("token");
 
     // Secure token validation
-    const cronSecret = process.env.CRON_SECRET || "fallback_cron_secret";
-    if (token !== cronSecret) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json(
+        { error: "CRON_SECRET not configured on server" },
+        { status: 500 }
+      );
+    }
+    if (!token || token !== cronSecret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

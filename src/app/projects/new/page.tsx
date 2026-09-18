@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const PRIMARY_COLOR = "#00897b"; // Official Brand Teal
@@ -97,12 +98,15 @@ export default function NewProjectPage() {
 
       // 2. Upload attachments sequentially if selected
       if (fileList.length > 0) {
-        message.loading({ content: "Uploading file attachments...", key: "uploading" });
+        message.loading({ content: "Uploading file attachments to Project Drive...", key: "uploading" });
 
         let uploadCount = 0;
-        for (const fileObj of fileList) {
+        for (const fileItem of fileList) {
+          const rawFile = fileItem.originFileObj || fileItem;
+          const fileName = rawFile.name || fileItem.name || "attachment";
           const formData = new FormData();
-          formData.append("file", fileObj.originFileObj || fileObj);
+          formData.append("file", rawFile, fileName);
+          formData.append("folder", "/");
 
           try {
             const uploadRes = await fetch(`/api/projects/${projectId}/attachments`, {
@@ -111,13 +115,16 @@ export default function NewProjectPage() {
             });
             if (uploadRes.ok) {
               uploadCount++;
+            } else {
+              const errData = await uploadRes.json();
+              console.warn(`Failed to upload ${fileName}:`, errData.error);
             }
           } catch (err) {
             console.error("Failed to upload file during creation", err);
           }
         }
 
-        message.success({ content: `Project created and ${uploadCount} attachments uploaded!`, key: "uploading" });
+        message.success({ content: `Project created and ${uploadCount} document(s) uploaded to Project Drive!`, key: "uploading" });
       } else {
         message.success("Project created successfully!");
       }
@@ -233,9 +240,17 @@ export default function NewProjectPage() {
                 name="title"
                 label={<span style={{ fontWeight: 500 }}>Requirement / Project Title</span>}
                 rules={[{ required: true, message: "Requirement title is required" }]}
-                style={{ marginBottom: 24 }}
+                style={{ marginBottom: 16 }}
               >
                 <Input size="large" placeholder="E.g., Android Rider Delivery App" />
+              </Form.Item>
+
+              <Form.Item
+                name="description"
+                label={<span style={{ fontWeight: 500 }}>Project Description</span>}
+                style={{ marginBottom: 24 }}
+              >
+                <TextArea rows={3} placeholder="Provide an executive summary, scope, and objectives for this project..." />
               </Form.Item>
 
               <Row gutter={24}>
