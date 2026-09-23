@@ -8,7 +8,7 @@ import { Task } from "@/lib/models/Task";
  * Determines whether a user has permission to view a given project.
  * Projects can only be seen by:
  * 1. System Administrator (SYSTEM_ADMIN or ADMIN)
- * 2. Project Lead (techOwner)
+ * 2. Project Manager (techOwner)
  * 3. Users assigned to the project (techTeamMembers or assigned tasks/work items)
  */
 export async function canUserViewProject(
@@ -35,7 +35,7 @@ export async function canUserViewProject(
 
   const strUserId = String(userId);
 
-  // 2. Project Lead (techOwner)
+  // 2. Project Manager (techOwner)
   const leadId = project.techOwner?._id
     ? String(project.techOwner._id)
     : project.techOwner
@@ -49,12 +49,10 @@ export async function canUserViewProject(
   // 3. Assigned Team Members (techTeamMembers)
   if (Array.isArray(project.techTeamMembers)) {
     const isMember = project.techTeamMembers.some((m: any) => {
-      const mid = m?._id ? String(m._id) : String(m);
-      return mid === strUserId;
+      const mId = m?._id ? String(m._id) : String(m);
+      return mId === strUserId;
     });
-    if (isMember) {
-      return true;
-    }
+    if (isMember) return true;
   }
 
   // 4. Assigned to a Work Item or Task within the project
@@ -75,7 +73,7 @@ export async function canUserViewProject(
  * Constructs a MongoDB query filter to fetch only projects visible to the user:
  * - System Administrators receive `{}` (all projects).
  * - Other users receive a filter that matches where they are:
- *     a) Project Lead (techOwner)
+ *     a) Project Manager (techOwner)
  *     b) In Assigned Members (techTeamMembers)
  *     c) Assigned to a Work Item or Task in the project
  */

@@ -265,9 +265,9 @@ export default function DashboardPage() {
       },
     },
     {
-      title: "Lead",
+      title: "Project Manager",
       key: "lead",
-      width: 130,
+      width: 140,
       render: (_: any, record: ProjectType) => (
         <Text style={{ fontSize: 12, color: "#4b5563" }}>
           {record.techOwner?.name || "Unassigned"}

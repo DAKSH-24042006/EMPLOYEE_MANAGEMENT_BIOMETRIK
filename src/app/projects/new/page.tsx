@@ -154,8 +154,8 @@ export default function NewProjectPage() {
       <Card style={{ marginTop: 40, textAlign: "center", borderRadius: 12 }}>
         <Result
           status="403"
-          title="Access Restricted: System Admin Only"
-          subTitle="Only the System Administrator has authorization to create new projects."
+          title="Access Restricted: Admin Only"
+          subTitle="Only authorized administrators have authorization to create new projects."
           extra={
             <Button type="primary" onClick={() => router.push("/projects")}>
               Back to Projects
@@ -339,7 +339,7 @@ export default function NewProjectPage() {
                     </Text>
                   </div>
                 </div>
-                <Tag color="purple">System Admin Authorized</Tag>
+                <Tag color="purple">Admin Authorized</Tag>
               </div>
 
               <Row gutter={24}>

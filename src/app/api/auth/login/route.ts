@@ -8,24 +8,31 @@ import { Role, UserStatus } from "@/lib/constants";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const identifier = (body.username || body.email || body.identifier || "").trim().toLowerCase();
+    const rawIdentifier = (body.username || body.email || body.identifier || "").trim();
     const password = body.password || "";
 
-    if (!identifier || !password) {
+    if (!rawIdentifier || !password) {
       return NextResponse.json(
         { error: "Username and password are required" },
         { status: 400 }
       );
     }
 
+    const lowerIdentifier = rawIdentifier.toLowerCase();
+    const escapedIdentifier = rawIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const caseInsensitiveRegex = new RegExp(`^${escapedIdentifier}$`, "i");
+
     await dbConnect();
 
-    // Query user by username, email, or microsoftEmail
+    // Query user by username, email, or microsoftEmail (case-insensitive)
     let user = await User.findOne({
       $or: [
-        { username: identifier },
-        { email: identifier },
-        { microsoftEmail: identifier },
+        { username: lowerIdentifier },
+        { username: caseInsensitiveRegex },
+        { email: lowerIdentifier },
+        { email: caseInsensitiveRegex },
+        { microsoftEmail: lowerIdentifier },
+        { microsoftEmail: caseInsensitiveRegex },
       ],
     }).select("+password");
 

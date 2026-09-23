@@ -210,6 +210,7 @@ export async function PATCH(
 
     // Handle normal project update assignments
     if (body.title !== undefined) existingProject.title = body.title;
+    if (body.description !== undefined) existingProject.description = body.description;
     if (body.clientDetails !== undefined) {
       existingProject.clientDetails = {
         companyName: body.clientDetails.companyName ?? existingProject.clientDetails.companyName,
@@ -304,7 +305,7 @@ export async function PATCH(
     // Determine changed fields
     const changedFields: any[] = [];
     const fieldsToCompare = [
-      "title", "extraAddOns", "useCase", "targetUsers", "functionalRequirements", 
+      "title", "description", "extraAddOns", "useCase", "targetUsers", "functionalRequirements", 
       "nonFunctionalRequirements", "budget", "integrations", "priority", "status",
       "feasibilityStatus", "complexity", "estimatedEffort", "uatStatus", 
       "clientSignoffStatus", "projectClosed"
@@ -380,3 +381,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
+export const PUT = PATCH;
+

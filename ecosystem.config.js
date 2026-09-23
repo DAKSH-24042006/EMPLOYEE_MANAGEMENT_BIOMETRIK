@@ -1,10 +1,15 @@
 module.exports = {
-  apps: [{
-    name: 'requirement-dashboard-5018',
-    script: "server.js",
-    cwd: '/home/ubuntu/apps/requirement-dashboard',
-    exec_mode: 'fork',
-    instances: 1,
-    env: { NODE_ENV: 'production', PORT: 5018 },
-  }]
-}
+  apps: [
+    {
+      name: 'biometrik-workspace',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p ' + (process.env.PORT || 5018),
+      instances: 'max',
+      exec_mode: 'cluster',
+      env: {
+        NODE_ENV: 'production',
+        PORT: process.env.PORT || 5018,
+      },
+    },
+  ],
+};

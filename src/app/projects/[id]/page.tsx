@@ -32,6 +32,7 @@ import {
   Drawer,
   Switch,
   Result,
+  Spin,
 } from "antd";
 import {
   ArrowLeft,
@@ -66,6 +67,10 @@ import {
   ListTodo,
   ArrowUp,
   Crown,
+  Edit3,
+  Search,
+  Building2,
+  Shield,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -112,11 +117,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
   // New Lifecycle Modals & Drawers
   const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
   const [isWorkItemModalOpen, setIsWorkItemModalOpen] = useState(false);
+  const [submittingWorkItem, setSubmittingWorkItem] = useState(false);
   const [isTestCaseModalOpen, setIsTestCaseModalOpen] = useState(false);
   const [isRunTestModalOpen, setIsRunTestModalOpen] = useState(false);
   const [selectedTestCase, setSelectedTestCase] = useState<any>(null);
   const [workItemDetailOpen, setWorkItemDetailOpen] = useState(false);
   const [selectedWorkItem, setSelectedWorkItem] = useState<any>(null);
+  const [isEditWorkItemModalOpen, setIsEditWorkItemModalOpen] = useState(false);
+  const [editingWorkItem, setEditingWorkItem] = useState<any>(null);
+  const [editWorkItemForm] = Form.useForm();
+  const [submittingEditWorkItem, setSubmittingEditWorkItem] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [teamForm] = Form.useForm();
 
@@ -133,6 +143,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workFilterSprint, setWorkFilterSprint] = useState<string>("All");
   const [workFilterPriority, setWorkFilterPriority] = useState<string>("All");
   const [workFilterOverdue, setWorkFilterOverdue] = useState<boolean>(false);
+  const [workSearchQuery, setWorkSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("work-items");
   const [todoStatusFilter, setTodoStatusFilter] = useState<"all" | "todo" | "inprogress" | "blocked" | "completed" | "overdue">("all");
 
@@ -173,6 +184,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [runTestForm] = Form.useForm();
   const [workLogForm] = Form.useForm();
   const [commentForm] = Form.useForm();
+  const [selfTaskForm] = Form.useForm();
+  const [isSelfTaskModalOpen, setIsSelfTaskModalOpen] = useState(false);
+  const [submittingSelfTask, setSubmittingSelfTask] = useState(false);
 
   // Chat message & mentions state
   const [chatInput, setChatInput] = useState("");
@@ -232,6 +246,40 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
     return list.length > 0 ? list : users;
   }, [project, users]);
+
+  // Mentions list for Project Chat (includes System Admins and Project Team)
+  const chatMentionOptions = React.useMemo(() => {
+    const list: { label: string; value: string }[] = [];
+    const addedIds = new Set<string>();
+
+    // 1. System Admins (allow tagging System Admins!)
+    const sysAdmins = users.filter((u: any) => u.role === "SYSTEM_ADMIN" || u.role === "ADMIN");
+    sysAdmins.forEach((sa: any) => {
+      const saId = String(sa._id || sa.id);
+      if (!addedIds.has(saId)) {
+        list.push({
+          label: `@${sa.name} (Admin)`,
+          value: saId,
+        });
+        addedIds.add(saId);
+      }
+    });
+
+    // 2. Project Team Members & Project Manager
+    projectTeamMembers.forEach((u: any) => {
+      const uId = String(u._id || u.id);
+      if (!addedIds.has(uId)) {
+        const isPM = techOwnerId && String(uId) === String(techOwnerId);
+        list.push({
+          label: `@${u.name}${isPM ? " (Project Manager)" : ""}`,
+          value: uId,
+        });
+        addedIds.add(uId);
+      }
+    });
+
+    return list;
+  }, [users, projectTeamMembers, techOwnerId]);
 
   // Initialize
   useEffect(() => {
@@ -367,32 +415,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
         editForm.setFieldsValue({
           title: json.data.title,
           description: json.data.description || "",
-          companyName: json.data.clientDetails.companyName,
-          contactPerson: json.data.clientDetails.contactPerson,
-          email: json.data.clientDetails.email,
-          visitorManagement: !!json.data.features.visitorManagement,
-          attendanceManagement: !!json.data.features.attendanceManagement,
-          digilockerAuthentication: !!json.data.features.digilockerAuthentication,
-          webApp: !!json.data.features.webApp,
-          androidApp: !!json.data.features.androidApp,
-          iosApp: !!json.data.features.iosApp,
-          videoKYC: !!json.data.features.videoKYC,
-          rbac: !!json.data.features.rbac,
-          adminPanel: !!json.data.features.adminPanel,
-          online: !!json.data.features.online,
-          offline: !!json.data.features.offline,
-          cloud: !!json.data.features.cloud,
-          onPremise: !!json.data.features.onPremise,
-          extraAddOns: json.data.extraAddOns,
-          useCase: json.data.useCase,
-          targetUsers: json.data.targetUsers,
-          functionalRequirements: json.data.functionalRequirements,
-          nonFunctionalRequirements: json.data.nonFunctionalRequirements,
-          budget: json.data.budget,
-          integrations: json.data.integrations,
           priority: json.data.priority,
           status: json.data.status,
-          timeline: [dayjs(json.data.timeline.startDate), dayjs(json.data.timeline.endDate)],
+          timeline: json.data.timeline?.startDate && json.data.timeline?.endDate
+            ? [dayjs(json.data.timeline.startDate), dayjs(json.data.timeline.endDate)]
+            : undefined,
         });
       } else {
         message.error("Failed to fetch project");
@@ -589,6 +616,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   };
 
   const fetchActivities = async () => {
+    if (!isProjectLead) return;
     try {
       const res = await fetch(`/api/projects/${id}/activities`, { cache: "no-store" });
       const json = await res.json();
@@ -620,35 +648,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
   // Operations
   const handleUpdateProject = async (values: any) => {
     try {
-      const payload = {
+      const payload: any = {
         title: values.title,
-        clientDetails: {
-          companyName: values.companyName,
-          contactPerson: values.contactPerson,
-          email: values.email,
-        },
-        features: {
-          visitorManagement: !!values.visitorManagement,
-          attendanceManagement: !!values.attendanceManagement,
-          digilockerAuthentication: !!values.digilockerAuthentication,
-          webApp: !!values.webApp,
-          androidApp: !!values.androidApp,
-          iosApp: !!values.iosApp,
-          videoKYC: !!values.videoKYC,
-          rbac: !!values.rbac,
-          adminPanel: !!values.adminPanel,
-          online: !!values.online,
-          offline: !!values.offline,
-          cloud: !!values.cloud,
-          onPremise: !!values.onPremise,
-        },
-        extraAddOns: values.extraAddOns,
-        useCase: values.useCase,
-        targetUsers: values.targetUsers,
-        functionalRequirements: values.functionalRequirements,
-        nonFunctionalRequirements: values.nonFunctionalRequirements,
-        budget: values.budget,
-        integrations: values.integrations,
+        description: values.description,
         priority: values.priority,
         status: values.status,
         timeline: values.timeline ? [values.timeline[0].toISOString(), values.timeline[1].toISOString()] : undefined,
@@ -1016,6 +1018,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
       message.error("Only the Project Manager or System Admin can create and assign work items.");
       return;
     }
+    setSubmittingWorkItem(true);
     try {
       const res = await fetch(`/api/projects/${id}/work-items`, {
         method: "POST",
@@ -1023,7 +1026,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         body: JSON.stringify(values),
       });
       if (res.ok) {
-        message.success("Work item created!");
+        message.success("Work item created successfully!");
         setIsWorkItemModalOpen(false);
         workItemForm.resetFields();
         fetchWorkItems();
@@ -1034,6 +1037,42 @@ function ProjectDetailsClient({ id }: { id: string }) {
       }
     } catch (err) {
       message.error("Failed to create work item");
+    } finally {
+      setSubmittingWorkItem(false);
+    }
+  };
+
+  const handleCreateSelfTask = async (values: any) => {
+    try {
+      setSubmittingSelfTask(true);
+      const payload: any = {
+        title: values.title.trim(),
+        description: values.description || "",
+        priority: values.priority || "Medium",
+        status: values.status || "To Do",
+        type: values.type || "Task",
+        dueDate: undefined,
+        assignee: currentUserId,
+      };
+
+      const res = await fetch(`/api/projects/${id}/work-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create task");
+
+      message.success("Task created for yourself and added to project work items!");
+      setIsSelfTaskModalOpen(false);
+      selfTaskForm.resetFields();
+      fetchWorkItems();
+      fetchActivities();
+    } catch (err: any) {
+      message.error(err.message || "Failed to create task");
+    } finally {
+      setSubmittingSelfTask(false);
     }
   };
 
@@ -1056,6 +1095,91 @@ function ProjectDetailsClient({ id }: { id: string }) {
       }
     } catch (err) {
       message.error("Failed to update work item");
+    }
+  };
+
+  const openEditWorkItem = (item: any) => {
+    if (!item) return;
+    setEditingWorkItem(item);
+    editWorkItemForm.resetFields();
+    editWorkItemForm.setFieldsValue({
+      title: item.title,
+      description: item.description || "",
+      type: item.type || "Task",
+      priority: item.priority || "Medium",
+      status: item.status || "To Do",
+      assignee: item.assignee?._id || item.assignee || undefined,
+      sprint: item.sprint?._id || item.sprint || undefined,
+      dueDate: item.dueDate ? dayjs(item.dueDate) : undefined,
+      estimatedHours: item.estimatedHours !== undefined ? item.estimatedHours : undefined,
+      progress: item.progress !== undefined ? item.progress : 0,
+    });
+    setIsEditWorkItemModalOpen(true);
+  };
+
+  const handleSaveEditWorkItem = async (values: any) => {
+    if (!editingWorkItem) return;
+    setSubmittingEditWorkItem(true);
+    try {
+      const payload: any = {
+        title: values.title,
+        description: values.description,
+        type: values.type,
+        priority: values.priority,
+        status: values.status,
+        assignee: values.assignee || null,
+        sprint: values.sprint || null,
+        dueDate: values.dueDate ? values.dueDate.toISOString() : null,
+        estimatedHours: values.estimatedHours !== undefined && values.estimatedHours !== "" ? Number(values.estimatedHours) : 0,
+        progress: values.progress !== undefined && values.progress !== "" ? Number(values.progress) : 0,
+      };
+
+      const res = await fetch(`/api/projects/${id}/work-items/${editingWorkItem._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        message.success("Task updated successfully!");
+        setIsEditWorkItemModalOpen(false);
+        setEditingWorkItem(null);
+        fetchWorkItems();
+        fetchActivities();
+        if (selectedWorkItem?._id === editingWorkItem._id) {
+          const json = await res.json();
+          setSelectedWorkItem(json.data);
+        }
+      } else {
+        const err = await res.json();
+        message.error(err.error || "Failed to update task");
+      }
+    } catch (err: any) {
+      message.error("Failed to update task");
+    } finally {
+      setSubmittingEditWorkItem(false);
+    }
+  };
+
+  const handleDeleteWorkItem = async (itemId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/work-items/${itemId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        message.success("Work item deleted successfully!");
+        fetchWorkItems();
+        fetchActivities();
+        if (selectedWorkItem?._id === itemId) {
+          setSelectedWorkItem(null);
+          setWorkItemDetailOpen(false);
+        }
+      } else {
+        const err = await res.json();
+        message.error(err.error || "Failed to delete work item");
+      }
+    } catch (err) {
+      message.error("Failed to delete work item");
     }
   };
 
@@ -1251,6 +1375,92 @@ function ProjectDetailsClient({ id }: { id: string }) {
     }
   };
 
+  // Unified Biometrik Palette Helpers
+  const getProjectStatusStyle = (status: string) => {
+    switch (status) {
+      case "Requirement Created":
+      case "Planning":
+        return { bg: "#f0fdfa", color: "#0f766e", border: "#b2dfdb", dot: "#00897b" };
+      case "Submitted for Tech Review":
+      case "Signoff Pending":
+        return { bg: "#f4f8f7", color: "#00695c", border: "#80cbc4", dot: "#00897b" };
+      case "Development":
+      case "Active":
+        return { bg: "#e0f2f1", color: "#004d40", border: "#4db6ac", dot: "#00897b" };
+      case "Testing/UAT":
+        return { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0", dot: "#22c55e" };
+      case "Delivered":
+      case "Completed":
+      case "Technically Approved":
+        return { bg: "#ecfdf5", color: "#065f46", border: "#a7f3d0", dot: "#10b981" };
+      case "Clarification Required":
+      case "Pending":
+        return { bg: "#fffbeb", color: "#92400e", border: "#fde68a", dot: "#f59e0b" };
+      default:
+        return { bg: "#f3f4f6", color: "#374151", border: "#e5e7eb", dot: "#9ca3af" };
+    }
+  };
+
+  const getProjectPriorityStyle = (priority: string = "Medium") => {
+    switch (priority?.toLowerCase()) {
+      case "critical":
+        return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca" };
+      case "high":
+        return { bg: "#fff7ed", color: "#9a3412", border: "#fed7aa" };
+      case "medium":
+        return { bg: "#f0fdfa", color: "#0f766e", border: "#ccfbf1" };
+      default:
+        return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0" };
+    }
+  };
+
+  const getWorkItemPriorityStyle = (p: string = "Medium") => {
+    switch (p?.toLowerCase()) {
+      case "urgent":
+      case "critical":
+        return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca" };
+      case "high":
+        return { bg: "#fff7ed", color: "#9a3412", border: "#fed7aa" };
+      case "medium":
+        return { bg: "#f0fdfa", color: "#0f766e", border: "#ccfbf1" };
+      default:
+        return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0" };
+    }
+  };
+
+  const getWorkItemStatusStyle = (s: string = "Backlog") => {
+    switch (s?.toLowerCase()) {
+      case "done":
+      case "completed":
+        return { bg: "#ecfdf5", color: "#065f46", border: "#a7f3d0", dot: "#10b981" };
+      case "in progress":
+        return { bg: "#e0f2f1", color: "#004d40", border: "#80cbc4", dot: "#00897b" };
+      case "in review":
+        return { bg: "#fffbeb", color: "#92400e", border: "#fde68a", dot: "#f59e0b" };
+      case "testing":
+        return { bg: "#f5f3ff", color: "#5b21b6", border: "#ddd6fe", dot: "#8b5cf6" };
+      case "blocked":
+        return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca", dot: "#ef4444" };
+      case "to do":
+        return { bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe", dot: "#3b82f6" };
+      default:
+        return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" };
+    }
+  };
+
+  const getWorkItemTypeStyle = (t: string = "Task") => {
+    switch (t?.toLowerCase()) {
+      case "bug":
+        return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca" };
+      case "feature":
+        return { bg: "#f0fdfa", color: "#0f766e", border: "#ccfbf1" };
+      case "story":
+        return { bg: "#faf5ff", color: "#6b21a8", border: "#e9d5ff" };
+      default:
+        return { bg: "#f1f5f9", color: "#334155", border: "#cbd5e1" };
+    }
+  };
+
   if (accessDenied) {
     return (
       <div style={{ padding: "60px 20px", display: "flex", justifyContent: "center" }}>
@@ -1316,6 +1526,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
       const aid = item.assignee?._id || item.assignee;
       if (String(aid) !== String(currentUserId)) return false;
     }
+    if (workSearchQuery.trim()) {
+      const q = workSearchQuery.toLowerCase().trim();
+      const titleMatch = (item.title || "").toLowerCase().includes(q);
+      const descMatch = (item.description || "").toLowerCase().includes(q);
+      const assigneeName = (item.assignee?.name || "").toLowerCase();
+      if (!titleMatch && !descMatch && !assigneeName.includes(q)) return false;
+    }
     if (workFilterStatus !== "All" && item.status !== workFilterStatus) return false;
     if (workFilterAssignee !== "All" && (item.assignee?._id || item.assignee) !== workFilterAssignee) return false;
     if (workFilterSprint !== "All" && (item.sprint?._id || item.sprint) !== workFilterSprint) return false;
@@ -1327,129 +1544,438 @@ function ProjectDetailsClient({ id }: { id: string }) {
     return true;
   });
 
+  const totalTasksCount = workItems.length;
+  const inProgressTasksCount = workItems.filter(w => w.status === "In Progress" || w.status === "In Review" || w.status === "Testing").length;
+  const doneTasksCount = workItems.filter(w => w.status === "Done" || w.status === "Completed").length;
+  const overdueTasksCount = workItems.filter(w => w.dueDate && dayjs(w.dueDate).isBefore(dayjs(), "day") && w.status !== "Done" && w.status !== "Cancelled").length;
+
+  const projEndDate = dayjs(project.timeline?.endDate);
+  const projDiffDays = projEndDate.diff(dayjs(), "day");
+  const projIsOverdue = projDiffDays < 0;
+  const projTimelineRemaining = projIsOverdue
+    ? `${Math.abs(projDiffDays)}d overdue`
+    : projDiffDays === 0
+    ? "Due today"
+    : `${projDiffDays}d remaining`;
+
+  const projectStatusStyle = getProjectStatusStyle(project.status);
+  const projectPriorityStyle = getProjectPriorityStyle(project.priority);
+
   return (
     <div style={{ width: "100%", maxWidth: 1300, margin: "0 auto", paddingBottom: 50, minWidth: 0 }}>
       {/* Header Bar */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ marginBottom: 12 }}>
-          <Link href="/projects" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#64748b", fontSize: 13, fontWeight: 500 }}>
-            <ArrowLeft size={14} /> Back to Projects
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
+          <Link
+            href="/projects"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              color: "#00897b",
+              fontSize: 13,
+              fontWeight: 600,
+              transition: "all 0.2s ease",
+            }}
+            className="hover:text-teal-800"
+          >
+            <ArrowLeft size={15} /> Back to Projects
           </Link>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-          <div style={{ flex: 1, minWidth: 320 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-              <Title level={2} style={{ margin: 0, fontWeight: 700, color: "#0f172a", fontSize: 24 }}>
+        {/* Title and Top Actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 300 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Title level={2} style={{ margin: 0, fontWeight: 700, color: "#0f172a", fontSize: 24, letterSpacing: "-0.3px" }}>
                 {project.title || project.clientDetails?.companyName || "Unnamed Project"}
               </Title>
-              <Tag color={getStatusColor(project.status)} style={{ borderRadius: 12, padding: "2px 10px", fontWeight: 600, margin: 0 }}>
+              
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: projectStatusStyle.bg,
+                  color: projectStatusStyle.color,
+                  border: `1px solid ${projectStatusStyle.border}`,
+                  borderRadius: 14,
+                  padding: "2px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: projectStatusStyle.dot,
+                    display: "inline-block",
+                  }}
+                />
                 {project.status || "Active"}
-              </Tag>
-              <Tag color={getPriorityColor(project.priority)} style={{ borderRadius: 12, padding: "2px 10px", fontWeight: 600, margin: 0 }}>
+              </div>
+
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  background: projectPriorityStyle.bg,
+                  color: projectPriorityStyle.color,
+                  border: `1px solid ${projectPriorityStyle.border}`,
+                  borderRadius: 14,
+                  padding: "2px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
                 {project.priority || "Medium"} Priority
-              </Tag>
+              </div>
+
               {openBlockersList.length > 0 && (
-                <Badge count={openBlockersList.length} style={{ backgroundColor: "#ff4d4f" }}>
-                  <Tag color="error" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4, borderRadius: 12 }}>
-                    <AlertOctagon size={12} /> Blocked
-                  </Tag>
-                </Badge>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    background: "#fef2f2",
+                    color: "#991b1b",
+                    border: "1px solid #fecaca",
+                    borderRadius: 14,
+                    padding: "2px 9px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  <AlertOctagon size={12} /> {openBlockersList.length} Blocked
+                </div>
               )}
             </div>
-
-            {/* Leadership & System Metadata */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, margin: "14px 0 16px", fontSize: 13 }}>
-              <div>
-                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
-                  Project Manager
-                </Text>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "#0f172a", marginTop: 3 }}>
-                  <Avatar size={20} icon={<UserIcon size={12} />} style={{ backgroundColor: "#00897b" }} />
-                  <span>{project.techOwner?.name || "Daksh Sheregar"}</span>
-                </div>
-              </div>
-
-              <div>
-                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
-                  System Administrator
-                </Text>
-                <div style={{ fontWeight: 600, color: "#334155", marginTop: 3 }}>
-                  {project.createdBy?.name || "System Administrator"}
-                </div>
-              </div>
-
-              <div>
-                <Text type="secondary" style={{ display: "block", fontSize: 11, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
-                  Timeline
-                </Text>
-                <div style={{ fontWeight: 500, color: "#475569", marginTop: 3 }}>
-                  {dayjs(project.timeline?.startDate).format("DD MMM YYYY")} – {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
-                </div>
-              </div>
-            </div>
-
-            {project.description && (
-              <div style={{
-                marginTop: 10,
-                padding: "12px 16px",
-                background: "#f0fdfa",
-                border: "1px solid #ccfbf1",
-                borderRadius: 10,
-                maxWidth: 950,
-              }}>
-                <Text strong style={{ fontSize: 12, color: "#00897b", display: "block", marginBottom: 3 }}>
-                  Project Description:
-                </Text>
-                <Paragraph style={{ margin: 0, fontSize: 13, color: "#334155", whiteSpace: "pre-wrap", lineHeight: "20px" }}>
-                  {project.description}
-                </Paragraph>
-              </div>
-            )}
           </div>
 
-          <Space>
+          <Space size={10} wrap>
             <Button
-              icon={<FilePdfOutlined />}
+              icon={<FilePdfOutlined style={{ color: "#00897b" }} />}
               loading={generatingPDF}
               onClick={handleGeneratePDF}
-              style={{ color: "#00897b", borderColor: "#00897b" }}
+              style={{
+                borderColor: "#00897b",
+                color: "#00897b",
+                borderRadius: 8,
+                fontWeight: 500,
+                height: 36,
+              }}
             >
               Generate PDF
             </Button>
+
             {(currentUser?.role === "SYSTEM_ADMIN" || currentUser?.role === "ADMIN" || currentUser?.role === "SALES" || currentUser?.role === "SALES_TEAM") && (
-              <Button type="primary" onClick={() => setIsEditModalOpen(true)} style={{ backgroundColor: "#00897b", border: "none" }}>
+              <Button
+                type="primary"
+                onClick={() => {
+                  if (project) {
+                    editForm.setFieldsValue({
+                      title: project.title,
+                      description: project.description || "",
+                      priority: project.priority,
+                      status: project.status,
+                      timeline: project.timeline?.startDate && project.timeline?.endDate
+                        ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
+                        : undefined,
+                    });
+                  }
+                  setIsEditModalOpen(true);
+                }}
+                style={{
+                  backgroundColor: "#00897b",
+                  borderColor: "#00897b",
+                  borderRadius: 8,
+                  fontWeight: 500,
+                  height: 36,
+                }}
+              >
                 Edit Specifications
               </Button>
             )}
           </Space>
         </div>
+
+        {/* 4 Executive Metadata Cards */}
+        <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
+          {/* Card 1: Project Manager */}
+          <Col xs={24} sm={12} lg={6}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                height: "100%",
+              }}
+            >
+              <Avatar
+                size={34}
+                style={{ backgroundColor: "#00897b", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+              >
+                {(project.techOwner?.name || "Daksh Sheregar").charAt(0).toUpperCase()}
+              </Avatar>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                  Project Manager
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {project.techOwner?.name || "Daksh Sheregar"}
+                </div>
+              </div>
+            </div>
+          </Col>
+
+          {/* Card 2: Creator / Admin */}
+          <Col xs={24} sm={12} lg={6}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                height: "100%",
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  background: "#f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#475569",
+                  flexShrink: 0,
+                }}
+              >
+                <Shield size={16} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                  Created By
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {project.createdBy?.name || "System Administrator"}
+                </div>
+              </div>
+            </div>
+          </Col>
+
+          {/* Card 3: Timeline */}
+          <Col xs={24} sm={12} lg={6}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                height: "100%",
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  background: "#f0fdfa",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#00897b",
+                  flexShrink: 0,
+                }}
+              >
+                <CalendarIcon size={16} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                    Timeline
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: projIsOverdue ? "#b91c1c" : "#00796b" }}>
+                    {projTimelineRemaining}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {dayjs(project.timeline?.startDate).format("DD MMM")} – {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
+                </div>
+              </div>
+            </div>
+          </Col>
+
+          {/* Card 4: Client Information */}
+          <Col xs={24} sm={12} lg={6}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                height: "100%",
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  background: "#eff6ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#2563eb",
+                  flexShrink: 0,
+                }}
+              >
+                <Building2 size={16} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                  Client Partner
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {project.clientDetails?.companyName || "Client"}
+                </div>
+              </div>
+            </div>
+          </Col>
+        </Row>
+
+        {/* Executive Overview Container */}
+        {project.description && (
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderLeft: "3.5px solid #00897b",
+              borderRadius: 8,
+              marginBottom: 14,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 3 }}>
+              Project Scope & Overview
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "#334155", lineHeight: "20px", whiteSpace: "pre-wrap" }}>
+              {project.description}
+            </p>
+          </div>
+        )}
+
+        {/* Quick KPI Strip */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 10,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            padding: "8px 12px",
+            borderRadius: 8,
+          }}
+        >
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+            <span style={{ fontWeight: 600, color: "#0f172a" }}>Total Work Items:</span>
+            <Tag style={{ margin: 0, background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 10, fontWeight: 600 }}>{totalTasksCount}</Tag>
+          </div>
+          <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+            <span style={{ fontWeight: 600, color: "#0284c7" }}>In Progress:</span>
+            <Tag style={{ margin: 0, background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1", borderRadius: 10, fontWeight: 600 }}>{inProgressTasksCount}</Tag>
+          </div>
+          <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+            <span style={{ fontWeight: 600, color: "#16a34a" }}>Completed:</span>
+            <Tag style={{ margin: 0, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 10, fontWeight: 600 }}>{doneTasksCount}</Tag>
+          </div>
+          {overdueTasksCount > 0 && (
+            <>
+              <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#dc2626" }}>
+                <span style={{ fontWeight: 600 }}>Overdue:</span>
+                <Tag color="error" style={{ margin: 0, borderRadius: 10, fontWeight: 600 }}>{overdueTasksCount}</Tag>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Main Tabs */}
-      <Card variant="borderless" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", minWidth: 0, maxWidth: "100%" }}>
+      <Card variant="borderless" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.04)", border: "1px solid #e2e8f0", minWidth: 0, maxWidth: "100%" }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
           ...(isProjectLead ? [{
             key: "work-items",
-            label: "Work Items & Tasks",
+            label: (
+              <Space size={6}>
+                <CheckSquare size={14} />
+                <span>Work Items & Tasks</span>
+                <Badge count={workItems.length} size="small" style={{ backgroundColor: "#00897b" }} />
+              </Space>
+            ),
             children: (
-              <div style={{ padding: "12px 0" }}>
-                {/* Filters Row */}
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                  <Space size={12} wrap>
-                    <Select value={workFilterStatus} onChange={setWorkFilterStatus} style={{ width: 120 }}>
+              <div style={{ padding: "8px 0" }}>
+                {/* Filters & Actions Row */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    marginBottom: 16,
+                    padding: "10px 14px",
+                    background: "#f8fafc",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <Space size={10} wrap style={{ flex: 1, minWidth: 280 }}>
+                    <Input
+                      placeholder="Search tasks or assignees..."
+                      prefix={<Search size={14} color="#94a3b8" />}
+                      value={workSearchQuery}
+                      onChange={(e) => setWorkSearchQuery(e.target.value)}
+                      allowClear
+                      style={{ width: 220, borderRadius: 6 }}
+                    />
+                    <Select value={workFilterStatus} onChange={setWorkFilterStatus} style={{ width: 130 }}>
                       <Select.Option value="All">All Statuses</Select.Option>
                       {["Backlog", "To Do", "In Progress", "Blocked", "In Review", "Testing", "Done", "Cancelled"].map(s => (
                         <Select.Option key={s} value={s}>{s}</Select.Option>
                       ))}
                     </Select>
-                    <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 160 }} placeholder="Assignee">
+                    <Select value={workFilterAssignee} onChange={setWorkFilterAssignee} style={{ width: 150 }} placeholder="Assignee">
                       <Select.Option value="All">All Assignees</Select.Option>
                       {users.map(u => (
                         <Select.Option key={u._id} value={u._id}>{u.name}</Select.Option>
                       ))}
                     </Select>
-                    <Select value={workFilterSprint} onChange={setWorkFilterSprint} style={{ width: 140 }} placeholder="Sprint">
+                    <Select value={workFilterSprint} onChange={setWorkFilterSprint} style={{ width: 130 }} placeholder="Sprint">
                       <Select.Option value="All">All Sprints</Select.Option>
                       {sprints.map(s => (
                         <Select.Option key={s._id} value={s._id}>{s.name}</Select.Option>
@@ -1462,8 +1988,25 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       ))}
                     </Select>
                     <Checkbox checked={workFilterOverdue} onChange={e => setWorkFilterOverdue(e.target.checked)}>
-                      Show Overdue Only
+                      <span style={{ fontSize: 13, color: "#475569" }}>Show Overdue</span>
                     </Checkbox>
+                    {(workSearchQuery || workFilterStatus !== "All" || workFilterAssignee !== "All" || workFilterSprint !== "All" || workFilterPriority !== "All" || workFilterOverdue) && (
+                      <Button
+                        size="small"
+                        type="text"
+                        onClick={() => {
+                          setWorkSearchQuery("");
+                          setWorkFilterStatus("All");
+                          setWorkFilterAssignee("All");
+                          setWorkFilterSprint("All");
+                          setWorkFilterPriority("All");
+                          setWorkFilterOverdue(false);
+                        }}
+                        style={{ color: "#00897b", fontSize: 12 }}
+                      >
+                        Reset Filters
+                      </Button>
+                    )}
                   </Space>
 
                   <Space>
@@ -1471,7 +2014,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       type="primary"
                       icon={<Plus size={14} />}
                       onClick={() => setIsWorkItemModalOpen(true)}
-                      style={{ backgroundColor: "#00897b", border: "none" }}
+                      style={{
+                        backgroundColor: "#00897b",
+                        borderColor: "#00897b",
+                        borderRadius: 6,
+                        fontWeight: 500,
+                      }}
                     >
                       Create Work Item
                     </Button>
@@ -1487,55 +2035,200 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       title: "Title",
                       dataIndex: "title",
                       key: "title",
-                      render: (text, record: any) => (
-                        <Space direction="vertical" size={2}>
-                          <a onClick={() => { setSelectedWorkItem(record); setWorkItemDetailOpen(true); }} style={{ fontWeight: 600, color: "#00897b" }}>
-                            {text}
-                          </a>
-                          <Space size={4}>
-                            <Tag color={record.type === "Bug" ? "red" : record.type === "Feature" ? "cyan" : "blue"} style={{ fontSize: 10 }}>{record.type}</Tag>
-                            {record.dueDate && dayjs(record.dueDate).isBefore(dayjs(), "day") && record.status !== "Done" && (
-                              <Tag color="error" style={{ fontSize: 10 }}>Overdue</Tag>
-                            )}
-                          </Space>
-                        </Space>
-                      )
+                      render: (text, record: any) => {
+                        const typeStyle = getWorkItemTypeStyle(record.type);
+                        const isTaskOverdue = record.dueDate && dayjs(record.dueDate).isBefore(dayjs(), "day") && record.status !== "Done" && record.status !== "Cancelled";
+
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <a
+                              onClick={() => { setSelectedWorkItem(record); setWorkItemDetailOpen(true); }}
+                              style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, transition: "color 0.2s" }}
+                              className="hover:text-teal-700"
+                            >
+                              {text}
+                            </a>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  background: typeStyle.bg,
+                                  color: typeStyle.color,
+                                  border: `1px solid ${typeStyle.border}`,
+                                }}
+                              >
+                                {record.type}
+                              </span>
+                              {isTaskOverdue && (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    padding: "1px 6px",
+                                    borderRadius: 4,
+                                    background: "#fef2f2",
+                                    color: "#991b1b",
+                                    border: "1px solid #fecaca",
+                                  }}
+                                >
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
                     },
                     {
                       title: "Assignee",
                       dataIndex: ["assignee", "name"],
                       key: "assignee",
-                      render: (name) => name || <Text type="secondary">Unassigned</Text>
+                      render: (name) => {
+                        if (!name) return <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}>Unassigned</Text>;
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Avatar size={22} style={{ backgroundColor: "#00897b", fontSize: 11, fontWeight: 600 }}>
+                              {name.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{name}</span>
+                          </div>
+                        );
+                      }
                     },
                     {
                       title: "Sprint",
                       dataIndex: ["sprint", "name"],
                       key: "sprint",
-                      render: (name) => name || <Text type="secondary">Backlog</Text>
+                      render: (name) => {
+                        const sprintName = name || "Backlog";
+                        const isBacklog = sprintName.toLowerCase() === "backlog";
+                        return (
+                          <Tag
+                            style={{
+                              margin: 0,
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 500,
+                              background: isBacklog ? "#f1f5f9" : "#eff6ff",
+                              color: isBacklog ? "#475569" : "#1d4ed8",
+                              border: `1px solid ${isBacklog ? "#cbd5e1" : "#bfdbfe"}`,
+                            }}
+                          >
+                            {sprintName}
+                          </Tag>
+                        );
+                      }
                     },
                     {
                       title: "Priority",
                       dataIndex: "priority",
                       key: "priority",
-                      render: (p: string) => <Tag color={p === "Urgent" ? "red" : p === "High" ? "orange" : "blue"}>{p}</Tag>
+                      render: (p: string = "Medium") => {
+                        const pStyle = getWorkItemPriorityStyle(p);
+                        return (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: 12,
+                              background: pStyle.bg,
+                              color: pStyle.color,
+                              border: `1px solid ${pStyle.border}`,
+                            }}
+                          >
+                            {p}
+                          </span>
+                        );
+                      }
                     },
                     {
                       title: "Status",
                       dataIndex: "status",
                       key: "status",
-                      render: (s: string) => <Tag color={s === "Done" ? "green" : s === "Blocked" ? "red" : "default"}>{s}</Tag>
+                      render: (s: string = "Backlog") => {
+                        const sStyle = getWorkItemStatusStyle(s);
+                        return (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: 12,
+                              background: sStyle.bg,
+                              color: sStyle.color,
+                              border: `1px solid ${sStyle.border}`,
+                            }}
+                          >
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: sStyle.dot }} />
+                            {s}
+                          </span>
+                        );
+                      }
                     },
                     {
                       title: "Progress",
                       dataIndex: "progress",
                       key: "progress",
-                      render: (p) => <Progress percent={p} size="small" />
+                      width: 130,
+                      render: (p) => (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Progress percent={p || 0} showInfo={false} strokeColor={p === 100 ? "#10b981" : "#00897b"} size="small" style={{ flex: 1, margin: 0 }} />
+                          <span style={{ fontSize: 11, fontWeight: 600, color: p === 100 ? "#16a34a" : "#00897b", minWidth: 26, textAlign: "right" }}>
+                            {p || 0}%
+                          </span>
+                        </div>
+                      )
                     },
                     {
                       title: "Due Date",
                       dataIndex: "dueDate",
                       key: "dueDate",
-                      render: (d) => d ? dayjs(d).format("DD MMM YYYY") : "N/A"
+                      render: (d, record: any) => {
+                        if (!d) return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
+                        const isTaskOverdue = dayjs(d).isBefore(dayjs(), "day") && record.status !== "Done" && record.status !== "Cancelled";
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: isTaskOverdue ? "#b91c1c" : "#475569", fontWeight: isTaskOverdue ? 600 : 400 }}>
+                            <CalendarIcon size={12} style={{ color: isTaskOverdue ? "#b91c1c" : "#94a3b8" }} />
+                            <span>{dayjs(d).format("DD MMM YYYY")}</span>
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      title: "Actions",
+                      key: "actions",
+                      width: 110,
+                      render: (_: any, record: any) => (
+                        <Space size={6}>
+                          <Button
+                            size="small"
+                            icon={<Edit3 size={12} />}
+                            onClick={() => openEditWorkItem(record)}
+                            style={{ color: "#00897b", borderColor: "#00897b", fontWeight: 500, borderRadius: 5 }}
+                          >
+                            Edit
+                          </Button>
+                          {isProjectLead && (
+                            <Popconfirm
+                              title="Delete this task?"
+                              description="Are you sure you want to delete this work item?"
+                              onConfirm={() => handleDeleteWorkItem(record._id)}
+                              okText="Yes"
+                              cancelText="No"
+                            >
+                              <Button size="small" danger icon={<Trash2 size={12} />} style={{ borderRadius: 5 }} />
+                            </Popconfirm>
+                          )}
+                        </Space>
+                      )
                     }
                   ]}
                 />
@@ -1571,7 +2264,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   }}
                 >
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                       <div>
                         <Title level={4} style={{ margin: 0, fontWeight: 700, color: "#0f172a" }}>
                           My To-Do & Progress
@@ -1580,9 +2273,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           Track your assigned tasks, deadlines, progress, and completed work.
                         </Text>
                       </div>
-                      <Tag color="cyan" style={{ borderRadius: 12, padding: "2px 10px", fontSize: 12 }}>
-                        {currentUser?.name || "Assigned Team Member"}
-                      </Tag>
+                      <Space wrap>
+                        <Button
+                          type="primary"
+                          icon={<Plus size={14} />}
+                          onClick={() => {
+                            selfTaskForm.resetFields();
+                            selfTaskForm.setFieldsValue({ priority: "Medium", status: "To Do", type: "Task" });
+                            setIsSelfTaskModalOpen(true);
+                          }}
+                          style={{ backgroundColor: "#00897b", borderColor: "#00897b", borderRadius: 8, fontWeight: 600 }}
+                        >
+                          Create Task for Myself
+                        </Button>
+                        <Tag color="cyan" style={{ borderRadius: 12, padding: "3px 10px", fontSize: 12 }}>
+                          {currentUser?.name || "Assigned Team Member"}
+                        </Tag>
+                      </Space>
                     </div>
                   </div>
 
@@ -1737,7 +2444,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                           </Tag>
                                           {isOverdue && (
                                             <Tag color="error" style={{ borderRadius: 6, margin: 0, fontSize: 11, fontWeight: 600 }}>
-                                              ⚠️ Overdue
+                                              Overdue
                                             </Tag>
                                           )}
                                         </div>
@@ -1803,6 +2510,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                           style={{ marginTop: 14 }}
                                         >
                                           Details
+                                        </Button>
+                                        <Button
+                                          size="middle"
+                                          icon={<Edit3 size={13} />}
+                                          onClick={() => openEditWorkItem(item)}
+                                          style={{ marginTop: 14, color: "#00897b", borderColor: "#00897b", fontWeight: 500 }}
+                                        >
+                                          Edit
                                         </Button>
                                       </div>
                                     </div>
@@ -1943,24 +2658,35 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
                                     {/* Task preview list */}
                                     {memberTasks.length > 0 ? (
-                                      <div style={{ maxHeight: 110, overflowY: "auto", borderTop: "1px solid #f8fafc", paddingTop: 6 }}>
+                                      <div style={{ maxHeight: 120, overflowY: "auto", borderTop: "1px solid #f8fafc", paddingTop: 6 }}>
                                         {memberTasks.map(t => (
                                           <div
                                             key={t._id}
-                                            onClick={() => { setSelectedWorkItem(t); setWorkItemDetailOpen(true); }}
                                             style={{
                                               display: "flex",
                                               justifyContent: "space-between",
                                               alignItems: "center",
                                               padding: "3px 0",
                                               fontSize: 11,
-                                              cursor: "pointer",
                                             }}
                                           >
-                                            <Text ellipsis style={{ flex: 1, paddingRight: 6, fontSize: 11 }}>{t.title}</Text>
-                                            <Tag color={t.status === "Done" ? "success" : t.status === "In Progress" ? "processing" : t.status === "Blocked" ? "error" : "default"} style={{ fontSize: 9, margin: 0 }}>
-                                              {t.status}
-                                            </Tag>
+                                            <div
+                                              onClick={() => { setSelectedWorkItem(t); setWorkItemDetailOpen(true); }}
+                                              style={{ flex: 1, minWidth: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, paddingRight: 6 }}
+                                            >
+                                              <Text ellipsis style={{ fontSize: 11, color: "#1e293b" }}>{t.title}</Text>
+                                              <Tag color={t.status === "Done" ? "success" : t.status === "In Progress" ? "processing" : t.status === "Blocked" ? "error" : "default"} style={{ fontSize: 9, margin: 0 }}>
+                                                {t.status}
+                                              </Tag>
+                                            </div>
+                                            <Button
+                                              size="small"
+                                              type="text"
+                                              icon={<Edit3 size={12} color="#00897b" />}
+                                              onClick={(e) => { e.stopPropagation(); openEditWorkItem(t); }}
+                                              title="Edit Task"
+                                              style={{ height: 22, width: 22, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+                                            />
                                           </div>
                                         ))}
                                       </div>
@@ -2120,11 +2846,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                   {/* Mentions */}
                                   {msg.mentions && msg.mentions.length > 0 && (
                                     <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                      {msg.mentions.map((m: any) => (
-                                        <Tag key={m._id} color="cyan" style={{ fontSize: 10, margin: 0 }}>
-                                          @{m.name}
-                                        </Tag>
-                                      ))}
+                                      {msg.mentions.map((m: any) => {
+                                        const isSysAdmin = m.role === "SYSTEM_ADMIN" || m.role === "ADMIN";
+                                        return (
+                                          <Tag
+                                            key={m._id}
+                                            color={isSysAdmin ? "purple" : "cyan"}
+                                            style={{ fontSize: 10, margin: 0, fontWeight: 500 }}
+                                          >
+                                            @{m.name} {isSysAdmin ? "(Admin)" : ""}
+                                          </Tag>
+                                        );
+                                      })}
                                     </div>
                                   )}
 
@@ -2218,15 +2951,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                 style={{ borderRadius: 20, padding: "6px 16px" }}
                               />
                             </Col>
-                            <Col flex="150px">
+                            <Col flex="180px">
                               <Select
                                 mode="multiple"
                                 style={{ width: "100%" }}
-                                placeholder="@mention"
+                                placeholder="@mention admin/team"
                                 maxTagCount={1}
                                 value={chatMentions}
                                 onChange={setChatMentions}
-                                options={projectTeamMembers.map((u: any) => ({ label: `@${u.name}`, value: u._id }))}
+                                options={chatMentionOptions}
+                                optionFilterProp="label"
                               />
                             </Col>
                             <Col flex="40px">
@@ -2353,18 +3087,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           {projectCalendarMonth.format("MMMM YYYY")}
                         </Text>
                         <Button size="small" onClick={() => setProjectCalendarMonth(projectCalendarMonth.add(1, "month"))}>&gt;</Button>
-                        <Button
-                          type="primary"
-                          size="small"
-                          icon={<Plus size={13} />}
-                          onClick={() => {
-                            personalTaskForm.setFieldsValue({ date: dayjs(), priority: "Medium", status: "Todo" });
-                            setIsPersonalTaskModalOpen(true);
-                          }}
-                          style={{ backgroundColor: "#00897b", border: "none" }}
-                        >
-                          Add Personal Task
-                        </Button>
                       </Space>
                     </div>
                   }
@@ -2373,19 +3095,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap", fontSize: 12 }}>
                     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>📋</span>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#dc2626", display: "inline-block" }} />
+                        <Text type="secondary" style={{ color: "#dc2626", fontWeight: 500 }}>Official Holiday (All Sundays, 2nd & 4th Sat)</Text>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#00897b", display: "inline-block" }} />
                         <Text type="secondary">Task Due</Text>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>📅</span>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#52c41a", display: "inline-block" }} />
                         <Text type="secondary">Sprint Milestone</Text>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>📝</span>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#6366f1", display: "inline-block" }} />
                         <Text type="secondary">Personal Task</Text>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>⚠️</span>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#ea580c", display: "inline-block" }} />
                         <Text type="secondary">Overdue Deadline</Text>
                       </div>
                     </div>
@@ -2411,11 +3137,25 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
                         {/* Day headers */}
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", backgroundColor: "#fafafa", borderBottom: "1px solid #f0f0f0" }}>
-                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
-                            <div key={idx} style={{ padding: "8px 0", textAlign: "center", fontWeight: 600, color: "#64748b", fontSize: 12 }}>
-                              {dayName}
-                            </div>
-                          ))}
+                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => {
+                            const isSun = idx === 0;
+                            const isSat = idx === 6;
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: "8px 0",
+                                  textAlign: "center",
+                                  fontWeight: 600,
+                                  color: isSun ? "#dc2626" : isSat ? "#ea580c" : "#64748b",
+                                  backgroundColor: isSun ? "#fef2f2" : isSat ? "#fffbeb" : "transparent",
+                                  fontSize: 12,
+                                }}
+                              >
+                                {dayName}
+                              </div>
+                            );
+                          })}
                         </div>
 
                         {/* Cells */}
@@ -2424,12 +3164,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
                             const isCurrentMonth = dayDate.isSame(projectCalendarMonth, "month");
                             const isToday = dayDate.isSame(dayjs(), "day");
 
+                            // Holiday calculation: All Sundays, plus 2nd and 4th Saturdays
+                            const dayOfWeek = dayDate.day(); // 0 = Sun, 6 = Sat
+                            const isSunday = dayOfWeek === 0;
+                            const dayOfMonth = dayDate.date();
+                            const weekNum = Math.ceil(dayOfMonth / 7);
+                            const is2ndOr4thSat = dayOfWeek === 6 && (weekNum === 2 || weekNum === 4);
+                            const isHoliday = isSunday || is2ndOr4thSat;
+                            const holidayLabel = isSunday ? "Sunday" : `${weekNum === 2 ? "2nd" : "4th"} Sat`;
+
                             // Find project work items due this day
                             const dayWorkItems = workItems.filter(w => w.dueDate && dayjs(w.dueDate).isSame(dayDate, "day"));
                             // Find sprints ending/starting this day
                             const daySprints = sprints.filter(s => dayjs(s.endDate).isSame(dayDate, "day") || dayjs(s.startDate).isSame(dayDate, "day"));
                             // Find personal tasks on this day
                             const dayPersonalTasks = projectPersonalTasks.filter(t => dayjs(t.date).isSame(dayDate, "day"));
+
+                            const cellBg = !isCurrentMonth ? "#fafafa" : isHoliday ? "#fff5f5" : "#fff";
 
                             return (
                               <div
@@ -2439,7 +3190,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                   borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
                                   borderBottom: "1px solid #f0f0f0",
                                   padding: 6,
-                                  backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
+                                  backgroundColor: cellBg,
                                   transition: "background 0.2s",
                                 }}
                               >
@@ -2452,23 +3203,24 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                     alignItems: "center",
                                     justifyContent: "center",
                                     backgroundColor: isToday ? "#00897b" : "transparent",
-                                    color: isToday ? "#fff" : isCurrentMonth ? "#1e293b" : "#94a3b8",
-                                    fontWeight: isToday ? 700 : 500,
+                                    color: isToday ? "#fff" : isHoliday && isCurrentMonth ? "#dc2626" : isCurrentMonth ? "#1e293b" : "#94a3b8",
+                                    fontWeight: isToday || (isHoliday && isCurrentMonth) ? 700 : 500,
                                     fontSize: 11,
                                   }}>
                                     {dayDate.format("D")}
                                   </span>
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Plus size={10} color="#94a3b8" />}
-                                    onClick={() => {
-                                      personalTaskForm.setFieldsValue({ date: dayDate, priority: "Medium", status: "Todo" });
-                                      setIsPersonalTaskModalOpen(true);
-                                    }}
-                                    title="Add personal task on this date"
-                                    style={{ width: 18, height: 18, minWidth: 18, padding: 0 }}
-                                  />
+                                  {isHoliday && isCurrentMonth && (
+                                    <span style={{
+                                      fontSize: 9,
+                                      fontWeight: 700,
+                                      color: "#dc2626",
+                                      backgroundColor: "#fee2e2",
+                                      padding: "1px 4px",
+                                      borderRadius: 3,
+                                    }}>
+                                      {holidayLabel}
+                                    </span>
+                                  )}
                                 </div>
 
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -2497,7 +3249,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                       }}
                                       title={`Personal Task: ${pt.title} (${pt.priority})`}
                                     >
-                                      📝 {pt.title}
+                                      {pt.title}
                                     </div>
                                   ))}
 
@@ -2523,7 +3275,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                       }}
                                       title={`Work Item: ${wi.title} (${wi.status})`}
                                     >
-                                      💼 {wi.title}
+                                      {wi.title}
                                     </div>
                                   ))}
 
@@ -2544,7 +3296,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                       }}
                                       title={`Sprint Deadline: ${sp.name}`}
                                     >
-                                      🏁 {sp.name}
+                                      {sp.name}
                                     </div>
                                   ))}
                                 </div>
@@ -2678,7 +3430,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                       )}
                                     </div>
                                     <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", marginTop: 4 }}>
-                                      {ev.type === "task" ? "📋 " : ev.type === "sprint" ? "📅 " : "📝 "}
                                       {ev.title}
                                     </div>
                                     <div style={{ fontSize: 11, color: isToday ? "#b45309" : "#64748b", marginTop: 2 }}>
@@ -2971,7 +3722,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </div>
             )
           },
-          {
+          ...(isProjectLead ? [{
             key: "activities",
             label: "Project Activity Log",
             children: (
@@ -2993,7 +3744,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 />
               </div>
             )
-          },
+          }] : []),
           {
             key: "sprints",
             label: "Agile Sprints",
@@ -3385,6 +4136,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
         width={550}
         onClose={() => { setSelectedWorkItem(null); setWorkItemDetailOpen(false); }}
         open={workItemDetailOpen}
+        extra={
+          selectedWorkItem ? (
+            <Button
+              size="small"
+              icon={<Edit3 size={12} />}
+              onClick={() => openEditWorkItem(selectedWorkItem)}
+              style={{ color: "#00897b", borderColor: "#00897b", fontWeight: 500 }}
+            >
+              Edit Task
+            </Button>
+          ) : null
+        }
       >
         {selectedWorkItem && (
           <Space direction="vertical" size={20} style={{ width: "100%" }}>
@@ -3543,22 +4306,22 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form>
             </div>
 
-            <Divider style={{ margin: "4px 0" }} />
-
-            {/* Attachments Section */}
-            <div>
-              <Text strong style={{ display: "block", marginBottom: 8 }}>Task Attachments</Text>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                {(selectedWorkItem.attachments || []).map((att: any, idx: number) => (
-                  <Tag key={idx} color="blue" style={{ cursor: "pointer" }} onClick={() => window.open(att.url, "_blank")}>
-                    <Paperclip size={10} style={{ display: "inline-block", marginRight: 4 }} /> {att.name}
-                  </Tag>
-                ))}
-              </div>
-              <Upload customRequest={handleWorkItemUpload} showUploadList={false}>
-                <Button size="small" icon={<Paperclip size={12} />}>Upload File Link</Button>
-              </Upload>
-            </div>
+            {/* Attachments Section - Display only if existing, without upload file option */}
+            {selectedWorkItem.attachments && selectedWorkItem.attachments.length > 0 && (
+              <>
+                <Divider style={{ margin: "4px 0" }} />
+                <div>
+                  <Text strong style={{ display: "block", marginBottom: 8 }}>Task Attachments</Text>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {selectedWorkItem.attachments.map((att: any, idx: number) => (
+                      <Tag key={idx} color="blue" style={{ cursor: "pointer" }} onClick={() => window.open(att.url, "_blank")}>
+                        <Paperclip size={10} style={{ display: "inline-block", marginRight: 4 }} /> {att.name}
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </Space>
         )}
       </Drawer>
@@ -3569,121 +4332,66 @@ function ProjectDetailsClient({ id }: { id: string }) {
         open={isEditModalOpen}
         onCancel={() => setIsEditModalOpen(false)}
         footer={null}
-        width={750}
-        style={{ top: 40 }}
+        width={560}
+        style={{ top: 60 }}
+        destroyOnClose
       >
         <Form form={editForm} layout="vertical" onFinish={handleUpdateProject}>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item name="title" label="Requirement / Project Title" rules={[{ required: true, message: "Please input title" }]}>
-                <Input placeholder="e.g. Android Customer Delivery App" />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="description" label="Project Description">
-                <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item
+            name="title"
+            label="Requirement / Project Title"
+            rules={[{ required: true, message: "Please input title" }]}
+          >
+            <Input placeholder="e.g. Android Customer Delivery App" />
+          </Form.Item>
+
+          <Form.Item name="description" label="Project Description">
+            <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
+          </Form.Item>
+
+          <Form.Item
+            name="timeline"
+            label="Timeline Dates"
+            rules={[{ required: true, message: "Please select timeline dates" }]}
+          >
+            <DatePicker.RangePicker style={{ width: "100%" }} />
+          </Form.Item>
 
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item name="companyName" label="Company / Client Name" rules={[{ required: true }]}>
-                <Input />
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="priority"
+                label="Priority"
+                rules={[{ required: true, message: "Please select priority" }]}
+              >
+                <Select
+                  options={[
+                    { label: "Low", value: "Low" },
+                    { label: "Medium", value: "Medium" },
+                    { label: "High", value: "High" },
+                    { label: "Critical", value: "Critical" },
+                  ]}
+                />
               </Form.Item>
             </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
-                <Select options={[
-                  { label: "Low", value: "Low" },
-                  { label: "Medium", value: "Medium" },
-                  { label: "High", value: "High" },
-                  { label: "Critical", value: "Critical" },
-                ]} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item name="timeline" label="Timeline Dates" rules={[{ required: true }]}>
-                <DatePicker.RangePicker style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="status" label="Project Status" rules={[{ required: true }]}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="status"
+                label="Project Status"
+                rules={[{ required: true, message: "Please select status" }]}
+              >
                 <Select options={PROJECT_STAGES.map((s) => ({ label: s.label, value: s.key }))} />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item label="Features Scope">
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "10px 15px" }}>
-                  <Form.Item name="visitorManagement" valuePropName="checked" noStyle><Checkbox>Visitor Mgmt</Checkbox></Form.Item>
-                  <Form.Item name="attendanceManagement" valuePropName="checked" noStyle><Checkbox>Attendance Mgmt</Checkbox></Form.Item>
-                  <Form.Item name="digilockerAuthentication" valuePropName="checked" noStyle><Checkbox>Digilocker</Checkbox></Form.Item>
-                  <Form.Item name="webApp" valuePropName="checked" noStyle><Checkbox>Web App</Checkbox></Form.Item>
-                  <Form.Item name="androidApp" valuePropName="checked" noStyle><Checkbox>Android App</Checkbox></Form.Item>
-                  <Form.Item name="iosApp" valuePropName="checked" noStyle><Checkbox>iOS App</Checkbox></Form.Item>
-                  <Form.Item name="videoKYC" valuePropName="checked" noStyle><Checkbox>Video KYC</Checkbox></Form.Item>
-                  <Form.Item name="rbac" valuePropName="checked" noStyle><Checkbox>RBAC System</Checkbox></Form.Item>
-                  <Form.Item name="adminPanel" valuePropName="checked" noStyle><Checkbox>Admin Panel</Checkbox></Form.Item>
-                  <Form.Item name="online" valuePropName="checked" noStyle><Checkbox>Online</Checkbox></Form.Item>
-                  <Form.Item name="offline" valuePropName="checked" noStyle><Checkbox>Offline</Checkbox></Form.Item>
-                  <Form.Item name="cloud" valuePropName="checked" noStyle><Checkbox>Cloud</Checkbox></Form.Item>
-                  <Form.Item name="onPremise" valuePropName="checked" noStyle><Checkbox>On Premise</Checkbox></Form.Item>
-                </div>
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="useCase" label="Use Case / Core Objective">
-            <TextArea rows={3} placeholder="What business problem does this solve? Who is the end client?" />
-          </Form.Item>
-
-          <Form.Item name="targetUsers" label="Target Users">
-            <TextArea rows={2} placeholder="Who are the primary end users? e.g. Warehouse operators, retail customers" />
-          </Form.Item>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item name="functionalRequirements" label="Functional Requirements">
-                <TextArea rows={3} placeholder="List out explicit key features, user flows, operations..." />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="nonFunctionalRequirements" label="Non-Functional Requirements">
-                <TextArea rows={3} placeholder="e.g. Offline sync support, loading speed, daily volumes..." />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item name="budget" label="Est. Budget">
-                <Input placeholder="e.g. $25k, ₹15L, etc." />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="integrations" label="Integrations Needed">
-                <Input placeholder="e.g. Razorpay, SendGrid, SAP ERP" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="extraAddOns" label="Extra Add-ons / Client notes">
-            <TextArea rows={2} />
-          </Form.Item>
-
-          <Form.Item name="changeReason" label="Reason for this change (Logged to Version Control)" rules={[{ required: true, message: "Please specify why you are making this edit." }]}>
-            <Input placeholder="e.g. Added functional requirements specified by client on call" />
-          </Form.Item>
-
-          <div style={{ textAlign: "right" }}>
-            <Button onClick={() => setIsEditModalOpen(false)} style={{ marginRight: 8 }}>Cancel</Button>
-            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>Save Changes</Button>
+          <div style={{ textAlign: "right", marginTop: 16 }}>
+            <Button onClick={() => setIsEditModalOpen(false)} style={{ marginRight: 8 }}>
+              Cancel
+            </Button>
+            <Button type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", border: "none" }}>
+              Save Changes
+            </Button>
           </div>
         </Form>
       </Modal>
@@ -3943,6 +4651,77 @@ function ProjectDetailsClient({ id }: { id: string }) {
         </Form>
       </Modal>
 
+      {/* CREATE SELF TASK MODAL (AVAILABLE FOR EVERY TEAM MEMBER) */}
+      <Modal
+        title={
+          <Space size={8}>
+            <CheckSquare size={18} color="#00897b" />
+            <span style={{ fontWeight: 600 }}>Create Task for Myself</span>
+          </Space>
+        }
+        open={isSelfTaskModalOpen}
+        onCancel={() => {
+          if (!submittingSelfTask) setIsSelfTaskModalOpen(false);
+        }}
+        footer={null}
+        width={580}
+        destroyOnHidden
+        closable={!submittingSelfTask}
+        maskClosable={!submittingSelfTask}
+      >
+        <Spin spinning={submittingSelfTask} tip="Creating your task...">
+          <Form
+            form={selfTaskForm}
+            layout="vertical"
+            onFinish={handleCreateSelfTask}
+            initialValues={{ priority: "Medium", status: "To Do", type: "Task" }}
+            style={{ marginTop: 16 }}
+          >
+            <Form.Item
+              name="title"
+              label="* Task Title"
+              rules={[{ required: true, message: "Please enter a task title" }]}
+              style={{ marginBottom: 16 }}
+            >
+              <Input size="large" placeholder="e.g. Implement API route, write test cases, review wireframes..." disabled={submittingSelfTask} />
+            </Form.Item>
+
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12}>
+                <Form.Item name="type" label="Task Type" rules={[{ required: true }]}>
+                  <Select size="middle" options={["Task", "Feature", "Bug", "Chore"].map(t => ({ label: t, value: t }))} disabled={submittingSelfTask} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
+                  <Select size="middle" options={["Low", "Medium", "High", "Urgent"].map(p => ({ label: p, value: p }))} disabled={submittingSelfTask} />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="status" label="Initial Status" rules={[{ required: true }]}>
+              <Select size="middle" options={["Backlog", "To Do", "In Progress"].map(s => ({ label: s, value: s }))} disabled={submittingSelfTask} />
+            </Form.Item>
+
+            <Form.Item name="description" label="Notes / Description" style={{ marginBottom: 20 }}>
+              <TextArea rows={3} placeholder="Add any details, instructions, acceptance criteria, or links..." disabled={submittingSelfTask} />
+            </Form.Item>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Button onClick={() => setIsSelfTaskModalOpen(false)} disabled={submittingSelfTask}>Cancel</Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={submittingSelfTask}
+                style={{ backgroundColor: "#00897b", borderColor: "#00897b", fontWeight: 600 }}
+              >
+                {submittingSelfTask ? "Creating Task..." : "Create My Task"}
+              </Button>
+            </div>
+          </Form>
+        </Spin>
+      </Modal>
+
       {/* WORK ITEM MODAL */}
       <Modal
         title={
@@ -3952,37 +4731,144 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Space>
         }
         open={isWorkItemModalOpen}
-        onCancel={() => setIsWorkItemModalOpen(false)}
+        onCancel={() => {
+          if (!submittingWorkItem) setIsWorkItemModalOpen(false);
+        }}
         footer={null}
         width={620}
+        closable={!submittingWorkItem}
+        maskClosable={!submittingWorkItem}
       >
-        <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem} initialValues={{ type: "Task", priority: "High" }}>
-          <Form.Item name="title" label="* Work Item Title" rules={[{ required: true, message: "Title is required" }]} style={{ marginBottom: 16 }}>
+        <Spin spinning={submittingWorkItem} tip="Processing task and dispatching email notifications...">
+          <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem} initialValues={{ type: "Task", priority: "High" }}>
+            <Form.Item name="title" label="* Work Item Title" rules={[{ required: true, message: "Title is required" }]} style={{ marginBottom: 16 }}>
+              <Input size="large" placeholder="e.g. Implement visitor check-in form" disabled={submittingWorkItem} />
+            </Form.Item>
+            
+            <Form.Item name="description" label="Detailed Description" style={{ marginBottom: 16 }}>
+              <TextArea rows={3} placeholder="Provide task requirements, acceptance criteria, or technical details..." disabled={submittingWorkItem} />
+            </Form.Item>
+            
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12}>
+                <Form.Item name="type" label="* Type" rules={[{ required: true }]}>
+                  <Select size="large" options={["Task", "Feature", "Bug", "Chore"].map(t => ({ label: t, value: t }))} disabled={submittingWorkItem} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="priority" label="* Priority" rules={[{ required: true }]}>
+                  <Select size="large" options={["High", "Medium", "Low", "Urgent"].map(p => ({ label: p, value: p }))} disabled={submittingWorkItem} />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12}>
+                <Form.Item name="assignee" label="Assign To">
+                  <Select
+                    size="large"
+                    placeholder="Select Employee"
+                    allowClear
+                    disabled={submittingWorkItem}
+                    options={projectTeamMembers.map((u: any) => {
+                      const isLead = String(u._id) === String(techOwnerId);
+                      return {
+                        label: `${u.name} (${isLead ? "Project Manager" : (u.role || "Team Member")})`,
+                        value: u._id,
+                      };
+                    })}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="sprint" label="Sprint Assignment">
+                  <Select size="large" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} disabled={submittingWorkItem} />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 24 }}>
+              <DatePicker size="large" style={{ width: "100%" }} placeholder="Select date" disabled={submittingWorkItem} />
+            </Form.Item>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Button size="large" onClick={() => setIsWorkItemModalOpen(false)} disabled={submittingWorkItem}>
+                Cancel
+              </Button>
+              <Button
+                size="large"
+                type="primary"
+                htmlType="submit"
+                loading={submittingWorkItem}
+                style={{ backgroundColor: "#00897b", borderColor: "#00897b", padding: "0 24px" }}
+              >
+                {submittingWorkItem ? "Creating & Assigning..." : "Create & Assign Task"}
+              </Button>
+            </div>
+          </Form>
+        </Spin>
+      </Modal>
+
+      {/* EDIT WORK ITEM / TASK MODAL */}
+      <Modal
+        title={
+          <Space size={8}>
+            <Edit3 size={18} color="#00897b" />
+            <span>Edit Task / Work Item</span>
+          </Space>
+        }
+        open={isEditWorkItemModalOpen}
+        onCancel={() => {
+          setIsEditWorkItemModalOpen(false);
+          setEditingWorkItem(null);
+        }}
+        footer={null}
+        width={650}
+      >
+        <Form
+          form={editWorkItemForm}
+          layout="vertical"
+          onFinish={handleSaveEditWorkItem}
+        >
+          <Form.Item
+            name="title"
+            label="* Task / Work Item Title"
+            rules={[{ required: true, message: "Title is required" }]}
+            style={{ marginBottom: 14 }}
+          >
             <Input size="large" placeholder="e.g. Implement visitor check-in form" />
           </Form.Item>
-          
-          <Form.Item name="description" label="Detailed Description" style={{ marginBottom: 16 }}>
-            <TextArea rows={3} placeholder="Provide task requirements, acceptance criteria, or technical details..." />
+
+          <Form.Item name="description" label="Detailed Description" style={{ marginBottom: 14 }}>
+            <TextArea rows={3} placeholder="Task requirements, acceptance criteria, or technical details..." />
           </Form.Item>
-          
+
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12}>
-              <Form.Item name="type" label="* Type" rules={[{ required: true }]}>
-                <Select size="large" options={["Task", "Feature", "Bug", "Chore"].map(t => ({ label: t, value: t }))} />
+            <Col xs={24} sm={8}>
+              <Form.Item name="type" label="* Type" rules={[{ required: true }]} style={{ marginBottom: 14 }}>
+                <Select size="middle" options={["Task", "Feature", "Bug", "Chore"].map(t => ({ label: t, value: t }))} />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="priority" label="* Priority" rules={[{ required: true }]}>
-                <Select size="large" options={["High", "Medium", "Low", "Urgent"].map(p => ({ label: p, value: p }))} />
+            <Col xs={24} sm={8}>
+              <Form.Item name="priority" label="* Priority" rules={[{ required: true }]} style={{ marginBottom: 14 }}>
+                <Select size="middle" options={["High", "Medium", "Low", "Urgent"].map(p => ({ label: p, value: p }))} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name="status" label="* Status" rules={[{ required: true }]} style={{ marginBottom: 14 }}>
+                <Select
+                  size="middle"
+                  options={["Backlog", "To Do", "In Progress", "Blocked", "In Review", "Testing", "Done", "Cancelled"].map(s => ({ label: s, value: s }))}
+                />
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
-              <Form.Item name="assignee" label="Assign To">
+              <Form.Item name="assignee" label="Assign To" style={{ marginBottom: 14 }}>
                 <Select
-                  size="large"
+                  size="middle"
                   placeholder="Select Employee"
                   allowClear
                   options={projectTeamMembers.map((u: any) => {
@@ -3996,20 +4882,46 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="sprint" label="Sprint Assignment">
-                <Select size="large" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} />
+              <Form.Item name="sprint" label="Sprint Assignment" style={{ marginBottom: 14 }}>
+                <Select size="middle" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 24 }}>
-            <DatePicker size="large" style={{ width: "100%" }} placeholder="Select date" />
-          </Form.Item>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 14 }}>
+                <DatePicker size="middle" style={{ width: "100%" }} placeholder="Select date" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name="estimatedHours" label="Est. Hours" style={{ marginBottom: 14 }}>
+                <Input type="number" step="0.5" min={0} placeholder="e.g. 8" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name="progress" label="Progress (%)" style={{ marginBottom: 14 }}>
+                <Input type="number" min={0} max={100} placeholder="0 - 100" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <Button size="large" onClick={() => setIsWorkItemModalOpen(false)}>Cancel</Button>
-            <Button size="large" type="primary" htmlType="submit" style={{ backgroundColor: "#00897b", borderColor: "#00897b", padding: "0 24px" }}>
-              Create & Assign Task
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>
+            <Button
+              onClick={() => {
+                setIsEditWorkItemModalOpen(false);
+                setEditingWorkItem(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={submittingEditWorkItem}
+              style={{ backgroundColor: "#00897b", borderColor: "#00897b", padding: "0 20px" }}
+            >
+              Save Changes
             </Button>
           </div>
         </Form>
@@ -4080,13 +4992,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
         </Form>
       </Modal>
 
-      {/* System Admin Manage Team & Project Manager Modal */}
+      {/* Manage Team & Project Manager Modal */}
       <Modal
         title={
           <Space>
             <UsersIcon size={18} color="#00897b" />
             <span>Manage Project Manager & Team Members</span>
-            <Tag color="purple">System Admin Only</Tag>
+            <Tag color="purple">Admin Only</Tag>
           </Space>
         }
         open={isTeamModalOpen}
@@ -4103,8 +5015,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
         >
           <Form.Item
             name="techOwner"
-            label="Project Manager / Tech Owner"
-            extra="Designate the primary lead responsible for technical direction and delivery."
+            label="Project Manager"
+            extra="Designate the primary Project Manager responsible for technical direction and delivery."
           >
             <Select
               placeholder="Select Project Manager"

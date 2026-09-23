@@ -22,6 +22,7 @@ import {
   Statistic,
   Divider,
   List,
+  Segmented,
 } from "antd";
 import { useRouter } from "next/navigation";
 import { Role, UserStatus } from "@/lib/constants";
@@ -37,7 +38,9 @@ import {
   Users,
   Plus,
   Key,
+  Mail,
 } from "lucide-react";
+import EmailSettingsPanel from "@/components/admin/EmailSettingsPanel";
 import type { TableProps } from "antd";
 
 const { Title, Text, Paragraph } = Typography;
@@ -70,6 +73,7 @@ export default function SystemAdminPage() {
   const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [adminTab, setAdminTab] = useState<"employees" | "email">("employees");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(null);
@@ -507,17 +511,50 @@ export default function SystemAdminPage() {
   return (
     <div style={{ padding: "8px 0" }}>
       {/* Header Title Section */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 18 }}>
         <Title level={3} style={{ margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: 10 }}>
           <ShieldCheck size={26} color="#00897b" />
-          System Administration
+          User Management
         </Title>
         <Text type="secondary">
-          Manage authorized employees, set login credentials, and configure custom application roles.
+          Manage authorized employees, set login credentials, customize roles, and configure automated email notifications.
         </Text>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Navigation Segmented Bar */}
+      <div style={{ marginBottom: 24 }}>
+        <Segmented
+          size="large"
+          value={adminTab}
+          onChange={(val) => setAdminTab(val as "employees" | "email")}
+          options={[
+            {
+              label: (
+                <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
+                  <Users size={16} />
+                  <span>Employee & Access Management</span>
+                </Space>
+              ),
+              value: "employees",
+            },
+            {
+              label: (
+                <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
+                  <Mail size={16} />
+                  <span>Email & Automated Notifications</span>
+                </Space>
+              ),
+              value: "email",
+            },
+          ]}
+        />
+      </div>
+
+      {adminTab === "email" ? (
+        <EmailSettingsPanel />
+      ) : (
+        <>
+          {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={12} sm={8}>
           <Card variant="borderless" style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
@@ -639,6 +676,8 @@ export default function SystemAdminPage() {
           }}
         />
       </Card>
+        </>
+      )}
 
       {/* Add / Edit Employee Modal */}
       <Modal

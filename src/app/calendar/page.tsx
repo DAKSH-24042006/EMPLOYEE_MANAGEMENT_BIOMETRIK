@@ -235,16 +235,8 @@ export default function CalendarPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <Title level={3} style={{ margin: 0, color: "#111827" }}>Master Schedule & Calendar</Title>
-            <Text type="secondary">View all project work items, sprint deadlines, and manage your personal tasks in one place.</Text>
+            <Text type="secondary">View all project work items, sprint deadlines, team milestones, and official holidays.</Text>
           </div>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => onAddTask()}
-            style={{ backgroundColor: "#00897b", borderColor: "#00897b", fontWeight: 600 }}
-          >
-            Add Personal Task
-          </Button>
         </div>
 
         {/* Filter Bar & Controls */}
@@ -267,9 +259,9 @@ export default function CalendarPage() {
               onChange={(val) => setTypeFilter(val as string)}
               options={[
                 { label: "All Items", value: "all" },
-                { label: "📝 Personal Tasks", value: "personal" },
-                { label: "💼 Work Items", value: "work_item" },
-                { label: "🏁 Sprints", value: "sprint" },
+                { label: "Personal Tasks", value: "personal" },
+                { label: "Work Items", value: "work_item" },
+                { label: "Sprints", value: "sprint" },
               ]}
               size="small"
             />
@@ -307,11 +299,25 @@ export default function CalendarPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
               {/* Weekday headers */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #f0f0f0", backgroundColor: "#fafafa", flex: "0 0 auto" }}>
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
-                  <div key={idx} style={{ padding: isMobile ? "8px 0" : "10px 0", textAlign: "center", fontWeight: 600, color: "#6b7280", fontSize: isMobile ? 11 : 13 }}>
-                    {isMobile ? day.charAt(0) : day}
-                  </div>
-                ))}
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => {
+                  const isSun = idx === 0;
+                  const isSat = idx === 6;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: isMobile ? "8px 0" : "10px 0",
+                        textAlign: "center",
+                        fontWeight: 600,
+                        color: isSun ? "#dc2626" : isSat ? "#ea580c" : "#6b7280",
+                        fontSize: isMobile ? 11 : 13,
+                        backgroundColor: isSun ? "#fef2f2" : isSat ? "#fffbeb" : "transparent",
+                      }}
+                    >
+                      {isMobile ? day.charAt(0) : day}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Calendar Grid */}
@@ -320,6 +326,21 @@ export default function CalendarPage() {
                   const isCurrentMonth = date.isSame(currentDate, "month");
                   const isToday = date.isSame(dayjs(), "day");
                   const dayTasks = getTasksForDate(date);
+
+                  // Holiday calculation: All Sundays, plus 2nd and 4th Saturdays
+                  const dayOfWeek = date.day(); // 0 = Sun, 6 = Sat
+                  const isSunday = dayOfWeek === 0;
+                  const dayOfMonth = date.date();
+                  const weekNum = Math.ceil(dayOfMonth / 7);
+                  const is2ndOr4thSat = dayOfWeek === 6 && (weekNum === 2 || weekNum === 4);
+                  const isHoliday = isSunday || is2ndOr4thSat;
+                  const holidayLabel = isSunday ? "Sunday" : `${weekNum === 2 ? "2nd" : "4th"} Sat`;
+
+                  const cellBg = !isCurrentMonth
+                    ? "#fafafa"
+                    : isHoliday
+                    ? "#fff5f5"
+                    : "#fff";
 
                   return (
                     <div
@@ -330,16 +351,16 @@ export default function CalendarPage() {
                         borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
                         borderBottom: "1px solid #f0f0f0",
                         padding: isMobile ? 4 : 8,
-                        backgroundColor: isCurrentMonth ? "#fff" : "#fafafa",
+                        backgroundColor: cellBg,
                         cursor: "pointer",
                         transition: "all 0.15s ease",
                         position: "relative",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = isCurrentMonth ? "#f4fbf7" : "#f0f0f0";
+                        e.currentTarget.style.backgroundColor = !isCurrentMonth ? "#f0f0f0" : isHoliday ? "#fee2e2" : "#f4fbf7";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = isCurrentMonth ? "#fff" : "#fafafa";
+                        e.currentTarget.style.backgroundColor = cellBg;
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -351,26 +372,26 @@ export default function CalendarPage() {
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor: isToday ? "#00897b" : "transparent",
-                          color: isToday ? "#fff" : (isCurrentMonth ? "#1f2937" : "#9ca3af"),
-                          fontWeight: isToday ? 700 : 500,
+                          color: isToday ? "#fff" : isHoliday && isCurrentMonth ? "#dc2626" : (isCurrentMonth ? "#1f2937" : "#9ca3af"),
+                          fontWeight: isToday || (isHoliday && isCurrentMonth) ? 700 : 500,
                           fontSize: isMobile ? 11 : 13
                         }}>
                           {date.format("D")}
                         </div>
 
-                        {/* Quick Add Button */}
-                        {!isMobile && (
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<PlusOutlined style={{ fontSize: 10, color: "#9ca3af" }} />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAddTask(date);
-                            }}
-                            title="Add personal task to this day"
-                            style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
-                          />
+                        {/* Holiday Badge (No add task button) */}
+                        {isHoliday && isCurrentMonth && (
+                          <span style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            color: "#dc2626",
+                            backgroundColor: "#fee2e2",
+                            padding: "1px 5px",
+                            borderRadius: 4,
+                            letterSpacing: 0.2,
+                          }}>
+                            {isMobile ? "OFF" : holidayLabel}
+                          </span>
                         )}
                       </div>
 
@@ -439,9 +460,6 @@ export default function CalendarPage() {
                                   }
                                 }}
                               >
-                                {isPersonal && "📝 "}
-                                {isSprint && "🏁 "}
-                                {!isPersonal && !isSprint && "💼 "}
                                 {task.title}
                               </div>
                             </Tooltip>
@@ -466,16 +484,20 @@ export default function CalendarPage() {
       {/* Legend */}
       <div style={{ display: "flex", gap: 20, marginTop: 12, justifyContent: "center", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13 }}>📝</span>
-          <Text type="secondary" style={{ fontSize: 12 }}>Personal Tasks (Full Edit/Delete)</Text>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#dc2626", display: "inline-block" }} />
+          <Text type="secondary" style={{ fontSize: 12, fontWeight: 500, color: "#dc2626" }}>Official Holiday (All Sundays, 2nd & 4th Saturdays)</Text>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13 }}>💼</span>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#00897b", display: "inline-block" }} />
           <Text type="secondary" style={{ fontSize: 12 }}>Project Work Items (Due Dates)</Text>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13 }}>🏁</span>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#059669", display: "inline-block" }} />
           <Text type="secondary" style={{ fontSize: 12 }}>Sprint Deadlines</Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#6366f1", display: "inline-block" }} />
+          <Text type="secondary" style={{ fontSize: 12 }}>Personal Tasks</Text>
         </div>
         {PRIORITIES.map((p) => (
           <div key={p.value} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -502,24 +524,38 @@ export default function CalendarPage() {
           <Title level={5} style={{ margin: 0 }}>
             {selectedDate && getTasksForDate(selectedDate).length} Items Scheduled
           </Title>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={() => onAddTask(selectedDate || dayjs())}
-            style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
-          >
-            Add Personal Task
-          </Button>
+          {selectedDate && (() => {
+            const isSun = selectedDate.day() === 0;
+            const weekNum = Math.ceil(selectedDate.date() / 7);
+            const is2ndOr4thSat = selectedDate.day() === 6 && (weekNum === 2 || weekNum === 4);
+            if (isSun || is2ndOr4thSat) {
+              return (
+                <Tag color="error" style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, margin: 0 }}>
+                  {isSun ? "Sunday Holiday" : `${weekNum === 2 ? "2nd" : "4th"} Saturday Holiday`}
+                </Tag>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {selectedDate && getTasksForDate(selectedDate).length === 0 ? (
           <div style={{ textAlign: "center", padding: "50px 0", color: "#bfbfbf" }}>
             <CalendarOutlined style={{ fontSize: 44, marginBottom: 16, display: "block", opacity: 0.4 }} />
-            <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>No events or tasks scheduled for this day</Text>
-            <Button type="dashed" icon={<PlusOutlined />} onClick={() => onAddTask(selectedDate || dayjs())}>
-              Create a Task for this Date
-            </Button>
+            <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>No events or tasks scheduled for this day</Text>
+            {(() => {
+              const isSun = selectedDate.day() === 0;
+              const weekNum = Math.ceil(selectedDate.date() / 7);
+              const is2ndOr4thSat = selectedDate.day() === 6 && (weekNum === 2 || weekNum === 4);
+              if (isSun || is2ndOr4thSat) {
+                return (
+                  <Text type="secondary" style={{ color: "#dc2626", fontWeight: 500 }}>
+                    Official non-working company holiday.
+                  </Text>
+                );
+              }
+              return null;
+            })()}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -532,7 +568,7 @@ export default function CalendarPage() {
               return (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Text strong style={{ fontSize: 13, color: "#3730a3" }}>📝 Personal Tasks ({personalItems.length})</Text>
+                    <Text strong style={{ fontSize: 13, color: "#3730a3" }}>Personal Tasks ({personalItems.length})</Text>
                   </div>
                   <Space direction="vertical" style={{ width: "100%" }} size={10}>
                     {personalItems.map((task) => (
@@ -609,7 +645,7 @@ export default function CalendarPage() {
               return (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Text strong style={{ fontSize: 13, color: "#00897b" }}>💼 Project Work Items ({workItems.length})</Text>
+                    <Text strong style={{ fontSize: 13, color: "#00897b" }}>Project Work Items ({workItems.length})</Text>
                   </div>
                   <Space direction="vertical" style={{ width: "100%" }} size={10}>
                     {workItems.map((item) => (
@@ -670,7 +706,7 @@ export default function CalendarPage() {
               return (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Text strong style={{ fontSize: 13, color: "#059669" }}>🏁 Sprint Deadlines ({sprintItems.length})</Text>
+                    <Text strong style={{ fontSize: 13, color: "#059669" }}>Sprint Deadlines ({sprintItems.length})</Text>
                   </div>
                   <Space direction="vertical" style={{ width: "100%" }} size={10}>
                     {sprintItems.map((sprint) => (

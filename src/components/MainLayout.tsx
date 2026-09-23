@@ -252,12 +252,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     {
       key: "/admin",
       icon: <ShieldCheck size={18} />,
-      label: <Link href="/admin">System Admin</Link>,
+      label: <Link href="/admin">User Management</Link>,
     },
     {
       key: "/users",
       icon: <Users size={18} />,
-      label: <Link href="/users">Users</Link>,
+      label: <Link href="/users">User Management</Link>,
     },
   ].filter(item => {
     if (item.key === "/admin") {
@@ -277,8 +277,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     },
     ...pathSnippets.map((snippet, index) => {
       const url = `/${pathSnippets.slice(0, index + 1).join("/")}`;
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(snippet);
+      const displayLabel = isMongoId
+        ? "Workspace"
+        : (snippet === "admin" || snippet === "users")
+        ? "User Management"
+        : snippet.replace("-", " ");
       return {
-        title: <Link href={url} style={{ textTransform: "capitalize" }}>{snippet.replace("-", " ")}</Link>,
+        title: <Link href={url} style={{ textTransform: "capitalize" }}>{displayLabel}</Link>,
       };
     })
   ];
@@ -602,8 +608,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             zIndex: 1,
           }}
         >
-          Made in India with{" "}
-          <span className="inline-block animate-pulse">❤️</span> by{" "}
+          © {new Date().getFullYear()}{" "}
           <strong style={{ color: "#00897b" }}>
             Biometrik® Systems
           </strong>
