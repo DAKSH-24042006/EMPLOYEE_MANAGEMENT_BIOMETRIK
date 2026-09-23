@@ -1,134 +1,52 @@
 "use client";
 
 import React, { useState } from "react";
-import { Alert, Button, Card, Form, Input, Space, Typography, App } from "antd";
-import { MailOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Typography, Form, Input } from "antd";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
-import FaceCapture from "@/components/auth/FaceCapture";
+import { useRouter, useSearchParams } from "next/navigation";
+import { User, Lock, ArrowRight } from "lucide-react";
 import logo from "../../../../public/Biometrik_New_Logo.png";
 
 const { Title, Text } = Typography;
 
-type LoginStep = "enter-email" | "register-face" | "verify-face";
-
-function getCurrentLocation() {
-  return new Promise<string>((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Location is not supported in this browser."));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        resolve(`Lat: ${latitude}, Lng: ${longitude}`);
-      },
-      () => reject(new Error("Location permission is required to register your face.")),
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
-  });
-}
-
 export default function LoginForm() {
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<LoginStep>("enter-email");
-  const [email, setEmail] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [form] = Form.useForm();
   const searchParams = useSearchParams();
-  const { message } = App.useApp();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
-  const safeCallbackUrl = callbackUrl.startsWith("/") && !callbackUrl.startsWith("/.well-known/")
-    ? callbackUrl
-    : "/dashboard";
+  const router = useRouter();
 
-  const checkEmail = async (values: { email: string }) => {
-    const normalizedEmail = values.email.trim().toLowerCase();
+  const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
-    setStatusMessage("");
+    setErrorMessage(null);
 
     try {
-      const res = await fetch("/api/auth/check-email", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({
+          username: values.username.trim(),
+          password: values.password,
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        message.error(data.error || "Unable to check account");
+        setErrorMessage(data.error || "Invalid username or password.");
         return;
       }
 
-      if (!data.exists) {
-        setStatusMessage("This email is not registered. Please contact the admin.");
-        return;
-      }
+      // Check callback URL if provided
+      const callbackUrl = searchParams ? searchParams.get("callbackUrl") : null;
+      const targetPath = callbackUrl && !callbackUrl.startsWith("/auth") ? callbackUrl : data.redirect || "/dashboard";
 
-      setEmail(normalizedEmail);
-
-      if (data.nextStep === "register-face") {
-        setStep("register-face");
-        setStatusMessage("Face registration is required for this account.");
-      } else {
-        setStep("verify-face");
-      }
-    } catch (error) {
-      message.error("Something went wrong. Please try again.");
+      window.location.href = targetPath;
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to connect to authentication server.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const submitFace = async (faceImage: string) => {
-    const endpoint = step === "register-face"
-      ? "/api/auth/register-face"
-      : "/api/auth/face-verify";
-
-    setLoading(true);
-
-    try {
-      const location = step === "register-face"
-        ? await getCurrentLocation()
-        : undefined;
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, faceImage, location }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        message.success(step === "register-face" ? "Face registered successfully!" : "Login successful!");
-        window.location.href = safeCallbackUrl;
-        return;
-      }
-
-      message.error(data.error || "Face authentication failed");
-
-      if (data.nextStep === "register-face") {
-        setStep("register-face");
-        setStatusMessage("Face registration is required for this account.");
-      }
-    } catch (error: any) {
-      message.error(error.message || "Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetEmail = () => {
-    setStep("enter-email");
-    setEmail("");
-    setStatusMessage("");
   };
 
   return (
@@ -136,102 +54,111 @@ export default function LoginForm() {
       style={{
         width: "100%",
         maxWidth: 420,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-        borderRadius: 12,
+        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.08)",
+        borderRadius: 16,
+        padding: "16px 12px",
+        background: "#ffffff",
       }}
       variant="borderless"
     >
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
         <Image
           src={logo}
-          alt="Logo"
-          width={180}
-          height={45}
+          alt="Biometrik Logo"
+          width={200}
+          height={50}
+          priority
           unoptimized
           style={{
             display: "block",
-            margin: "0 auto 15px",
-            width: "180px",
+            margin: "0 auto 16px",
+            width: "190px",
             height: "auto",
             objectFit: "contain",
           }}
         />
-        <Title level={3} style={{ margin: 0, marginBottom: 10 }}>
-          Welcome Back
+        <Title level={4} style={{ margin: "0 0 6px 0", color: "#1f1f1f", fontWeight: 600 }}>
+          Employee Portal Login
         </Title>
-        <Text type="secondary">
-          Use your registered email and face verification to continue.
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          Enter your authorized username and password to sign in.
         </Text>
       </div>
 
-      {statusMessage && (
+      {errorMessage && (
         <Alert
-          type={step === "enter-email" ? "warning" : "info"}
+          type="error"
           showIcon
-          title={statusMessage}
-          style={{ marginBottom: 20 }}
+          message={errorMessage}
+          style={{
+            marginBottom: 20,
+            borderRadius: 8,
+            fontSize: 13,
+            lineHeight: "1.5",
+          }}
         />
       )}
 
-      {step === "enter-email" ? (
-        <Form
-          name="face_login_email_form"
-          layout="vertical"
-          onFinish={checkEmail}
-          requiredMark={false}
-          size="large"
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleLogin}
+        requiredMark={false}
+      >
+        <Form.Item
+          name="username"
+          label={<Text strong style={{ fontSize: 13, color: "#434343" }}>Username or Email</Text>}
+          rules={[{ required: true, message: "Please enter your username or email" }]}
         >
-          <Form.Item
-            name="email"
-            rules={[
-              { required: true, message: "Please enter your email!" },
-              { type: "email", message: "Please enter a valid email!" },
-            ]}
-          >
-            <Input
-              prefix={<MailOutlined style={{ color: "rgba(0,0,0,.25)" }} />}
-              placeholder="Email address"
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 16, marginTop: 32 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              loading={loading}
-              style={{ height: 44, borderRadius: 8, fontWeight: 500 }}
-            >
-              Continue
-            </Button>
-          </Form.Item>
-        </Form>
-      ) : (
-        <Space orientation="vertical" style={{ width: "100%" }} size={16}>
-          <div>
-            <Text type="secondary">Account</Text>
-            <div style={{ fontWeight: 600, color: "#323338" }}>{email}</div>
-          </div>
-
-          <FaceCapture
-            loading={loading}
-            actionLabel={step === "register-face" ? "Register Face" : "Verify Face"}
-            helperText={
-              step === "register-face"
-                ? "Camera and location permission are required. Your current location will be saved with this face registration."
-                : "Center your face clearly and capture to sign in."
-            }
-            onCapture={submitFace}
+          <Input
+            size="large"
+            placeholder="e.g. admin or username"
+            prefix={<User size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
+            style={{ borderRadius: 8, height: 46 }}
+            autoCapitalize="none"
+            autoCorrect="off"
           />
+        </Form.Item>
 
-          <Button block onClick={resetEmail} disabled={loading} style={{ borderRadius: 8 }}>
-            Use Different Email
+        <Form.Item
+          name="password"
+          label={<Text strong style={{ fontSize: 13, color: "#434343" }}>Password</Text>}
+          rules={[{ required: true, message: "Please enter your password" }]}
+        >
+          <Input.Password
+            size="large"
+            placeholder="••••••••"
+            prefix={<Lock size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
+            style={{ borderRadius: 8, height: 46 }}
+          />
+        </Form.Item>
+
+        <Form.Item style={{ marginTop: 24, marginBottom: 12 }}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            size="large"
+            loading={loading}
+            icon={<ArrowRight size={18} />}
+            iconPosition="end"
+            style={{
+              height: 48,
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              backgroundColor: "#00897b",
+              borderColor: "#00897b",
+              boxShadow: "0 4px 12px rgba(0, 137, 123, 0.25)",
+            }}
+          >
+            Sign In
           </Button>
-        </Space>
-      )}
+        </Form.Item>
+      </Form>
 
-      <div style={{ textAlign: "center", marginTop: 24 }}>
-        <Text type="secondary" style={{ fontStyle: "italic", fontSize: 13 }}>
+      <div style={{ textAlign: "center", marginTop: 20 }}>
+        <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}>
           &quot;There are no traffic jams at the extra mile !&quot;
         </Text>
       </div>

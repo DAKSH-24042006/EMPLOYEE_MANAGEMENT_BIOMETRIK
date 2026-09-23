@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 
+// ============================================================
+// LEGACY GOOGLE AUTHENTICATION — PRESERVED FOR ROLLBACK / REFERENCE
+//
+// Microsoft Entra ID is now the primary login provider.
+// Existing Google OAuth / Calendar implementation preserved for rollback/reference.
+// DO NOT DELETE.
+// ============================================================
+
 export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;

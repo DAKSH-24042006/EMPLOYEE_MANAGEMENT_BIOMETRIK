@@ -15,7 +15,7 @@ export default function LoginPage() {
         </Suspense>
       </div>
       <footer style={{ textAlign: "center", padding: "16px 24px", background: "transparent", fontSize: "13px", color: "#8c8c8c" }}>
-        Made in India with ❤️ by <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
+        © {new Date().getFullYear()} <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
       </footer>
     </div>
   );

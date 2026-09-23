@@ -6,6 +6,10 @@ import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/googleCalendar";
 import { GoogleToken } from "@/lib/models/GoogleToken";
+import { logActivity } from "@/lib/activity";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 export async function PATCH(
   req: Request,
@@ -30,6 +34,11 @@ export async function PATCH(
 
     await dbConnect();
 
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     const task = await Task.findById(taskId);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
@@ -40,6 +49,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    const prevStatus = task.status;
     const prevSync = task.syncToGoogleCalendar;
     const prevAssignee = task.assignedTo.toString();
     const prevEventId = task.googleCalendarEventId;
@@ -149,11 +159,33 @@ export async function PATCH(
 
     await task.save();
 
+    if (body.status !== undefined && body.status !== prevStatus) {
+      await logActivity(
+        id,
+        "task",
+        `Updated task "${task.title}" status from "${prevStatus}" to "${task.status}"`,
+        payload.userId
+      );
+    } else {
+      await logActivity(
+        id,
+        "task",
+        `Updated task "${task.title}" details`,
+        payload.userId
+      );
+    }
+
     const populatedTask = await Task.findById(task._id)
       .populate("assignedTo", "name email role")
       .populate("createdBy", "name email role");
 
-    return NextResponse.json({ data: populatedTask }, { status: 200 });
+    return NextResponse.json(
+      { data: populatedTask },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("Task update error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -177,8 +209,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
-    const { taskId } = await params;
+    const { id, taskId } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const task = await Task.findById(taskId);
     if (!task) {
@@ -192,7 +229,20 @@ export async function DELETE(
 
     await Task.findByIdAndDelete(taskId);
 
-    return NextResponse.json({ message: "Task successfully deleted" }, { status: 200 });
+    await logActivity(
+      id,
+      "task",
+      `Deleted task "${task.title}"`,
+      payload.userId
+    );
+
+    return NextResponse.json(
+      { message: "Task successfully deleted" },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

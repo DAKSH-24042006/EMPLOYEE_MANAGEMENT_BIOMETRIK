@@ -4,6 +4,9 @@ import dbConnect from "@/lib/db";
 import { WorkItem } from "@/lib/models/WorkItem";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 async function getAuthPayload() {
   const cookieStore = await cookies();
@@ -21,8 +24,13 @@ export async function GET(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { itemId } = await params;
+    const { id, itemId } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const workItem = await WorkItem.findById(itemId)
       .populate("assignee", "name email role")
@@ -35,7 +43,13 @@ export async function GET(
       return NextResponse.json({ error: "Work item not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ data: workItem }, { status: 200 });
+    return NextResponse.json(
+      { data: workItem },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("GET WorkItem Detail Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -59,10 +73,18 @@ export async function PUT(
     const body = await req.json();
 
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     const workItem = await WorkItem.findById(itemId);
     if (!workItem) {
       return NextResponse.json({ error: "Work item not found" }, { status: 404 });
     }
+
+    const prevStatus = workItem.status;
 
     // Basic updates
     if (body.title !== undefined) workItem.title = body.title;
@@ -122,7 +144,22 @@ export async function PUT(
 
     await workItem.save();
 
-    return NextResponse.json({ data: workItem }, { status: 200 });
+    if (body.status !== undefined && body.status !== prevStatus) {
+      await logActivity(
+        id,
+        "work_item",
+        `Updated work item "${workItem.title}" status from "${prevStatus}" to "${workItem.status}"`,
+        payload.userId
+      );
+    }
+
+    return NextResponse.json(
+      { data: workItem },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("PUT WorkItem Error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
@@ -146,7 +183,7 @@ export async function DELETE(
     }
 
     // Permissions check: Admins, Tech Managers, or the creator can delete
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER" && workItem.createdBy.toString() !== payload.userId) {
+    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== "TECH_MANAGER" && workItem.createdBy.toString() !== payload.userId) {
       return NextResponse.json({ error: "Forbidden: Insufficient privileges to delete this work item" }, { status: 403 });
     }
 

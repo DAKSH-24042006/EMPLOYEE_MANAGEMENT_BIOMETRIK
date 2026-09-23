@@ -3,56 +3,93 @@ import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/db";
 import { User } from "@/lib/models/User";
 import { signJwt } from "@/lib/auth";
+import { Role, UserStatus } from "@/lib/constants";
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json();
+    const body = await req.json();
+    const rawIdentifier = (body.username || body.email || body.identifier || "").trim();
+    const password = body.password || "";
 
-    if (!email || !password) {
+    if (!rawIdentifier || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Username and password are required" },
         { status: 400 }
       );
     }
 
+    const lowerIdentifier = rawIdentifier.toLowerCase();
+    const escapedIdentifier = rawIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const caseInsensitiveRegex = new RegExp(`^${escapedIdentifier}$`, "i");
 
     await dbConnect();
 
-    // In a real system, you'd find a user. For mocked environment, we can fallback dynamically
-    // Select password since it's set to select: false by default in Schema
-    let user = await User.findOne({ email }).select("+password");
+    // Query user by username, email, or microsoftEmail (case-insensitive)
+    let user = await User.findOne({
+      $or: [
+        { username: lowerIdentifier },
+        { username: caseInsensitiveRegex },
+        { email: lowerIdentifier },
+        { email: caseInsensitiveRegex },
+        { microsoftEmail: lowerIdentifier },
+        { microsoftEmail: caseInsensitiveRegex },
+      ],
+    }).select("+password");
+
 
-    // ----- MOCK SETUP FOR DEMO PURPOSES -----
-    // If the mock user doesn't exist, create an admin or sales user on the fly.
-    // This allows testing the RBAC flow smoothly without a pre-seeded database.
     if (!user) {
-      const isSales = email.includes("sales");
-      const hashedPassword = await bcrypt.hash(password, 10);
-      user = await User.create({
-        name: isSales ? "Sales Mock User" : "Admin Mock User",
-        email,
-        password: hashedPassword,
-        role: isSales ? "SALES" : "ADMIN",
-      });
-    }
-    // ----------------------------------------
-
-    // Verify Password
-    const isPasswordValid = await bcrypt.compare(password, user.password as string);
-    if (!isPasswordValid) {
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        { error: "Invalid username or password" },
         { status: 401 }
       );
     }
 
-    // Generate JWT
-    const token = await signJwt({ userId: user.id || user._id.toString(), role: user.role });
-    console.log(`[Login API] Token generated for user: ${user.email} (${user.role})`);
+    // Check account status
+    if (user.status === UserStatus.INACTIVE) {
+      return NextResponse.json(
+        { error: "Your account is currently inactive. Please contact the System Administrator." },
+        { status: 403 }
+      );
+    }
 
-    // Build the response and Set-Cookie
+    // Verify Password
+    if (!user.password) {
+      return NextResponse.json(
+        { error: "Password has not been set for this account. Please contact the System Administrator." },
+        { status: 401 }
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Invalid username or password" },
+        { status: 401 }
+      );
+    }
+
+    // Generate JWT Session Token
+    const token = await signJwt({
+      userId: user._id.toString(),
+      role: user.role,
+    });
+
+    console.log(`[Login API] Login successful for user: ${user.username || user.email} (${user.role})`);
+
+    const redirectPath = user.role === Role.SYSTEM_ADMIN ? "/admin" : "/dashboard";
+
     const response = NextResponse.json(
-      { message: "Login successful", user: { email: user.email, role: user.role } },
+      {
+        message: "Login successful",
+        user: {
+          id: user._id,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        },
+        redirect: redirectPath,
+      },
       { status: 200 }
     );
 
@@ -61,13 +98,14 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       path: "/",
       sameSite: "lax",
+      maxAge: 60 * 60 * 24, // 24 hours
     });
 
-    console.log(`[Login API] Cookie set for token`);
     return response;
   } catch (error: any) {
+    console.error("Login API Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: error.message || "Internal Server Error" },
       { status: 500 }
     );
   }

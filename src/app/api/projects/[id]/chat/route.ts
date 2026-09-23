@@ -5,6 +5,9 @@ import { ChatMessage } from "@/lib/models/ChatMessage";
 import { Notification } from "@/lib/models/Notification";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
@@ -24,11 +27,16 @@ export async function GET(
     }
 
     const { id } = await params;
+    await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
-
-    await dbConnect();
 
     const messages = await ChatMessage.find({ projectId: id })
       .populate("senderId", "name email role")
@@ -38,7 +46,13 @@ export async function GET(
       .limit(limit);
 
     // Return in chronological order for UI display
-    return NextResponse.json({ data: messages.reverse() }, { status: 200 });
+    return NextResponse.json(
+      { data: messages.reverse() },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -76,6 +90,11 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    const canView = await canUserViewProject(project, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
+
     // Save chat message
     const chatMsg = await ChatMessage.create({
       projectId: id,
@@ -94,20 +113,20 @@ export async function POST(
             projectId: id,
             type: "CHAT_MENTION",
             title: "Tagged in Chat",
-            message: `You were mentioned in a chat message by a team member for project "${project.clientDetails.companyName}".`,
+            message: `You were mentioned in a chat message by a team member for project "${project.title || "Project"}".`,
           });
         }
       }
     }
 
-    // If the sender is TECH_TEAM and project creator is SALES_TEAM, notify the creator about clarification
-    if (payload.role === "TECH_TEAM" && project.createdBy.toString() !== payload.userId) {
+    // If the sender is not project creator, notify the creator
+    if (project.createdBy && project.createdBy.toString() !== payload.userId) {
       await Notification.create({
         recipientId: project.createdBy,
         projectId: id,
-        type: "CHAT_CLARIFICATION",
-        title: "Clarification request in Chat",
-        message: `A member of the technical team has posted a message/clarification on project "${project.clientDetails.companyName}".`,
+        type: "CHAT_MESSAGE",
+        title: "New Message in Project Chat",
+        message: `New message posted in chat for project "${project.title || "Project"}".`,
       });
     }
 

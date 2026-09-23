@@ -4,6 +4,8 @@ import { User } from "@/lib/models/User";
 import { verifyJwt } from "@/lib/auth";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // Get the JWT token from cookies
@@ -30,7 +32,7 @@ export async function GET() {
     await dbConnect();
 
     // Find the user by ID and internal fields
-    const user = await User.findById(decoded.userId).select("name email role phoneNumber location");
+    const user = await User.findById(decoded.userId).select("name username email microsoftEmail designation status role phoneNumber location");
 
     if (!user) {
       return NextResponse.json(
@@ -42,15 +44,23 @@ export async function GET() {
     return NextResponse.json(
       { 
         user: { 
+          _id: user._id,
           id: user._id,
           name: user.name, 
+          username: user.username,
           email: user.email, 
+          microsoftEmail: user.microsoftEmail,
+          designation: user.designation || "",
+          status: user.status,
           role: user.role,
           phoneNumber: user.phoneNumber,
           location: user.location
         } 
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
     );
   } catch (error: any) {
     console.error("Fetch Current User Error:", error);

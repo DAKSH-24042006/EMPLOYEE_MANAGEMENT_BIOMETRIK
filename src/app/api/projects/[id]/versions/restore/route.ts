@@ -1,3 +1,4 @@
+import { canUserViewProject } from "@/lib/projectAccess";
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import { Project } from "@/lib/models/Project";
@@ -40,6 +41,14 @@ export async function POST(
     const project = await Project.findById(id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const canView = await canUserViewProject(project, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to restore versions for this project." },
+        { status: 403 }
+      );
     }
 
     const previousSnapshot = JSON.parse(JSON.stringify(project));

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { Project, FEATURE_KEYS } from "@/lib/models/Project";
 import { verifyJwt } from "@/lib/auth";
+import { Role } from "@/lib/constants";
 
 export async function POST(req: Request) {
   try {
@@ -18,18 +19,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
     }
 
+    // STRICT RBAC: Only SYSTEM_ADMIN can create projects
+    if (payload.role !== Role.SYSTEM_ADMIN) {
+      return NextResponse.json(
+        { error: "Forbidden: Only System Administrator has access to create new projects." },
+        { status: 403 }
+      );
+    }
+
     const data = await req.json();
 
     // Data restructuring to map exactly against Schema constraints
     const newProject = {
       title: data.title || "",
+      description: data.description || "",
       clientDetails: {
-        companyName: data.companyName,
+        companyName: data.companyName || data.title || "Client Project",
         contactPerson: data.contactPerson || "",
-        email: data.email,
+        email: data.email || "",
         contactNumber: data.contactNumber || "",
       },
-      features: FEATURE_KEYS.reduce((acc, key) => {
+      features: FEATURE_KEYS.reduce((acc: any, key: string) => {
         acc[key] = !!data[key];
         return acc;
       }, {} as Record<string, boolean>),
@@ -46,19 +56,14 @@ export async function POST(req: Request) {
         endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
       },
       createdBy: payload.userId,
+      techOwner: data.techOwner || undefined,
+      techTeamMembers: Array.isArray(data.techTeamMembers) ? data.techTeamMembers : [],
     };
 
     // Basic Validation Strategy
     if (!newProject.title) {
       return NextResponse.json(
         { error: "Project Title is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!newProject.clientDetails.companyName || !newProject.clientDetails.email) {
-      return NextResponse.json(
-        { error: "Company Name and Email are required." },
         { status: 400 }
       );
     }

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { Sprint } from "@/lib/models/Sprint";
 import { WorkItem } from "@/lib/models/WorkItem";
+import { Project } from "@/lib/models/Project";
+import { Role } from "@/lib/constants";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 
@@ -22,14 +24,25 @@ export async function PUT(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER") {
-      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by Tech Managers or Admins" }, { status: 403 });
-    }
-
     const { id, sprintId } = await params;
     const body = await req.json();
 
     await dbConnect();
+
+    const project = await Project.findById(id).select("techOwner");
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isProjectLead =
+      payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "ADMIN" ||
+      payload.role === "TECH_MANAGER" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    if (!isProjectLead) {
+      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Manager or Admins" }, { status: 403 });
+    }
     const sprint = await Sprint.findById(sprintId);
     if (!sprint) {
       return NextResponse.json({ error: "Sprint not found" }, { status: 404 });
@@ -94,12 +107,23 @@ export async function DELETE(
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (payload.role !== "ADMIN" && payload.role !== "TECH_MANAGER") {
-      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by Tech Managers or Admins" }, { status: 403 });
-    }
-
     const { id, sprintId } = await params;
     await dbConnect();
+
+    const project = await Project.findById(id).select("techOwner");
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isProjectLead =
+      payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "ADMIN" ||
+      payload.role === "TECH_MANAGER" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    if (!isProjectLead) {
+      return NextResponse.json({ error: "Forbidden: Sprints can only be managed by the Project Manager or Admins" }, { status: 403 });
+    }
 
     const sprint = await Sprint.findById(sprintId);
     if (!sprint) {

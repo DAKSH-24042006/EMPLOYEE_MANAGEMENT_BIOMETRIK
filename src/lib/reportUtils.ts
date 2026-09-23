@@ -106,37 +106,41 @@ export const generateProjectPDF = async (project: any) => {
     doc.setLineWidth(0.8);
     doc.line(15, 56, pageWidth - 15, 56);
 
-    // Client Details Section
+    // Project & Client Details Section
     doc.setFontSize(16);
     doc.setTextColor(31, 41, 55); // Dark Gray
-    doc.text("1. Client Information", 15, 75);
+    doc.text("1. Project & Client Information", 15, 72);
     
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99); // Medium Gray
     
-    doc.text(`Company:`, 20, 85);
+    doc.text(`Project Title:`, 20, 82);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails?.companyName || "N/A"}`, 55, 85);
+    doc.text(`${project.title || "N/A"}`, 60, 82);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
-    doc.text(`Contact:`, 20, 93);
+    doc.text(`Client / Company:`, 20, 90);
+    doc.setFont("helvetica", "bold");
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails?.contactPerson || "Not Provided"}`, 55, 93);
+    doc.text(`${project.clientDetails?.companyName || project.title || "N/A"}`, 60, 90);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
-    doc.text(`Email:`, 20, 101);
+    doc.text(`Project Manager:`, 20, 98);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails?.email || "Not Provided"}`, 55, 101);
+    doc.text(`${project.techOwner?.name || "Unassigned"}`, 60, 98);
 
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(75, 85, 99);
-    doc.text(`Contact No:`, 20, 109);
-    doc.setTextColor(17, 24, 39);
-    doc.text(`${project.clientDetails?.contactNumber || "Not Provided"}`, 55, 109);
+    if (project.description) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(75, 85, 99);
+      doc.text(`Description:`, 20, 106);
+      doc.setTextColor(55, 65, 81);
+      const splitDesc = doc.splitTextToSize(project.description, pageWidth - 80);
+      doc.text(splitDesc.slice(0, 2), 60, 106);
+    }
 
     // Project Status & Timeline
     doc.setFontSize(16);
@@ -144,31 +148,31 @@ export const generateProjectPDF = async (project: any) => {
     doc.setFont("helvetica", "bold");
     doc.text("2. Logistics & Timeline", 15, 126);
     
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`Current Status:`, 20, 136);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 137, 123);
-    doc.text(`${(project.status || "Pending").toUpperCase()}`, 55, 136);
+    doc.text(`${(project.status || "Active").toUpperCase()}`, 60, 136);
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`Start Date:`, 20, 144);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.timeline?.startDate ? dayjs(project.timeline.startDate).format("DD MMMM YYYY") : "N/A"}`, 55, 144);
-    
+    doc.text(`${project.timeline?.startDate ? dayjs(project.timeline.startDate).format("DD MMMM YYYY") : "N/A"}`, 60, 144);
+
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`End Date:`, 20, 152);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.timeline?.endDate ? dayjs(project.timeline.endDate).format("DD MMMM YYYY") : "N/A"}`, 55, 152);
+    doc.text(`${project.timeline?.endDate ? dayjs(project.timeline.endDate).format("DD MMMM YYYY") : "N/A"}`, 60, 152);
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(75, 85, 99);
     doc.text(`Est. Budget:`, 20, 160);
     doc.setTextColor(17, 24, 39);
-    doc.text(`${project.budget || "Not Specified"}`, 55, 160);
+    doc.text(`${project.budget || "Not Specified"}`, 60, 160);
 
     let currentY = 175;
 

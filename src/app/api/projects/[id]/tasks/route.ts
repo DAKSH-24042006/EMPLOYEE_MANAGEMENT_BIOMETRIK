@@ -8,6 +8,10 @@ import { verifyJwt } from "@/lib/auth";
 import { createCalendarEvent } from "@/lib/googleCalendar";
 import { Notification } from "@/lib/models/Notification";
 import { GoogleToken } from "@/lib/models/GoogleToken";
+import { canUserViewProject } from "@/lib/projectAccess";
+import { logActivity } from "@/lib/activity";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
@@ -28,6 +32,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const tasks = await Task.find({ projectId: id })
       .populate("assignedTo", "name email role")
@@ -70,6 +79,18 @@ export async function POST(
     const project = await Project.findById(id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // STRICT CHECK: Only Project Lead (techOwner) or System Admin can create tasks
+    const isProjectLead =
+      payload.role === "SYSTEM_ADMIN" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    if (!isProjectLead) {
+      return NextResponse.json(
+        { error: "Forbidden: Only the Project Manager or System Administrator can create tasks and assign them to team members." },
+        { status: 403 }
+      );
     }
 
     const assignee = await User.findById(assignedTo);
@@ -124,6 +145,13 @@ export async function POST(
 
     await task.save();
 
+    await logActivity(
+      id,
+      "task",
+      `Created task "${task.title}"`,
+      payload.userId
+    );
+
     // Create in-app notification for task assignment
     await Notification.create({
       recipientId: assignedTo,
@@ -137,7 +165,13 @@ export async function POST(
       .populate("assignedTo", "name email role")
       .populate("createdBy", "name email role");
 
-    return NextResponse.json({ data: populatedTask }, { status: 201 });
+    return NextResponse.json(
+      { data: populatedTask },
+      {
+        status: 201,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("Task creation error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -29,6 +29,9 @@ export interface IWorkItem extends Document {
   assignee?: mongoose.Types.ObjectId;
   sprint?: mongoose.Types.ObjectId;
   dueDate?: Date;
+  lastReminderSentAt?: Date;
+  lastReminderType?: "approaching" | "due_today" | "overdue";
+  overdueReminderCount?: number;
   estimatedHours: number;
   actualHours: number;
   progress: number;
@@ -84,6 +87,15 @@ const WorkItemSchema: Schema = new Schema(
       ref: "Sprint",
     },
     dueDate: Date,
+    lastReminderSentAt: Date,
+    lastReminderType: {
+      type: String,
+      enum: ["approaching", "due_today", "overdue"],
+    },
+    overdueReminderCount: {
+      type: Number,
+      default: 0,
+    },
     estimatedHours: {
       type: Number,
       default: 0,

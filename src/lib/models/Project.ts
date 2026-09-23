@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IClientDetails {
-  companyName: string;
+  companyName?: string;
   contactPerson?: string;
   email: string;
   contactNumber?: string;
@@ -32,6 +32,7 @@ export interface ITimeline {
 
 export interface IProject extends Document {
   title: string;
+  description?: string;
   clientDetails: IClientDetails;
   features: IFeatures;
   extraAddOns?: string;
@@ -100,17 +101,21 @@ const ProjectSchema: Schema = new Schema(
       type: String,
       default: "",
     },
+    description: {
+      type: String,
+      default: "",
+    },
     clientDetails: {
       companyName: {
         type: String,
-        required: [true, "Company Name is required"],
+        default: "",
       },
-      contactPerson: String,
+      contactPerson: { type: String, default: "" },
       email: {
         type: String,
-        required: [true, "Email is required"],
+        default: "",
       },
-      contactNumber: String,
+      contactNumber: { type: String, default: "" },
     },
     features: {
       visitorManagement: { type: Boolean, default: false },

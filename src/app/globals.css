@@ -41,3 +41,58 @@ a {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00897b;
+}
+
+/* Professional Card Hover & Transition */
+.project-card-interactive {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.25s ease !important;
+}
+
+.project-card-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(0, 137, 123, 0.12), 0 6px 14px -2px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 137, 123, 0.35) !important;
+}
+
+/* Workspace Button Micro-Interaction */
+.workspace-btn {
+  background: #00897b !important;
+  border-color: #00897b !important;
+  transition: all 0.2s ease !important;
+}
+
+.workspace-btn:hover {
+  background: #00796b !important;
+  border-color: #00796b !important;
+}
+
+.workspace-btn .anticon-right,
+.workspace-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.workspace-btn:hover .anticon-right,
+.workspace-btn:hover svg {
+  transform: translateX(3px);
+}
+

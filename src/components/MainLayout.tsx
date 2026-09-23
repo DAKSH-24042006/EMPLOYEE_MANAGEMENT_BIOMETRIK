@@ -17,6 +17,7 @@ import {
   LogOut,
   Check,
   Bell,
+  ShieldCheck,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
 import logo from '../../public/Biometrik_New_Logo.png'
@@ -153,8 +154,8 @@ const { useBreakpoint } = Grid;
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
-  const pathname = usePathname();
+  const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(null);
+  const pathname = usePathname() || "";
   const router = useRouter();
 
   useEffect(() => {
@@ -177,15 +178,49 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch("/api/user/me");
+      const response = await fetch("/api/user/me", { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+        return data.user;
       }
     } catch (error) {
       console.error("Failed to fetch user data:", error);
     }
+    return null;
   };
+
+  // Cross-tab session sync: reload if a different user logged in on another tab
+  useEffect(() => {
+    const handleSessionSync = async () => {
+      try {
+        const response = await fetch("/api/user/me", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          const newUserId = data.user?._id || data.user?.id;
+          const currentUserId = (user as any)?._id || (user as any)?.id;
+          if (currentUserId && newUserId && String(newUserId) !== String(currentUserId)) {
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        console.error("Session sync check error:", err);
+      }
+    };
+
+    window.addEventListener("focus", handleSessionSync);
+    const handleVis = () => {
+      if (document.visibilityState === "visible") {
+        handleSessionSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    return () => {
+      window.removeEventListener("focus", handleSessionSync);
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, [user]);
 
   const isMobile = mounted && !screens.md;
 
@@ -215,11 +250,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       label: <Link href="/profile">My Profile</Link>,
     },
     {
+      key: "/admin",
+      icon: <ShieldCheck size={18} />,
+      label: <Link href="/admin">User Management</Link>,
+    },
+    {
       key: "/users",
       icon: <Users size={18} />,
-      label: <Link href="/users">Users</Link>,
+      label: <Link href="/users">User Management</Link>,
     },
   ].filter(item => {
+    if (item.key === "/admin") {
+      return user?.role === Role.SYSTEM_ADMIN;
+    }
     if (item.key === "/users") {
       return user?.role === Role.ADMIN;
     }
@@ -234,8 +277,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     },
     ...pathSnippets.map((snippet, index) => {
       const url = `/${pathSnippets.slice(0, index + 1).join("/")}`;
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(snippet);
+      const displayLabel = isMongoId
+        ? "Workspace"
+        : (snippet === "admin" || snippet === "users")
+        ? "User Management"
+        : snippet.replace("-", " ");
       return {
-        title: <Link href={url} style={{ textTransform: "capitalize" }}>{snippet.replace("-", " ")}</Link>,
+        title: <Link href={url} style={{ textTransform: "capitalize" }}>{displayLabel}</Link>,
       };
     })
   ];
@@ -290,38 +339,40 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
-            <button
-              onClick={() => {
-                if (isDrawer) setDrawerVisible(false);
-                router.push("/projects/new");
-              }}
-              style={{
-                height: 48,
-                width: "100%",
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: isActuallyCollapsed ? "center" : "flex-start",
-                padding: isActuallyCollapsed ? "0" : "0 16px",
-                background: logoTeal,
-                border: "none",
-                color: "white",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.3s",
-              }}
-            >
-              {isActuallyCollapsed ? (
-                <Plus size={20} />
-              ) : (
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Plus size={16} />
-                  Create New
-                </span>
-              )}
-            </button>
-          </div>
+          {user?.role === Role.SYSTEM_ADMIN && (
+            <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
+              <button
+                onClick={() => {
+                  if (isDrawer) setDrawerVisible(false);
+                  router.push("/projects/new");
+                }}
+                style={{
+                  height: 48,
+                  width: "100%",
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: isActuallyCollapsed ? "center" : "flex-start",
+                  padding: isActuallyCollapsed ? "0" : "0 16px",
+                  background: logoTeal,
+                  border: "none",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                }}
+              >
+                {isActuallyCollapsed ? (
+                  <Plus size={20} />
+                ) : (
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Plus size={16} />
+                    Create New
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
           <Menu
             theme="light"
@@ -500,7 +551,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                       {user?.name || "Loading..."}
                     </span>
                     <span style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.45)", textTransform: "capitalize" }}>
-                      {user?.role === Role.SALES ? "Sales" : (user?.role?.toLowerCase().replace("_", " ") || "User")}
+                      {user?.role === Role.SYSTEM_ADMIN ? "System Admin" : (user?.designation || user?.role?.toLowerCase().replace("_", " ") || "Employee")}
                     </span>
                   </div>
                 )}
@@ -557,8 +608,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             zIndex: 1,
           }}
         >
-          Made in India with{" "}
-          <span className="inline-block animate-pulse">❤️</span> by{" "}
+          © {new Date().getFullYear()}{" "}
           <strong style={{ color: "#00897b" }}>
             Biometrik® Systems
           </strong>

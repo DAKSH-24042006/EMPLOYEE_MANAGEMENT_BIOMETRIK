@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/db";
 import { User } from "@/lib/models/User";
-import { Role } from "@/lib/constants";
-
-import bcrypt from "bcryptjs";
+import { Role, UserStatus } from "@/lib/constants";
 import { verifyJwt } from "@/lib/auth";
 import { cookies } from "next/headers";
 
-async function isAdmin() {
+// Authorization helper: strictly SYSTEM_ADMIN only
+async function isSystemAdmin() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
 
   if (!token) return false;
 
   const decoded = await verifyJwt(token);
-  return decoded && decoded.role === Role.ADMIN;
+  return !!(decoded && decoded.role === Role.SYSTEM_ADMIN);
 }
 
 async function isAuthenticated() {
@@ -27,6 +27,7 @@ async function isAuthenticated() {
   return !!(decoded && decoded.userId);
 }
 
+// GET /api/users
 export async function GET() {
   try {
     if (!(await isAuthenticated())) {
@@ -34,66 +35,113 @@ export async function GET() {
     }
 
     await dbConnect();
-    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+    const users = await User.find({})
+      .select("-password")
+      .sort({ createdAt: -1 });
+
     return NextResponse.json(users);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
+// POST /api/users — Add Employee with Username and Password (SYSTEM_ADMIN ONLY)
 export async function POST(req: Request) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 403 });
+    if (!(await isSystemAdmin())) {
+      return NextResponse.json(
+        { error: "Unauthorized: System Admin access required" },
+        { status: 403 }
+      );
     }
 
-    const { name, email, password, role, phoneNumber, location } = await req.json();
+    const { name, username, password, email, designation, role, status } = await req.json();
 
-    if (!name || !email || !password || !role || !phoneNumber) {
+    const normalizedEmail = (email || "").toLowerCase().trim();
+    const normalizedUsername = (username || "").toLowerCase().trim();
+
+    if (!name || !name.trim()) {
       return NextResponse.json(
-        { error: "Please provide all required fields (including Phone Number)" },
+        { error: "Full name is required" },
         { status: 400 }
       );
     }
 
-    if (!/^[0-9]+$/.test(phoneNumber)) {
+    if (!normalizedUsername) {
       return NextResponse.json(
-        { error: "Phone number must contain only digits" },
+        { error: "Username is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!password || password.trim().length < 1) {
+      return NextResponse.json(
+        { error: "Password is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!normalizedEmail) {
+      return NextResponse.json(
+        { error: "Email address is required" },
+        { status: 400 }
+      );
+    }
+
+    // Email format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return NextResponse.json(
+        { error: "Please enter a valid email address" },
         { status: 400 }
       );
     }
 
     await dbConnect();
 
-    // Check if user already exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    // Check if username is already in use
+    const usernameExists = await User.findOne({ username: normalizedUsername });
+    if (usernameExists) {
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: `Username '${normalizedUsername}' is already taken. Please choose another.` },
         { status: 400 }
       );
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role,
-      phoneNumber,
-      location: location || "",
+    // Check if email is already in use
+    const emailExists = await User.findOne({
+      $or: [{ email: normalizedEmail }, { microsoftEmail: normalizedEmail }],
     });
 
-    const userResponse = await User.findById(user._id).select("-password");
+    if (emailExists) {
+      return NextResponse.json(
+        { error: `An employee with email '${normalizedEmail}' already exists.` },
+        { status: 400 }
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const employee = await User.create({
+      name: name.trim(),
+      username: normalizedUsername,
+      email: normalizedEmail,
+      microsoftEmail: normalizedEmail,
+      password: hashedPassword,
+      designation: (designation || "").trim(),
+      role: role || Role.EMPLOYEE,
+      status: status || UserStatus.ACTIVE,
+    });
+
+    const userResponse = await User.findById(employee._id).select("-password");
 
     return NextResponse.json(userResponse, { status: 201 });
   } catch (error: any) {
-    console.error("Create User Error:", error);
+    console.error("Create Employee Error:", error);
     if (error.name === "ValidationError") {
-      return NextResponse.json({ error: Object.values(error.errors).map((err: any) => err.message).join(", ") }, { status: 400 });
+      return NextResponse.json(
+        { error: Object.values(error.errors).map((err: any) => err.message).join(", ") },
+        { status: 400 }
+      );
     }
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }

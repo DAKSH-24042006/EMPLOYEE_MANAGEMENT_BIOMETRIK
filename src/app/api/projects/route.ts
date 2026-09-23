@@ -8,6 +8,10 @@ import { WorkItem } from "@/lib/models/WorkItem";
 import { Sprint } from "@/lib/models/Sprint";
 import { verifyJwt } from "@/lib/auth";
 
+import { getProjectViewFilter } from "@/lib/projectAccess";
+
+export const dynamic = "force-dynamic";
+
 async function getAuthPayload() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -44,10 +48,13 @@ export async function GET() {
 
     await dbConnect();
 
-    // Fetch projects sorted by newest first and populate creator and tech owner
-    const projects = await Project.find({})
+    // Fetch projects visible to this user (Assigned member, Project Lead, or System Admin)
+    const filter = await getProjectViewFilter(payload.userId, payload.role);
+
+    const projects = await Project.find(filter)
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
+      .populate("techTeamMembers", "name email role")
       .sort({ createdAt: -1 })
       .exec();
 
@@ -95,7 +102,13 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json({ data: enrichedProjects }, { status: 200 });
+    return NextResponse.json(
+      { data: enrichedProjects },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error: any) {
     console.error("List Projects Error:", error);
     return NextResponse.json(

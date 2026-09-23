@@ -5,6 +5,7 @@ import { ProjectBlocker } from "@/lib/models/ProjectBlocker";
 import { Notification } from "@/lib/models/Notification";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { canUserViewProject } from "@/lib/projectAccess";
 
 export async function GET(
   req: Request,
@@ -25,6 +26,11 @@ export async function GET(
 
     const { id } = await params;
     await dbConnect();
+
+    const canView = await canUserViewProject(id, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    }
 
     const blockers = await ProjectBlocker.find({ projectId: id })
       .populate("ownerId", "name email role")
@@ -68,6 +74,11 @@ export async function POST(
     const project = await Project.findById(id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const canView = await canUserViewProject(project, payload.userId, payload.role);
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
     }
 
     const blocker = await ProjectBlocker.create({

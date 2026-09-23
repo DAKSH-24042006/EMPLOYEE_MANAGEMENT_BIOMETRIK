@@ -2,10 +2,12 @@ import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IProjectAttachment extends Document {
   projectId: mongoose.Types.ObjectId;
-  filename: string;
+  filename?: string;
   originalName: string;
-  mimeType: string;
-  size: number;
+  mimeType?: string;
+  size?: number;
+  folder: string;
+  isFolder: boolean;
   uploadedBy: mongoose.Types.ObjectId;
   uploadedAt: Date;
 }
@@ -19,19 +21,32 @@ const ProjectAttachmentSchema: Schema = new Schema(
     },
     filename: {
       type: String,
-      required: true,
+      required: function (this: any) {
+        return !this.isFolder;
+      },
+      default: "",
     },
     originalName: {
       type: String,
       required: true,
+      trim: true,
     },
     mimeType: {
       type: String,
-      required: true,
+      default: "application/octet-stream",
     },
     size: {
       type: Number,
-      required: true,
+      default: 0,
+    },
+    folder: {
+      type: String,
+      default: "/",
+      trim: true,
+    },
+    isFolder: {
+      type: Boolean,
+      default: false,
     },
     uploadedBy: {
       type: Schema.Types.ObjectId,
