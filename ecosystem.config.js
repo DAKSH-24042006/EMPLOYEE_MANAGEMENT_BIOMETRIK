@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'requirement-dashboard',
-      script: 'server.js',
+      script: '.next/standalone/server.js',
       cwd: '/home/ubuntu/apps/requirement-dashboard',
       instances: 1,
       exec_mode: 'fork',
