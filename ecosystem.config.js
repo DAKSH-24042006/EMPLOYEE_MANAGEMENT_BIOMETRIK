@@ -8,7 +8,8 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 5018
+        PORT: 5018,
+        HOSTNAME: '0.0.0.0'
       },
     },
   ],
