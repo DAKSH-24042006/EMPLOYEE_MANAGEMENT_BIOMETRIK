@@ -1076,7 +1076,7 @@ export default function ProjectsPage() {
                           percent={pct}
                           showInfo={false}
                           strokeColor={pct === 100 ? "#10b981" : "#00897b"}
-                          trailColor="#f3f4f6"
+                          railColor="#f3f4f6"
                           size={["100%", 6]}
                         />
                       </div>

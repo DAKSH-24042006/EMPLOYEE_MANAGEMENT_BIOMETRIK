@@ -12,7 +12,7 @@ export function getBaseAppUrl(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
-    (process.env.NODE_ENV === "production" ? "https://biometriksystems.com" : "http://localhost:3000")
+    "http://localhost:3000"
   ).replace(/\/+$/, "");
 }
 

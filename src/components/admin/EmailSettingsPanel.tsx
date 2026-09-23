@@ -222,7 +222,7 @@ export default function EmailSettingsPanel() {
     daysLeft: String(form.getFieldValue("reminderDaysBeforeDue") || 1),
     daysOverdue: String(form.getFieldValue("overdueIntervalDays") || 2),
     intervalDays: String(form.getFieldValue("overdueIntervalDays") || 2),
-    taskUrl: "http://localhost:3000/projects/64a123bc456de789f0123456",
+    taskUrl: typeof window !== "undefined" ? window.location.origin + "/projects/64a123bc456de789f0123456" : "/projects/64a123bc456de789f0123456",
   };
 
   const renderSamplePreview = (templateText: string) => {

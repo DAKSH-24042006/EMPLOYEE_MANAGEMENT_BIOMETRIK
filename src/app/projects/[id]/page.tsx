@@ -466,8 +466,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
       }
       const json = await res.json();
       if (res.ok) setChatMessages(json.data);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err.message !== "Failed to fetch") {
+        console.error("Chat fetch error:", err);
+      }
     }
   };
 
@@ -1903,19 +1905,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <span style={{ fontWeight: 600, color: "#0f172a" }}>Total Work Items:</span>
             <Tag style={{ margin: 0, background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 10, fontWeight: 600 }}>{totalTasksCount}</Tag>
           </div>
-          <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+          <div style={{ width: 1, height: 16, margin: "0 2px", backgroundColor: "#cbd5e1" }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
             <span style={{ fontWeight: 600, color: "#0284c7" }}>In Progress:</span>
             <Tag style={{ margin: 0, background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1", borderRadius: 10, fontWeight: 600 }}>{inProgressTasksCount}</Tag>
           </div>
-          <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+          <div style={{ width: 1, height: 16, margin: "0 2px", backgroundColor: "#cbd5e1" }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
             <span style={{ fontWeight: 600, color: "#16a34a" }}>Completed:</span>
             <Tag style={{ margin: 0, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 10, fontWeight: 600 }}>{doneTasksCount}</Tag>
           </div>
           {overdueTasksCount > 0 && (
             <>
-              <Divider type="vertical" style={{ height: 16, margin: "0 2px" }} />
+              <div style={{ width: 1, height: 16, margin: "0 2px", backgroundColor: "#cbd5e1" }} />
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#dc2626" }}>
                 <span style={{ fontWeight: 600 }}>Overdue:</span>
                 <Tag color="error" style={{ margin: 0, borderRadius: 10, fontWeight: 600 }}>{overdueTasksCount}</Tag>
@@ -2724,7 +2726,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   <Col xs={24} lg={18}>
                     <Card
                       size="small"
-                      bodyStyle={{ padding: 0 }}
+                      styles={{ body: { padding: 0 } }}
                       style={{
                         borderRadius: 12,
                         overflow: "hidden",
@@ -3019,32 +3021,32 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         ) : null
                       }
                     >
-                      <List
-                        size="small"
-                        dataSource={[
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {[
                           { name: project.techOwner?.name, role: "Project Manager", email: project.techOwner?.email, isLead: true },
                           ...(project.techTeamMembers?.map((m: any) => ({ name: m.name, role: m.role || "Developer", email: m.email, isLead: false })) || []),
                           { name: project.createdBy?.name, role: "Sales Owner", email: project.createdBy?.email, isLead: false },
-                        ].filter(member => member.name)}
-                        renderItem={item => (
-                          <List.Item style={{ padding: "8px 0" }}>
-                            <List.Item.Meta
-                              avatar={
-                                <Avatar
-                                  icon={<UserIcon size={12} />}
-                                  style={{ backgroundColor: item.isLead ? "#f59e0b" : "#00897b" }}
-                                />
-                              }
-                              title={<Text strong style={{ fontSize: 12 }}>{item.name}</Text>}
-                              description={
-                                <div>
-                                  <Tag color={item.isLead ? "gold" : "blue"} style={{ fontSize: 9 }}>{item.role}</Tag>
-                                </div>
-                              }
+                        ].filter(member => member.name).map((item, idx, arr) => (
+                          <div key={idx} style={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: "12px", 
+                            padding: "8px 0",
+                            borderBottom: idx === arr.length - 1 ? "none" : "1px solid #f0f0f0"
+                          }}>
+                            <Avatar
+                              icon={<UserIcon size={12} />}
+                              style={{ backgroundColor: item.isLead ? "#f59e0b" : "#00897b" }}
                             />
-                          </List.Item>
-                        )}
-                      />
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <Text strong style={{ fontSize: 12 }}>{item.name}</Text>
+                              <div>
+                                <Tag color={item.isLead ? "gold" : "blue"} style={{ fontSize: 9, margin: 0 }}>{item.role}</Tag>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </Card>
                   </Col>
                 </Row>
@@ -3728,7 +3730,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             children: (
               <div style={{ padding: "12px 0" }}>
                 <Timeline
-                  mode="left"
+                  mode="start"
                   items={activities.map((act) => ({
                     label: dayjs(act.createdAt).format("DD MMM, YYYY h:mm A"),
                     color: act.type === "sprint" ? "blue" : act.type === "work_log" ? "green" : act.type === "project_status" ? "purple" : "gray",
@@ -4133,7 +4135,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
       <Drawer
         title={selectedWorkItem ? `${selectedWorkItem.title} (${selectedWorkItem.type})` : "Work Item Detail"}
         placement="right"
-        width={550}
+        size="large"
         onClose={() => { setSelectedWorkItem(null); setWorkItemDetailOpen(false); }}
         open={workItemDetailOpen}
         extra={
@@ -4334,7 +4336,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         footer={null}
         width={560}
         style={{ top: 60 }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical" onFinish={handleUpdateProject}>
           <Form.Item
@@ -4667,7 +4669,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         width={580}
         destroyOnHidden
         closable={!submittingSelfTask}
-        maskClosable={!submittingSelfTask}
+        mask={{ closable: !submittingSelfTask }}
       >
         <Spin spinning={submittingSelfTask} tip="Creating your task...">
           <Form
@@ -4737,7 +4739,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         footer={null}
         width={620}
         closable={!submittingWorkItem}
-        maskClosable={!submittingWorkItem}
+        mask={{ closable: !submittingWorkItem }}
       >
         <Spin spinning={submittingWorkItem} tip="Processing task and dispatching email notifications...">
           <Form form={workItemForm} layout="vertical" onFinish={handleCreateWorkItem} initialValues={{ type: "Task", priority: "High" }}>
@@ -5006,7 +5008,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         onOk={() => teamForm.submit()}
         okText="Save Team"
         okButtonProps={{ style: { background: "#00897b", borderColor: "#00897b" } }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={teamForm}
@@ -5056,7 +5058,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         open={isPersonalTaskModalOpen}
         onCancel={() => setIsPersonalTaskModalOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={personalTaskForm}
