@@ -36,8 +36,10 @@ export interface IEmailConfig extends Document {
 
 const EmailTemplateSchema = new Schema(
   {
-    subject: { type: String, required: true },
-    body: { type: String, required: true },
+    // Not required at schema level — templates have hardcoded fallbacks in mailer.ts
+    // This prevents validation crashes when only SMTP settings are saved from the UI
+    subject: { type: String, required: false, default: "" },
+    body: { type: String, required: false, default: "" },
   },
   { _id: false }
 );
@@ -84,7 +86,8 @@ Best regards,`,
       deadlineApproaching: {
         type: EmailTemplateSchema,
         default: () => ({
-          subject: "[Biometrik Systems Reminder] Only {{daysLeft}} day left for task: {{taskTitle}}",
+          subject:
+            "[Biometrik Systems Reminder] Only {{daysLeft}} day left for task: {{taskTitle}}",
           body: `Hello {{assigneeName}},
 
 This is an automated reminder that your assigned task is due soon.
@@ -161,5 +164,4 @@ Best regards,`,
 );
 
 export const EmailConfig: Model<IEmailConfig> =
-  mongoose.models.EmailConfig ||
-  mongoose.model<IEmailConfig>("EmailConfig", EmailConfigSchema);
+  mongoose.models.EmailConfig || mongoose.model<IEmailConfig>("EmailConfig", EmailConfigSchema);

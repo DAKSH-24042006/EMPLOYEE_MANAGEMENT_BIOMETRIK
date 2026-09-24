@@ -47,9 +47,12 @@ export async function GET() {
         updatedAt: config.updatedAt,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET Email Settings Error:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message || "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -78,18 +81,37 @@ export async function PUT(req: Request) {
     if (body.isEnabled !== undefined) config.isEnabled = Boolean(body.isEnabled);
 
     // Cadence / numbers
-    if (body.reminderDaysBeforeDue !== undefined) config.reminderDaysBeforeDue = Math.max(1, Number(body.reminderDaysBeforeDue) || 1);
+    if (body.reminderDaysBeforeDue !== undefined)
+      config.reminderDaysBeforeDue = Math.max(1, Number(body.reminderDaysBeforeDue) || 1);
     if (body.sendOnDueDate !== undefined) config.sendOnDueDate = Boolean(body.sendOnDueDate);
-    if (body.overdueIntervalDays !== undefined) config.overdueIntervalDays = Math.max(1, Number(body.overdueIntervalDays) || 2);
+    if (body.overdueIntervalDays !== undefined)
+      config.overdueIntervalDays = Math.max(1, Number(body.overdueIntervalDays) || 2);
 
-    // Templates
+    // Templates — merge carefully: only overwrite a field if incoming value is non-empty
     if (body.templates) {
-      config.templates = {
-        ...config.templates,
-        ...body.templates,
-      };
+      const incomingTemplates = body.templates;
+      const existingTemplates = config.templates || {};
+      const templateKeys = [
+        "taskCreated",
+        "deadlineApproaching",
+        "deadlineToday",
+        "taskOverdue",
+      ] as const;
+
+      const mergedTemplates: Record<string, unknown> = {};
+      for (const key of templateKeys) {
+        const existing = (existingTemplates as Record<string, Record<string, string>>)[key] || {};
+        const incoming = (incomingTemplates as Record<string, Record<string, string>>)[key] || {};
+        mergedTemplates[key] = {
+          subject: incoming.subject?.trim() || existing.subject || "",
+          body: incoming.body?.trim() || existing.body || "",
+        };
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      config.templates = mergedTemplates as any;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     config.updatedBy = admin.userId as any;
     await config.save();
 
@@ -110,9 +132,12 @@ export async function PUT(req: Request) {
         templates: config.templates,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PUT Email Settings Error:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message || "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -125,7 +150,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { testEmail, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass, fromEmail, fromName } = body;
+    const { testEmail, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass, fromEmail, fromName } =
+      body;
 
     if (!testEmail) {
       return NextResponse.json({ error: "Test recipient email is required" }, { status: 400 });
@@ -134,7 +160,7 @@ export async function POST(req: Request) {
     await dbConnect();
     const currentConfig = await getEmailConfig();
 
-    const testConfig: any = {
+    const testConfig: Record<string, unknown> = {
       smtpHost: smtpHost || currentConfig.smtpHost,
       smtpPort: smtpPort || currentConfig.smtpPort,
       smtpSecure: smtpSecure !== undefined ? smtpSecure : currentConfig.smtpSecure,
@@ -150,12 +176,21 @@ export async function POST(req: Request) {
     });
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error || "Failed to send test email" }, { status: 400 });
+      return NextResponse.json(
+        { error: result.error || "Failed to send test email" },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({ success: true, message: `Test email dispatched successfully to ${testEmail}` });
-  } catch (error: any) {
+    return NextResponse.json({
+      success: true,
+      message: `Test email dispatched successfully to ${testEmail}`,
+    });
+  } catch (error: unknown) {
     console.error("POST Test Email Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to send test email" }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message || "Failed to send test email" },
+      { status: 500 }
+    );
   }
 }
