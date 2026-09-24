@@ -24,4 +24,18 @@ const standaloneStatic = path.join(__dirname, '.next/standalone/.next/static');
 copyDir(path.join(__dirname, 'public'), standalonePublic);
 copyDir(path.join(__dirname, '.next/static'), standaloneStatic);
 
+const filesToCopy = [
+  'seed_system_admin.js',
+  'seed_admin.js',
+  'seed_multi_roles.js',
+  'seed_user.js'
+];
+
+for (const file of filesToCopy) {
+  const src = path.join(__dirname, file);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(__dirname, '.next/standalone', file));
+  }
+}
+
 console.log("Copied public and .next/static to .next/standalone successfully.");
