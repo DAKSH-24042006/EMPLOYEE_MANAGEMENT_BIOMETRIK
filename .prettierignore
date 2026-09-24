@@ -1,0 +1,27 @@
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Dependencies
+node_modules/
+
+# Lock files (let package manager handle formatting)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+next-env.d.ts
+coverage/
+
+# Config files that should remain unformatted
+*.min.js
+*.min.css
+
+# Environment files
+.env*
+
+# Git
+.git/

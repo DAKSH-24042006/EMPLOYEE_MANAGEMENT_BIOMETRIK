@@ -7,7 +7,27 @@
     "build": "next build",
     "postbuild": "node copy-standalone.js",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --runInBand",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs}": [
+      "prettier --write"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
@@ -26,7 +46,12 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@jest/globals": "^30.5.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/bcryptjs": "^3.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^18",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
@@ -34,8 +59,14 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "^15.5.14",
+    "husky": "^9.1.7",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.5.1",
+    "prettier": "^3.9.9",
     "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.4.13",
     "typescript": "^5"
   }
 }

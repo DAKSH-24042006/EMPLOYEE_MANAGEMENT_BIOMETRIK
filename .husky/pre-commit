@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# ─── Husky Pre-Commit Hook ──────────────────────────────────────────────────
+# Runs lint-staged before every commit.
+# This enforces code quality by running ESLint + Prettier only on staged files.
+# ─────────────────────────────────────────────────────────────────────────────
+npx lint-staged

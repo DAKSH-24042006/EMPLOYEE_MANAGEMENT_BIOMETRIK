@@ -45,11 +45,17 @@ export function buildEmailHtml({
   bodyText,
   taskUrl,
   ctaText = "Open Task in Workspace",
+  notificationType = "task",
+  meta = {},
 }: {
   subject: string;
   bodyText: string;
   taskUrl?: string;
   ctaText?: string;
+  /** "task" | "reminder" | "overdue" | "test" */
+  notificationType?: "task" | "reminder" | "overdue" | "test";
+  /** Optional structured metadata shown as a detail card: { label: value } */
+  meta?: Record<string, string>;
 }): string {
   const escapeHtml = (str: string) =>
     str
@@ -59,70 +65,200 @@ export function buildEmailHtml({
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-  // Clean any remaining legacy text
+  // ─── Badge & accent colours per notification type ───────────────────────────
+  const typeConfig: Record<
+    string,
+    { label: string; badgeBg: string; badgeColor: string; accentColor: string; iconChar: string }
+  > = {
+    task: {
+      label: "Task Assignment",
+      badgeBg: "#0369a1",
+      badgeColor: "#ffffff",
+      accentColor: "#0284c7",
+      iconChar: "📋",
+    },
+    reminder: {
+      label: "Deadline Reminder",
+      badgeBg: "#b45309",
+      badgeColor: "#ffffff",
+      accentColor: "#d97706",
+      iconChar: "⏰",
+    },
+    overdue: {
+      label: "Overdue Alert",
+      badgeBg: "#b91c1c",
+      badgeColor: "#ffffff",
+      accentColor: "#dc2626",
+      iconChar: "🚨",
+    },
+    test: {
+      label: "Test Notification",
+      badgeBg: "#00796b",
+      badgeColor: "#ffffff",
+      accentColor: "#00897b",
+      iconChar: "🔧",
+    },
+  };
+  const tc = typeConfig[notificationType] || typeConfig.task;
+
+  // ─── Strip legacy text & clean body ────────────────────────────────────────
   let cleanText = bodyText
     .replace(/Biometrik Systems Delivery Team/gi, "")
+    .replace(/Your SMTP configuration is working correctly!/gi, "")
     .trim();
 
-  // If taskUrl exists in the plain text, replace its literal text with styled hyperlink
+  // Replace raw task URLs with hyperlinks
   if (taskUrl) {
     const escapedUrl = escapeHtml(taskUrl);
-    cleanText = cleanText.split(taskUrl).join(`<a href="${escapedUrl}" style="color: #00897b; font-weight: 600; text-decoration: underline; word-break: break-all;">${escapedUrl}</a>`);
+    cleanText = cleanText
+      .split(taskUrl)
+      .join(
+        `<a href="${escapedUrl}" style="color: #00897b; font-weight: 600; text-decoration: underline; word-break: break-all;">${escapedUrl}</a>`
+      );
   }
 
-  // Convert paragraphs and line breaks
-  const paragraphs = cleanText
-    .split(/\n\n+/)
-    .map((p) => {
-      const htmlPara = p
-        .split("\n")
-        .map((line) => {
-          if (line.includes("<a href=")) return line;
-          return escapeHtml(line);
-        })
-        .join("<br />");
-      return `<p style="margin: 0 0 16px 0; line-height: 1.6; color: #334155; font-size: 14px;">${htmlPara}</p>`;
-    })
-    .join("");
+  // ─── Render body paragraphs ─────────────────────────────────────────────────
+  const lines = cleanText.split("\n");
+  let inDetailBlock = false;
+  let detailRowsHtml = "";
+  let bodyPartsHtml = "";
 
-  // Optional direct CTA button
-  const ctaButtonHtml = taskUrl
+  const flushDetailBlock = () => {
+    if (!detailRowsHtml) return;
+    bodyPartsHtml += `
+      <table width="100%" border="0" cellspacing="0" cellpadding="0"
+             style="margin: 0 0 20px 0; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; border-collapse: separate; border-spacing: 0;">
+        ${detailRowsHtml}
+      </table>`;
+    detailRowsHtml = "";
+    inDetailBlock = false;
+  };
+
+  let pendingParagraph: string[] = [];
+  const flushParagraph = () => {
+    if (!pendingParagraph.length) return;
+    const joined = pendingParagraph.join("<br />");
+    bodyPartsHtml += `<p style="margin: 0 0 16px 0; line-height: 1.65; color: #1e293b; font-size: 15px; font-family: Arial, Helvetica, sans-serif;">${joined}</p>`;
+    pendingParagraph = [];
+  };
+
+  let rowIndex = 0;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    // Detect a "- Label: Value" detail row
+    const detailMatch = line.match(/^-\s+(.+?):\s*(.*)$/);
+    if (detailMatch) {
+      flushParagraph();
+      inDetailBlock = true;
+      const label = escapeHtml(detailMatch[1].trim());
+      const value = escapeHtml(detailMatch[2].trim());
+      const rowBg = rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
+      rowIndex++;
+      detailRowsHtml += `
+        <tr>
+          <td style="padding: 11px 16px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0; width: 36%; font-family: Arial, Helvetica, sans-serif;">
+            ${label}
+          </td>
+          <td style="padding: 11px 16px; font-size: 14px; color: #0f172a; background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-family: Arial, Helvetica, sans-serif;">
+            ${value || "<span style='color:#94a3b8;font-style:italic;'>—</span>"}
+          </td>
+        </tr>`;
+    } else {
+      if (inDetailBlock) flushDetailBlock();
+
+      if (line === "" || line === "Best regards,") {
+        flushParagraph();
+      } else if (line.includes("<a href=")) {
+        pendingParagraph.push(line);
+      } else {
+        pendingParagraph.push(escapeHtml(line));
+      }
+    }
+  }
+  flushParagraph();
+  if (inDetailBlock) flushDetailBlock();
+
+  // ─── Structured meta card (optional, passed from caller) ───────────────────
+  let metaCardHtml = "";
+  const metaEntries = Object.entries(meta || {});
+  if (metaEntries.length > 0) {
+    let metaRows = "";
+    metaEntries.forEach(([label, value], i) => {
+      const bg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+      metaRows += `
+        <tr>
+          <td style="padding: 11px 16px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; background-color: ${bg}; border-bottom: 1px solid #e2e8f0; width: 36%; font-family: Arial, Helvetica, sans-serif;">
+            ${escapeHtml(label)}
+          </td>
+          <td style="padding: 11px 16px; font-size: 14px; color: #0f172a; background-color: ${bg}; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-family: Arial, Helvetica, sans-serif;">
+            ${escapeHtml(value)}
+          </td>
+        </tr>`;
+    });
+    metaCardHtml = `
+      <table width="100%" border="0" cellspacing="0" cellpadding="0"
+             style="margin: 0 0 24px 0; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; border-collapse: separate; border-spacing: 0;">
+        ${metaRows}
+      </table>`;
+  }
+
+  // ─── Bulletproof CTA Button for Email Clients (Outlook compatible) ─────────
+  const ctaHtml = taskUrl
     ? `
-      <div style="margin: 24px 0 28px 0; text-align: left;">
-        <a href="${escapeHtml(taskUrl)}" target="_blank" style="display: inline-block; background-color: #00897b; color: #ffffff; padding: 12px 24px; border-radius: 6px; font-weight: 600; font-size: 14px; text-decoration: none; box-shadow: 0 2px 4px rgba(0, 137, 123, 0.25);">
-          ${escapeHtml(ctaText)} &rarr;
-        </a>
-      </div>
-    `
+    <table border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0 12px 0;">
+      <tr>
+        <td align="left" bgcolor="#00897b" style="border-radius: 6px; background-color: #00897b;">
+          <a href="${escapeHtml(taskUrl)}" target="_blank"
+             style="display: inline-block; padding: 14px 28px; background-color: #00897b; color: #ffffff !important; font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px; border: 1px solid #00796b;">
+            ${escapeHtml(ctaText)} &nbsp;&rarr;
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin: 8px 0 0 0; font-size: 12px; color: #64748b; font-family: Arial, Helvetica, sans-serif;">
+      Or copy this link: <a href="${escapeHtml(taskUrl)}" style="color: #00897b; word-break: break-all; font-weight: 600;">${escapeHtml(taskUrl)}</a>
+    </p>`
     : "";
 
-  return `
-<!DOCTYPE html>
-<html lang="en">
+  // ─── Full HTML Layout ────────────────────────────────────────────────────────
+  const year = new Date().getFullYear();
+
+  return `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>${escapeHtml(subject)}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 32px 16px;">
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+
+  <!-- Outer Wrapper -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;padding:32px 16px;">
     <tr>
       <td align="center">
-        <!-- Main Container Card -->
-        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
-          <!-- Top Brand Header -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:600px;background-color:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+
+          <!-- ── Header ───────────────────────────────────────────────────── -->
           <tr>
-            <td style="background-color: #00897b; padding: 20px 32px; border-bottom: 2px solid #00695c;">
+            <td bgcolor="#004d40" style="background-color:#004d40;padding:24px 32px;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
-                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">
-                      Biometrik Systems
+                    <!-- Brand Title -->
+                    <span style="color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:1px;font-family:Arial,Helvetica,sans-serif;">
+                      BIOMETRIK<span style="color:#80cbc4;">®</span>
+                    </span>
+                    <br />
+                    <span style="color:#b2dfdb;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600;font-family:Arial,Helvetica,sans-serif;">
+                      ACCESS GRANTED.
                     </span>
                   </td>
-                  <td align="right">
-                    <span style="color: #e0f2f1; font-size: 12px; font-weight: 500;">
-                      Task Notification
+                  <td align="right" valign="middle">
+                    <!-- Notification Badge -->
+                    <span style="display:inline-block;background-color:${tc.badgeBg};color:${tc.badgeColor};font-size:11px;font-weight:bold;letter-spacing:0.5px;padding:6px 14px;border-radius:16px;font-family:Arial,Helvetica,sans-serif;">
+                      ${tc.iconChar}&nbsp; ${tc.label}
                     </span>
                   </td>
                 </tr>
@@ -130,46 +266,79 @@ export function buildEmailHtml({
             </td>
           </tr>
 
-          <!-- Message Body -->
+          <!-- ── Accent Bar ────────────────────────────────────────────────── -->
           <tr>
-            <td style="padding: 32px 32px 24px 32px;">
-              ${paragraphs}
+            <td bgcolor="${tc.accentColor}" style="background-color:${tc.accentColor};height:4px;line-height:4px;font-size:0;">&nbsp;</td>
+          </tr>
 
-              ${ctaButtonHtml}
+          <!-- ── Main Card Content ─────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:32px 32px 24px 32px;background-color:#ffffff;">
 
-              <!-- Signature with Logo -->
-              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
-                <div style="font-size: 13px; color: #64748b; margin-bottom: 8px;">
-                  Best regards,
-                </div>
-                <div>
-                  <img src="cid:biometrik-logo" alt="Biometrik Systems" style="height: 38px; width: auto; max-width: 180px; display: block; border: 0;" />
-                </div>
-              </div>
+              <!-- Subject / Title -->
+              <h1 style="margin:0 0 20px 0;font-size:19px;font-weight:bold;color:#0f172a;line-height:1.4;font-family:Arial,Helvetica,sans-serif;">
+                ${escapeHtml(subject)}
+              </h1>
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px 0;" />
+
+              <!-- Body Paragraphs -->
+              ${bodyPartsHtml}
+
+              <!-- Optional Meta Card -->
+              ${metaCardHtml}
+
+              <!-- CTA Button -->
+              ${ctaHtml}
+
             </td>
           </tr>
 
-          <!-- Footer Note -->
+          <!-- ── Signature Strip ───────────────────────────────────────────── -->
           <tr>
-            <td style="background-color: #f8fafc; padding: 16px 32px; border-top: 1px solid #e2e8f0; text-align: center;">
-              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                This is an automated system notification from Biometrik Systems Workspace.
+            <td bgcolor="#f8fafc" style="background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td valign="middle">
+                    <p style="margin:0 0 2px 0;font-size:12px;color:#64748b;font-family:Arial,Helvetica,sans-serif;">Sent by</p>
+                    <p style="margin:0;font-size:14px;font-weight:bold;color:#00897b;letter-spacing:0.3px;font-family:Arial,Helvetica,sans-serif;">
+                      Biometrik Systems Workspace
+                    </p>
+                  </td>
+                  <td align="right" valign="middle">
+                    <img src="cid:biometrik-logo" alt="Biometrik Systems" style="height:36px;width:auto;max-width:150px;display:block;border:0;" />
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── Footer ───────────────────────────────────────────────────── -->
+          <tr>
+            <td bgcolor="#f1f5f9" style="background-color:#f1f5f9;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0 0 4px 0;font-size:11px;color:#64748b;font-family:Arial,Helvetica,sans-serif;">
+                © ${year} Biometrik Systems Pvt. Ltd. · All rights reserved.
+              </p>
+              <p style="margin:0;font-size:10px;color:#94a3b8;font-family:Arial,Helvetica,sans-serif;">
+                This is an automated system notification. If you have questions, contact your System Administrator.
               </p>
             </td>
           </tr>
+
         </table>
       </td>
     </tr>
   </table>
+
 </body>
-</html>
-  `.trim();
+</html>`.trim();
 }
 
 /**
  * Replace placeholders like {{taskTitle}}, {{assigneeName}}, {{taskUrl}} in text
  */
-export function renderTemplate(template: string, data: Record<string, any>): string {
+export function renderTemplate(template: string, data: Record<string, unknown>): string {
   if (!template) return "";
   let rendered = template;
   for (const [key, val] of Object.entries(data)) {
@@ -183,6 +352,7 @@ export function renderTemplate(template: string, data: Record<string, any>): str
  * Retrieve active EmailConfig from DB, or fallback to sensible defaults and ENV
  * Migrates existing legacy templates to include direct task URLs and removes legacy text.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getEmailConfig(): Promise<any> {
   await dbConnect();
   let config = await EmailConfig.findOne().sort({ createdAt: -1 });
@@ -190,13 +360,14 @@ export async function getEmailConfig(): Promise<any> {
   if (!config) {
     // Create initial default configuration in DB
     config = await EmailConfig.create({
-      smtpHost: process.env.SMTP_HOST || "",
-      smtpPort: Number(process.env.SMTP_PORT) || 587,
-      smtpSecure: process.env.SMTP_SECURE === "true",
-      smtpUser: process.env.SMTP_USER || "",
-      smtpPass: process.env.SMTP_PASS || "",
-      fromEmail: process.env.SMTP_FROM || "notifications@biometriksystems.com",
-      fromName: process.env.SMTP_FROM_NAME || "Biometrik Systems Notifications",
+      // Read from EMAIL_* env vars (matching .env file convention)
+      smtpHost: process.env.EMAIL_HOST || "",
+      smtpPort: Number(process.env.EMAIL_PORT) || 587,
+      smtpSecure: process.env.EMAIL_SECURE === "true",
+      smtpUser: process.env.EMAIL_USER || "",
+      smtpPass: process.env.EMAIL_PASS || "",
+      fromEmail: process.env.EMAIL_FROM || "notifications@biometriksystems.com",
+      fromName: process.env.EMAIL_FROM_NAME || "Biometrik Systems Notifications",
       isEnabled: true,
       reminderDaysBeforeDue: 1,
       sendOnDueDate: true,
@@ -205,7 +376,12 @@ export async function getEmailConfig(): Promise<any> {
   } else if (config.templates) {
     // Automatic migration for existing DB configurations to ensure {{taskUrl}} and remove legacy text
     let needsSave = false;
-    const templateKeys = ["taskCreated", "deadlineApproaching", "deadlineToday", "taskOverdue"] as const;
+    const templateKeys = [
+      "taskCreated",
+      "deadlineApproaching",
+      "deadlineToday",
+      "taskOverdue",
+    ] as const;
 
     for (const key of templateKeys) {
       if (config.templates[key]?.body) {
@@ -213,7 +389,11 @@ export async function getEmailConfig(): Promise<any> {
         let modified = false;
 
         // Replace old dashboard prompt with direct workspace link instruction
-        if (body.includes("Please log in to your dashboard to review the task details and update your progress.")) {
+        if (
+          body.includes(
+            "Please log in to your dashboard to review the task details and update your progress."
+          )
+        ) {
           body = body.replace(
             /Please log in to your dashboard to review the task details and update your progress\./g,
             "Review the task details and update your progress directly in the workspace:\n{{taskUrl}}"
@@ -261,13 +441,15 @@ export async function getEmailConfig(): Promise<any> {
 export async function createTransporter(customConfig?: Partial<IEmailConfig>) {
   const config = customConfig || (await getEmailConfig());
 
-  const host = config.smtpHost || process.env.SMTP_HOST;
-  const port = Number(config.smtpPort || process.env.SMTP_PORT || 587);
-  const secure = Boolean(config.smtpSecure ?? (process.env.SMTP_SECURE === "true"));
-  const user = config.smtpUser || process.env.SMTP_USER;
-  const pass = config.smtpPass || process.env.SMTP_PASS;
+  // Fallback chain: DB config → EMAIL_* env vars (matching .env convention)
+  const host = config.smtpHost || process.env.EMAIL_HOST;
+  const port = Number(config.smtpPort || process.env.EMAIL_PORT || 587);
+  const secure = Boolean(config.smtpSecure ?? process.env.EMAIL_SECURE === "true");
+  const user = config.smtpUser || process.env.EMAIL_USER;
+  const pass = config.smtpPass || process.env.EMAIL_PASS;
 
   if (!host || !user) {
+    console.warn("[Mailer] Missing SMTP host or user. Check EMAIL_HOST and EMAIL_USER in .env");
     return null;
   }
 
@@ -294,9 +476,13 @@ export async function sendTaskAssignmentEmail({
   projectManager,
   project,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   task: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assignee: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   projectManager?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   project: any;
 }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -338,7 +524,7 @@ export async function sendTaskAssignmentEmail({
     );
     const bodyText = renderTemplate(
       template.body ||
-        "Hello {{assigneeName}},\n\nA new task has been assigned to you in project \"{{projectName}}\".\n\nReview the task details and update your progress directly in the workspace:\n{{taskUrl}}\n\nBest regards,",
+        'Hello {{assigneeName}},\n\nA new task has been assigned to you in project "{{projectName}}".\n\nReview the task details and update your progress directly in the workspace:\n{{taskUrl}}\n\nBest regards,',
       data
     );
 
@@ -346,7 +532,10 @@ export async function sendTaskAssignmentEmail({
 
     // CC the Project Manager if an email is present and not the assignee themselves
     const ccList: string[] = [];
-    if (projectManager?.email && projectManager.email.toLowerCase() !== assignee.email.toLowerCase()) {
+    if (
+      projectManager?.email &&
+      projectManager.email.toLowerCase() !== assignee.email.toLowerCase()
+    ) {
       ccList.push(projectManager.email);
     }
 
@@ -356,6 +545,7 @@ export async function sendTaskAssignmentEmail({
       bodyText,
       taskUrl,
       ctaText: "Open Task in Workspace",
+      notificationType: "task",
     });
 
     await transporter.sendMail({
@@ -368,11 +558,13 @@ export async function sendTaskAssignmentEmail({
       attachments,
     });
 
-    console.log(`[Mailer] Task assignment email sent to ${assignee.email} (CC: ${ccList.join(", ") || "none"})`);
+    console.log(
+      `[Mailer] Task assignment email sent to ${assignee.email} (CC: ${ccList.join(", ") || "none"})`
+    );
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Mailer] Error sending task assignment email:", err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -387,9 +579,13 @@ export async function sendDeadlineReminderEmail({
   reminderType,
   days,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   task: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assignee: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   projectManager?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   project: any;
   reminderType: "approaching" | "due_today" | "overdue";
   days?: number;
@@ -428,19 +624,21 @@ export async function sendDeadlineReminderEmail({
       projectUrl: taskUrl,
     };
 
-    const template = config.templates?.[
-      reminderType === "approaching"
-        ? "deadlineApproaching"
-        : reminderType === "due_today"
-        ? "deadlineToday"
-        : "taskOverdue"
-    ];
+    const template =
+      config.templates?.[
+        reminderType === "approaching"
+          ? "deadlineApproaching"
+          : reminderType === "due_today"
+            ? "deadlineToday"
+            : "taskOverdue"
+      ];
 
     let defaultSubject = "";
     let defaultBody = "";
 
     if (reminderType === "approaching") {
-      defaultSubject = "[Biometrik Systems Reminder] Only {{daysLeft}} day left for task: {{taskTitle}}";
+      defaultSubject =
+        "[Biometrik Systems Reminder] Only {{daysLeft}} day left for task: {{taskTitle}}";
       defaultBody = `Hello {{assigneeName}},\n\nYour task "{{taskTitle}}" in project "{{projectName}}" is due on {{dueDate}} (only {{daysLeft}} day remaining).\n\nPlease review your progress and update the task directly in the workspace:\n{{taskUrl}}\n\nBest regards,`;
     } else if (reminderType === "due_today") {
       defaultSubject = "[Biometrik Systems Urgent] Task Deadline Today: {{taskTitle}}";
@@ -459,7 +657,13 @@ export async function sendDeadlineReminderEmail({
       subject,
       bodyText,
       taskUrl,
-      ctaText: "Review Task in Workspace",
+      ctaText: reminderType === "overdue" ? "Address Overdue Task Now" : "Review Task in Workspace",
+      notificationType:
+        reminderType === "overdue"
+          ? "overdue"
+          : reminderType === "due_today"
+            ? "reminder"
+            : "reminder",
     });
 
     await transporter.sendMail({
@@ -473,9 +677,9 @@ export async function sendDeadlineReminderEmail({
 
     console.log(`[Mailer] Reminder (${reminderType}) sent to ${assignee.email}`);
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[Mailer] Error sending ${reminderType} email:`, err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -502,8 +706,12 @@ export async function sendTestEmail({
 
     const baseUrl = getBaseAppUrl();
     const testUrl = `${baseUrl}/projects`;
-    const testSubject = "[Biometrik Systems] Test Email Notification";
-    const testBody = `Hello,\n\nThis is a test email sent from Biometrik Systems Dashboard.\n\nYour SMTP configuration is working correctly!\n\nYou can access your workspace here:\n${testUrl}\n\nBest regards,`;
+    const testSubject = "Test Email Notification";
+
+    const namePart = toEmail.split("@")[0];
+    const capitalizedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+
+    const testBody = `Hello ${capitalizedName},\n\nYou can access your workspace here:\n${testUrl}\n\nBest regards,`;
 
     const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
     const attachments = getLogoAttachment();
@@ -512,6 +720,7 @@ export async function sendTestEmail({
       bodyText: testBody,
       taskUrl: testUrl,
       ctaText: "Visit Workspace Dashboard",
+      notificationType: "test",
     });
 
     await transporter.sendMail({
@@ -524,9 +733,8 @@ export async function sendTestEmail({
     });
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Mailer] Test email failed:", err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
-

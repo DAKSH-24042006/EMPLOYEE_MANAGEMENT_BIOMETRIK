@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Alert, Button, Card, Typography, Form, Input } from "antd";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { User, Lock, ArrowRight } from "lucide-react";
 import logo from "../../../../public/Biometrik_New_Logo.png";
 
@@ -14,8 +14,6 @@ export default function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form] = Form.useForm();
   const searchParams = useSearchParams();
-  const router = useRouter();
-
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
     setErrorMessage(null);
@@ -39,11 +37,18 @@ export default function LoginForm() {
 
       // Check callback URL if provided
       const callbackUrl = searchParams ? searchParams.get("callbackUrl") : null;
-      const targetPath = callbackUrl && !callbackUrl.startsWith("/auth") ? callbackUrl : data.redirect || "/dashboard";
+      const targetPath =
+        callbackUrl && !callbackUrl.startsWith("/auth")
+          ? callbackUrl
+          : data.redirect || "/dashboard";
 
       window.location.href = targetPath;
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to connect to authentication server.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorMessage(err.message || "Failed to connect to authentication server.");
+      } else {
+        setErrorMessage("Failed to connect to authentication server.");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,7 +83,7 @@ export default function LoginForm() {
           }}
         />
         <Title level={4} style={{ margin: "0 0 6px 0", color: "#1f1f1f", fontWeight: 600 }}>
-          Employee Portal Login
+          KRAMIK Portal Login
         </Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
           Enter your authorized username and password to sign in.
@@ -99,15 +104,14 @@ export default function LoginForm() {
         />
       )}
 
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleLogin}
-        requiredMark={false}
-      >
+      <Form form={form} layout="vertical" onFinish={handleLogin} requiredMark={false}>
         <Form.Item
           name="username"
-          label={<Text strong style={{ fontSize: 13, color: "#434343" }}>Username or Email</Text>}
+          label={
+            <Text strong style={{ fontSize: 13, color: "#434343" }}>
+              Username or Email
+            </Text>
+          }
           rules={[{ required: true, message: "Please enter your username or email" }]}
         >
           <Input
@@ -122,7 +126,11 @@ export default function LoginForm() {
 
         <Form.Item
           name="password"
-          label={<Text strong style={{ fontSize: 13, color: "#434343" }}>Password</Text>}
+          label={
+            <Text strong style={{ fontSize: 13, color: "#434343" }}>
+              Password
+            </Text>
+          }
           rules={[{ required: true, message: "Please enter your password" }]}
         >
           <Input.Password
@@ -141,7 +149,7 @@ export default function LoginForm() {
             size="large"
             loading={loading}
             icon={<ArrowRight size={18} />}
-            iconPosition="end"
+            iconPlacement="end"
             style={{
               height: 48,
               borderRadius: 8,
@@ -158,9 +166,7 @@ export default function LoginForm() {
       </Form>
 
       <div style={{ textAlign: "center", marginTop: 20 }}>
-        <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}>
-          &quot;There are no traffic jams at the extra mile !&quot;
-        </Text>
+        <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}></Text>
       </div>
     </Card>
   );
