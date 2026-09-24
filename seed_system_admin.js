@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+require("dotenv").config();
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/requirement_dashboard";
-const SYSTEM_ADMIN_EMAIL = (process.env.SYSTEM_ADMIN_EMAIL || "admin@company.com").toLowerCase().trim();
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin";
+const SYSTEM_ADMIN_EMAIL = (process.env.SYSTEM_ADMIN_EMAIL || "admin@biometrik.in").toLowerCase().trim();
+const ADMIN_USERNAME = process.env.SYSTEM_ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.SYSTEM_ADMIN_PASSWORD || "admin123";
 
 async function seedSystemAdmin() {
   try {
@@ -25,7 +26,7 @@ async function seedSystemAdmin() {
     });
 
     if (existing) {
-      console.log(`User found (ID: ${existing._id}). Ensuring username=admin, role=SYSTEM_ADMIN, status=ACTIVE, and password=admin...`);
+      console.log(`User found (ID: ${existing._id}). Ensuring username=${ADMIN_USERNAME}, role=SYSTEM_ADMIN, status=ACTIVE, and updated password...`);
       await dbUsers.updateOne(
         { _id: existing._id },
         {
@@ -41,7 +42,7 @@ async function seedSystemAdmin() {
           }
         }
       );
-      console.log("System Admin updated successfully with username 'admin' and password 'admin'!");
+      console.log(`System Admin updated successfully with username '${ADMIN_USERNAME}' and the password from .env!`);
     } else {
       console.log("No existing user found. Creating dedicated System Admin...");
       const newAdmin = {
@@ -57,7 +58,7 @@ async function seedSystemAdmin() {
       };
 
       const res = await dbUsers.insertOne(newAdmin);
-      console.log("System Admin created with ID:", res.insertedId, "Username: admin, Password: admin");
+      console.log("System Admin created with ID:", res.insertedId, `Username: ${ADMIN_USERNAME}, Password: [HIDDEN]`);
     }
   } catch (error) {
     console.error("System Admin seeding failed:", error);
