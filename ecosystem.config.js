@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'requirement-dashboard',
+      name: 'requirement-dashboard-5018',
       script: 'server.js',
       cwd: '/home/ubuntu/apps/requirement-dashboard',
       instances: 1,
