@@ -24,48 +24,80 @@ export async function POST(req: Request) {
 
     await dbConnect();
 
-    // Query user by username, email, or microsoftEmail (case-insensitive)
-    let user = await User.findOne({
-      $or: [
-        { username: lowerIdentifier },
-        { username: caseInsensitiveRegex },
-        { email: lowerIdentifier },
-        { email: caseInsensitiveRegex },
-        { microsoftEmail: lowerIdentifier },
-        { microsoftEmail: caseInsensitiveRegex },
-      ],
-    }).select("+password");
-
+    // 1. Super Admin .env Fallback Check
+    const envAdminUsername = (process.env.SYSTEM_ADMIN_USERNAME || "").trim();
+    const envAdminEmail = (process.env.SYSTEM_ADMIN_EMAIL || "").trim();
+    const envAdminPassword = process.env.SYSTEM_ADMIN_PASSWORD || "";
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Invalid username or password" },
-        { status: 401 }
-      );
-    }
+    const isEnvAdminLogin =
+      envAdminPassword &&
+      (rawIdentifier === envAdminUsername || lowerIdentifier === envAdminEmail.toLowerCase()) &&
+      password === envAdminPassword;
 
-    // Check account status
-    if (user.status === UserStatus.INACTIVE) {
-      return NextResponse.json(
-        { error: "Your account is currently inactive. Please contact the System Administrator." },
-        { status: 403 }
-      );
-    }
+    let user;
 
-    // Verify Password
-    if (!user.password) {
-      return NextResponse.json(
-        { error: "Password has not been set for this account. Please contact the System Administrator." },
-        { status: 401 }
-      );
-    }
+    if (isEnvAdminLogin) {
+      // Auto-upsert the system admin to ensure they exist in DB with a valid ID
+      user = await User.findOne({
+        $or: [{ username: envAdminUsername }, { email: envAdminEmail }],
+      }).select("+password");
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: "Invalid username or password" },
-        { status: 401 }
-      );
+      if (!user) {
+        console.log("[Login API] Auto-creating System Admin from .env credentials...");
+        const hashedPassword = await bcrypt.hash(envAdminPassword, 10);
+        user = await User.create({
+          name: "System Administrator",
+          username: envAdminUsername || "admin",
+          email: envAdminEmail || "admin@biometrik.in",
+          password: hashedPassword,
+          designation: "System Administrator",
+          role: Role.SYSTEM_ADMIN,
+          status: UserStatus.ACTIVE,
+        });
+      }
+    } else {
+      // 2. Normal User Database Lookup
+      user = await User.findOne({
+        $or: [
+          { username: lowerIdentifier },
+          { username: caseInsensitiveRegex },
+          { email: lowerIdentifier },
+          { email: caseInsensitiveRegex },
+          { microsoftEmail: lowerIdentifier },
+          { microsoftEmail: caseInsensitiveRegex },
+        ],
+      }).select("+password");
+
+      if (!user) {
+        return NextResponse.json(
+          { error: "Invalid username or password" },
+          { status: 401 }
+        );
+      }
+
+      // Check account status
+      if (user.status === UserStatus.INACTIVE) {
+        return NextResponse.json(
+          { error: "Your account is currently inactive. Please contact the System Administrator." },
+          { status: 403 }
+        );
+      }
+
+      // Verify Password
+      if (!user.password) {
+        return NextResponse.json(
+          { error: "Password has not been set for this account. Please contact the System Administrator." },
+          { status: 401 }
+        );
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return NextResponse.json(
+          { error: "Invalid username or password" },
+          { status: 401 }
+        );
+      }
     }
 
     // Generate JWT Session Token
