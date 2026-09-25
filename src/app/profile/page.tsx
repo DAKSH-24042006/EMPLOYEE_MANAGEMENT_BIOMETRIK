@@ -1,15 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { Typography, Card, Avatar, Row, Col, Divider, Button, Modal, Form, Input, message, Grid, Tag, Space } from "antd";
-import { User, Mail, Phone, MapPin, Lock, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Typography,
+  Card,
+  Avatar,
+  Row,
+  Col,
+  Divider,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Grid,
+  Space,
+  Upload,
+  App,
+} from "antd";
+import { User, Mail, Phone, MapPin, Lock, UploadCloud } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
 
 function ProfileContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<{
@@ -18,10 +31,13 @@ function ProfileContent() {
     role: string;
     phoneNumber?: string;
     location?: string;
+    bio?: string;
+    profilePhoto?: string;
   } | null>(null);
   const [form] = Form.useForm();
   const screens = Grid.useBreakpoint();
   const [mounted, setMounted] = useState(false);
+  const { message } = App.useApp();
 
   // Edit Profile states
   const [editProfileForm] = Form.useForm();
@@ -53,6 +69,7 @@ function ProfileContent() {
         name: user.name,
         phoneNumber: user.phoneNumber || "",
         location: user.location || "",
+        bio: user.bio || "",
       });
     }
     setIsEditModalVisible(true);
@@ -63,7 +80,7 @@ function ProfileContent() {
     editProfileForm.resetFields();
   };
 
-  const onUpdateProfile = async (values: any) => {
+  const onUpdateProfile = async (values: Record<string, unknown>) => {
     setProfileUpdating(true);
     try {
       const response = await fetch("/api/user/me", {
@@ -75,6 +92,7 @@ function ProfileContent() {
           name: values.name,
           phoneNumber: values.phoneNumber,
           location: values.location,
+          bio: values.bio,
         }),
       });
 
@@ -104,7 +122,7 @@ function ProfileContent() {
     form.resetFields();
   };
 
-  const onFinish = async (values: any) => {
+  const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
       const response = await fetch("/api/user/change-password", {
@@ -136,18 +154,31 @@ function ProfileContent() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
-      <div style={{
-        marginBottom: 24,
+    <div
+      style={{
         display: "flex",
-        flexDirection: isMobile ? "column" : "row",
-        justifyContent: "space-between",
-        alignItems: isMobile ? "stretch" : "flex-end",
-        gap: 16,
-        flex: "0 0 auto"
-      }}>
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
+    >
+      <div
+        style={{
+          marginBottom: 24,
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
+          alignItems: isMobile ? "stretch" : "flex-end",
+          gap: 16,
+          flex: "0 0 auto",
+        }}
+      >
         <div>
-          <Title level={3} style={{ marginBottom: 0 }}>My Profile</Title>
+          <Title level={3} style={{ marginBottom: 0 }}>
+            My Profile
+          </Title>
           <Text type="secondary">Manage your personal information and preferences.</Text>
         </div>
         <Space size={12}>
@@ -169,7 +200,7 @@ function ProfileContent() {
               borderColor: "#00897b",
               height: 40,
               borderRadius: 8,
-              boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)"
+              boxShadow: "0 4px 6px rgba(0, 137, 123, 0.2)",
             }}
             onClick={showModal}
           >
@@ -188,31 +219,80 @@ function ProfileContent() {
                 padding: isMobile ? "16px 0" : "24px 0",
                 borderRadius: "12px",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                height: "100%"
+                height: "100%",
               }}
             >
               <Avatar
+                src={
+                  user?.profilePhoto ? `${user.profilePhoto}?t=${new Date().getTime()}` : undefined
+                }
                 size={isMobile ? 80 : 100}
                 style={{
                   backgroundColor: "#00897b",
                   color: "#fff",
                   fontSize: isMobile ? "24px" : "32px",
                   fontWeight: 600,
-                  marginBottom: isMobile ? 12 : 16
+                  marginBottom: 12,
                 }}
               >
-                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                {!user?.profilePhoto && user?.name
+                  ? user.name.charAt(0).toUpperCase()
+                  : !user?.profilePhoto
+                    ? "U"
+                    : ""}
               </Avatar>
-              <Title level={4} style={{ marginBottom: 4, fontSize: isMobile ? 18 : 20 }}>{user?.name || "Loading..."}</Title>
-              <Text type="secondary" style={{ textTransform: "uppercase", fontSize: isMobile ? "10px" : "12px", letterSpacing: "1px", color: "#00897b", fontWeight: 600 }}>
+
+              <div style={{ marginBottom: 16 }}>
+                <Upload
+                  name="file"
+                  action="/api/user/me/photo"
+                  showUploadList={false}
+                  onChange={(info) => {
+                    if (info.file.status === "done") {
+                      message.success(`${info.file.name} uploaded successfully`);
+                      if (info.file.response && info.file.response.profilePhoto) {
+                        setUser((prev) =>
+                          prev ? { ...prev, profilePhoto: info.file.response.profilePhoto } : prev
+                        );
+                      } else {
+                        fetchUserData();
+                      }
+                    } else if (info.file.status === "error") {
+                      message.error(`${info.file.name} upload failed.`);
+                    }
+                  }}
+                >
+                  <Button size="small" type="dashed" icon={<UploadCloud size={14} />}>
+                    Upload Photo
+                  </Button>
+                </Upload>
+              </div>
+
+              <Title level={4} style={{ marginBottom: 4, fontSize: isMobile ? 18 : 20 }}>
+                {user?.name || "Loading..."}
+              </Title>
+              <Text
+                type="secondary"
+                style={{
+                  textTransform: "uppercase",
+                  fontSize: isMobile ? "10px" : "12px",
+                  letterSpacing: "1px",
+                  color: "#00897b",
+                  fontWeight: 600,
+                }}
+              >
                 {user?.role?.replace("_", " ") || "USER"}
               </Text>
             </Card>
           </Col>
 
           <Col xs={24} md={16}>
-            <Space direction="vertical" size={24} style={{ width: "100%" }}>
-              <Card variant="borderless" title="Personal Details" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+            <Space orientation="vertical" size={24} style={{ width: "100%" }}>
+              <Card
+                variant="borderless"
+                title="Personal Details"
+                style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
+              >
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <Mail size={18} color="#676879" />
@@ -229,7 +309,10 @@ function ProfileContent() {
                 </div>
                 <Divider />
                 <Title level={5}>Bio</Title>
-                <Text>Lead {user?.role?.toLowerCase().replace("_", " ") || "user"} for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.</Text>
+                <Text style={{ whiteSpace: "pre-wrap" }}>
+                  {user?.bio ||
+                    `Lead ${user?.role?.toLowerCase().replace("_", " ") || "user"} for Biometrik Systems requirement dashboard, managing end-to-end client requirements and data pipelines.`}
+                </Text>
               </Card>
             </Space>
           </Col>
@@ -241,7 +324,8 @@ function ProfileContent() {
         open={isEditModalVisible}
         onCancel={handleEditCancel}
         footer={null}
-        destroyOnClose
+        forceRender
+        destroyOnHidden
         style={{ borderRadius: 12, overflow: "hidden" }}
       >
         <Form
@@ -264,17 +348,18 @@ function ProfileContent() {
             label="Phone Number"
             rules={[
               { required: true, message: "Please enter your phone number" },
-              { pattern: /^[0-9]+$/, message: "Phone number must contain only digits" }
+              { pattern: /^[0-9]+$/, message: "Phone number must contain only digits" },
             ]}
           >
             <Input placeholder="Enter your phone number" />
           </Form.Item>
 
-          <Form.Item
-            name="location"
-            label="Location"
-          >
+          <Form.Item name="location" label="Location">
             <Input placeholder="Enter your location (e.g. Noida, Delhi)" />
+          </Form.Item>
+
+          <Form.Item name="bio" label="Bio">
+            <Input.TextArea rows={4} placeholder="Enter your bio" />
           </Form.Item>
 
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
@@ -296,7 +381,8 @@ function ProfileContent() {
         open={isModalVisible}
         onCancel={handleCancel}
         footer={null}
-        destroyOnClose
+        forceRender
+        destroyOnHidden
         style={{ borderRadius: 12, overflow: "hidden" }}
       >
         <Form
@@ -319,7 +405,7 @@ function ProfileContent() {
             label="New Password"
             rules={[
               { required: true, message: "Please enter your new password" },
-              { min: 8, message: "Password must be at least 8 characters long" }
+              { min: 8, message: "Password must be at least 8 characters long" },
             ]}
           >
             <Input.Password placeholder="Enter new password" />

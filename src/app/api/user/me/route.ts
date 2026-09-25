@@ -13,61 +13,53 @@ export async function GET() {
     const token = cookieStore.get("token")?.value;
 
     if (!token) {
-      return NextResponse.json(
-        { error: "Unauthorized: No token provided" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized: No token provided" }, { status: 401 });
     }
 
     // Verify JWT
     const decoded = await verifyJwt(token);
 
     if (!decoded || !decoded.userId) {
-      return NextResponse.json(
-        { error: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized: Invalid token" }, { status: 401 });
     }
 
     await dbConnect();
 
     // Find the user by ID and internal fields
-    const user = await User.findById(decoded.userId).select("name username email microsoftEmail designation status role phoneNumber location");
+    const user = await User.findById(decoded.userId).select(
+      "name username email microsoftEmail designation status role phoneNumber location bio profilePhoto"
+    );
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json(
-      { 
-        user: { 
+      {
+        user: {
           _id: user._id,
           id: user._id,
-          name: user.name, 
+          name: user.name,
           username: user.username,
-          email: user.email, 
+          email: user.email,
           microsoftEmail: user.microsoftEmail,
           designation: user.designation || "",
           status: user.status,
           role: user.role,
           phoneNumber: user.phoneNumber,
-          location: user.location
-        } 
+          location: user.location,
+          bio: user.bio,
+          profilePhoto: user.profilePhoto,
+        },
       },
       {
         status: 200,
         headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Fetch Current User Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
@@ -77,35 +69,23 @@ export async function PUT(request: Request) {
     const token = cookieStore.get("token")?.value;
 
     if (!token) {
-      return NextResponse.json(
-        { error: "Unauthorized: No token provided" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized: No token provided" }, { status: 401 });
     }
 
     const decoded = await verifyJwt(token);
     if (!decoded || !decoded.userId) {
-      return NextResponse.json(
-        { error: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized: Invalid token" }, { status: 401 });
     }
 
     const body = await request.json();
-    const { name, phoneNumber, location } = body;
+    const { name, phoneNumber, location, bio } = body;
 
     if (!name) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
     if (!phoneNumber) {
-      return NextResponse.json(
-        { error: "Phone number is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
     }
 
     if (!/^[0-9]+$/.test(phoneNumber)) {
@@ -119,15 +99,13 @@ export async function PUT(request: Request) {
 
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     user.name = name;
     user.phoneNumber = phoneNumber;
     user.location = location || "";
+    user.bio = bio || "";
     await user.save();
 
     return NextResponse.json(
@@ -140,15 +118,14 @@ export async function PUT(request: Request) {
           role: user.role,
           phoneNumber: user.phoneNumber,
           location: user.location,
+          bio: user.bio,
         },
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Update Current User Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal Server Error" },
-      { status: 500 }
-    );
+    const err = error as Error;
+    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
   }
 }

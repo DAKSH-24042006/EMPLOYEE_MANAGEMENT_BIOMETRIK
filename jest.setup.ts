@@ -27,7 +27,13 @@ process.env.SYSTEM_ADMIN_USERNAME = "admin";
 process.env.SYSTEM_ADMIN_EMAIL = "admin@biometrik.in";
 process.env.SYSTEM_ADMIN_PASSWORD = "admin@123";
 process.env.JWT_SECRET = "test-jwt-secret-at-least-32-characters-long";
-process.env.NODE_ENV = "test";
+Object.defineProperty(process, "env", {
+  value: {
+    ...process.env,
+    NODE_ENV: "test",
+  },
+  writable: true,
+});
 
 // ─── Suppress console.error in tests (optional, unmask for debugging) ─────────
 const originalError = console.error;
