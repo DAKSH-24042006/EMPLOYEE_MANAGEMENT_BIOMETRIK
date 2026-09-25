@@ -13,6 +13,8 @@ export interface IUser extends Document {
   role: Role | string;
   phoneNumber?: string;
   location?: string;
+  profilePhoto?: string;
+  bio?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,16 +74,26 @@ const UserSchema: Schema = new Schema(
       required: false,
       default: "",
       validate: {
-        validator: function(v: string) {
+        validator: function (v: string) {
           if (!v) return true; // Allow empty
           return /^[0-9]+$/.test(v);
         },
-        message: (props: any) => `${props.value} is not a valid phone number! Only numbers are allowed.`
-      }
+        message: (props: Record<string, unknown>) =>
+          `${props.value} is not a valid phone number! Only numbers are allowed.`,
+      },
     },
     location: {
       type: String,
       default: "",
+    },
+    profilePhoto: {
+      type: String,
+      default: "",
+    },
+    bio: {
+      type: String,
+      default: "",
+      trim: true,
     },
   },
   {

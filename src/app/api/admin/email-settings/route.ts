@@ -100,8 +100,10 @@ export async function PUT(req: Request) {
 
       const mergedTemplates: Record<string, unknown> = {};
       for (const key of templateKeys) {
-        const existing = (existingTemplates as Record<string, Record<string, string>>)[key] || {};
-        const incoming = (incomingTemplates as Record<string, Record<string, string>>)[key] || {};
+        const existing =
+          (existingTemplates as unknown as Record<string, Record<string, string>>)[key] || {};
+        const incoming =
+          (incomingTemplates as unknown as Record<string, Record<string, string>>)[key] || {};
         mergedTemplates[key] = {
           subject: incoming.subject?.trim() || existing.subject || "",
           body: incoming.body?.trim() || existing.body || "",

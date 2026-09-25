@@ -21,7 +21,6 @@ import {
   Col,
   Statistic,
   Divider,
-  List,
   Segmented,
 } from "antd";
 import { useRouter } from "next/navigation";
@@ -34,7 +33,6 @@ import {
   Search,
   ShieldCheck,
   UserCheck,
-  UserX,
   Users,
   Plus,
   Key,
@@ -84,7 +82,11 @@ export default function SystemAdminPage() {
   const [roleForm] = Form.useForm();
   const { message } = App.useApp();
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentUser, setCurrentUser] = useState<{ role: string; email: string; username?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    role: string;
+    email: string;
+    username?: string;
+  } | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
 
@@ -119,7 +121,7 @@ export default function SystemAdminPage() {
       } else {
         message.error(data.error || "Failed to fetch employees");
       }
-    } catch (err) {
+    } catch (_err) {
       message.error("Network error while fetching employees");
     } finally {
       setLoading(false);
@@ -151,7 +153,11 @@ export default function SystemAdminPage() {
   }, [currentUser, fetchEmployees, fetchRoles]);
 
   // Create new role handler
-  const handleCreateRole = async (values: { name: string; label?: string; description?: string }) => {
+  const handleCreateRole = async (values: {
+    name: string;
+    label?: string;
+    description?: string;
+  }) => {
     setCreatingRoleLoading(true);
     try {
       const res = await fetch("/api/roles", {
@@ -168,8 +174,9 @@ export default function SystemAdminPage() {
       } else {
         message.error(data.error || "Failed to create role");
       }
-    } catch (err: any) {
-      message.error(err.message || "Error creating role");
+    } catch (err: unknown) {
+      const error = err as Error;
+      message.error(error.message || "Error creating role");
     } finally {
       setCreatingRoleLoading(false);
     }
@@ -177,7 +184,9 @@ export default function SystemAdminPage() {
   };
 
   // Inline role creation directly inside employee select dropdown
-  const handleCreateInlineRole = async (e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
+  const handleCreateInlineRole = async (
+    e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) => {
     e.preventDefault();
     if (!inlineRoleName.trim()) {
       message.warning("Please enter a role name");
@@ -201,7 +210,7 @@ export default function SystemAdminPage() {
       } else {
         message.error(data.error || "Failed to delete role");
       }
-    } catch (err) {
+    } catch (_err) {
       message.error("Error deleting role");
     }
   };
@@ -237,7 +246,7 @@ export default function SystemAdminPage() {
   };
 
   // Submit Add or Edit Employee
-  const handleFormSubmit = async (values: any) => {
+  const handleFormSubmit = async (values: Record<string, unknown>) => {
     try {
       if (editingEmployee) {
         // Clean out blank password on edit
@@ -278,7 +287,7 @@ export default function SystemAdminPage() {
           message.error(data.error || "Failed to register employee");
         }
       }
-    } catch (err) {
+    } catch (_err) {
       message.error("An unexpected error occurred. Please try again.");
     }
   };
@@ -305,7 +314,7 @@ export default function SystemAdminPage() {
       } else {
         message.error(data.error || "Status update failed");
       }
-    } catch (err) {
+    } catch (_err) {
       message.error("Network error while updating status");
     }
   };
@@ -322,7 +331,7 @@ export default function SystemAdminPage() {
       } else {
         message.error(data.error || "Failed to remove employee");
       }
-    } catch (err) {
+    } catch (_err) {
       message.error("Error deleting employee");
     }
   };
@@ -342,7 +351,6 @@ export default function SystemAdminPage() {
   // Calculate statistics
   const totalCount = employees.length;
   const activeCount = employees.filter((e) => e.status !== UserStatus.INACTIVE).length;
-  const inactiveCount = employees.filter((e) => e.status === UserStatus.INACTIVE).length;
 
   if (isCheckingAuth) {
     return (
@@ -377,10 +385,15 @@ export default function SystemAdminPage() {
       dataIndex: "name",
       key: "name",
       render: (text: string, record: EmployeeRecord) => (
-        <Space direction="vertical" size={2}>
-          <Text strong style={{ fontSize: 14 }}>{text}</Text>
+        <Space orientation="vertical" size={2}>
+          <Text strong style={{ fontSize: 14 }}>
+            {text}
+          </Text>
           {record.role === Role.SYSTEM_ADMIN && (
-            <Tag color="purple" icon={<ShieldCheck size={12} style={{ verticalAlign: -1, marginRight: 3 }} />}>
+            <Tag
+              color="purple"
+              icon={<ShieldCheck size={12} style={{ verticalAlign: -1, marginRight: 3 }} />}
+            >
               System Admin
             </Tag>
           )}
@@ -402,9 +415,7 @@ export default function SystemAdminPage() {
       dataIndex: "email",
       key: "email",
       render: (email: string) => (
-        <span style={{ fontFamily: "monospace", color: "#434343" }}>
-          {email}
-        </span>
+        <span style={{ fontFamily: "monospace", color: "#434343" }}>{email}</span>
       ),
     },
     {
@@ -447,9 +458,11 @@ export default function SystemAdminPage() {
     {
       title: "Actions",
       key: "actions",
-      render: (_: any, record: EmployeeRecord) => {
+      render: (_text: unknown, record: EmployeeRecord) => {
         const isActive = record.status !== UserStatus.INACTIVE;
-        const isSelf = record.email === currentUser?.email || (record.username && record.username === currentUser?.username);
+        const isSelf =
+          record.email === currentUser?.email ||
+          (record.username && record.username === currentUser?.username);
 
         return (
           <Space size="middle">
@@ -472,7 +485,9 @@ export default function SystemAdminPage() {
               <Popconfirm
                 title={`${isActive ? "Deactivate" : "Activate"} Employee`}
                 description={`Are you sure you want to ${isActive ? "deactivate" : "activate"} ${record.name}? ${
-                  isActive ? "They will be denied login access immediately." : "They will be able to log in."
+                  isActive
+                    ? "They will be denied login access immediately."
+                    : "They will be able to log in."
                 }`}
                 onConfirm={() => toggleStatus(record)}
                 okText="Yes"
@@ -512,12 +527,16 @@ export default function SystemAdminPage() {
     <div style={{ padding: "8px 0" }}>
       {/* Header Title Section */}
       <div style={{ marginBottom: 18 }}>
-        <Title level={3} style={{ margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: 10 }}>
+        <Title
+          level={3}
+          style={{ margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: 10 }}
+        >
           <ShieldCheck size={26} color="#00897b" />
           User Management
         </Title>
         <Text type="secondary">
-          Manage authorized employees, set login credentials, customize roles, and configure automated email notifications.
+          Manage authorized employees, set login credentials, customize roles, and configure
+          automated email notifications.
         </Text>
       </div>
 
@@ -555,127 +574,150 @@ export default function SystemAdminPage() {
       ) : (
         <>
           {/* Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={12} sm={8}>
-          <Card variant="borderless" style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 13 }}>Total Employees</Text>}
-              value={totalCount}
-              prefix={<Users size={18} style={{ marginRight: 6, color: "#1890ff" }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8}>
-          <Card variant="borderless" style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 13 }}>Active Accounts</Text>}
-              value={activeCount}
-              valueStyle={{ color: "#52c41a" }}
-              prefix={<UserCheck size={18} style={{ marginRight: 6, color: "#52c41a" }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8}>
-          <Card variant="borderless" style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 13 }}>Configured Roles</Text>}
-              value={roles.length}
-              valueStyle={{ color: "#722ed1" }}
-              prefix={<ShieldCheck size={18} style={{ marginRight: 6, color: "#722ed1" }} />}
-            />
-          </Card>
-        </Col>
-      </Row>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={12} sm={8}>
+              <Card
+                variant="borderless"
+                style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+              >
+                <Statistic
+                  title={
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      Total Employees
+                    </Text>
+                  }
+                  value={totalCount}
+                  prefix={<Users size={18} style={{ marginRight: 6, color: "#1890ff" }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8}>
+              <Card
+                variant="borderless"
+                style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+              >
+                <Statistic
+                  title={
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      Active Accounts
+                    </Text>
+                  }
+                  value={activeCount}
+                  styles={{ content: { color: "#52c41a" } }}
+                  prefix={<UserCheck size={18} style={{ marginRight: 6, color: "#52c41a" }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8}>
+              <Card
+                variant="borderless"
+                style={{ borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+              >
+                <Statistic
+                  title={
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      Configured Roles
+                    </Text>
+                  }
+                  value={roles.length}
+                  styles={{ content: { color: "#722ed1" } }}
+                  prefix={<ShieldCheck size={18} style={{ marginRight: 6, color: "#722ed1" }} />}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-      {/* Employee Management Card */}
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: 12,
-          boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-        }}
-      >
-        {/* Action Bar */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>Employee Management</Title>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Employees authenticate using the username and password configured below.
-            </Text>
-          </div>
-
-          <Space wrap>
-            <Input
-              placeholder="Search by name, username, email, role..."
-              prefix={<Search size={16} style={{ color: "rgba(0,0,0,0.4)" }} />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              allowClear
-              style={{ width: 280, borderRadius: 8 }}
-            />
-
-            <Button
-              icon={<RefreshCcw size={15} />}
-              onClick={() => {
-                fetchEmployees();
-                fetchRoles();
-              }}
-              loading={loading}
-              style={{ borderRadius: 8 }}
-            >
-              Refresh
-            </Button>
-
-            <Button
-              icon={<ShieldCheck size={15} />}
-              onClick={() => setIsRoleModalOpen(true)}
-              style={{ borderRadius: 8 }}
-            >
-              Manage Roles
-            </Button>
-
-            <Button
-              type="primary"
-              icon={<UserPlus size={15} />}
-              onClick={() => openModal()}
+          {/* Employee Management Card */}
+          <Card
+            variant="borderless"
+            style={{
+              borderRadius: 12,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+            }}
+          >
+            {/* Action Bar */}
+            <div
               style={{
-                borderRadius: 8,
-                backgroundColor: "#00897b",
-                borderColor: "#00897b",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 20,
               }}
             >
-              Add Employee
-            </Button>
-          </Space>
-        </div>
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Employee Management
+                </Title>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Employees authenticate using the username and password configured below.
+                </Text>
+              </div>
 
-        {/* Employee Table */}
-        <Table
-          columns={columns}
-          dataSource={filteredEmployees}
-          rowKey="_id"
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} employees`,
-            showSizeChanger: true,
-          }}
-          locale={{
-            emptyText: searchQuery
-              ? "No employees match your search query."
-              : "No employees registered yet. Click 'Add Employee' to register one.",
-          }}
-        />
-      </Card>
+              <Space wrap>
+                <Input
+                  placeholder="Search by name, username, email, role..."
+                  prefix={<Search size={16} style={{ color: "rgba(0,0,0,0.4)" }} />}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  allowClear
+                  style={{ width: 280, borderRadius: 8 }}
+                />
+
+                <Button
+                  icon={<RefreshCcw size={15} />}
+                  onClick={() => {
+                    fetchEmployees();
+                    fetchRoles();
+                  }}
+                  loading={loading}
+                  style={{ borderRadius: 8 }}
+                >
+                  Refresh
+                </Button>
+
+                <Button
+                  icon={<ShieldCheck size={15} />}
+                  onClick={() => setIsRoleModalOpen(true)}
+                  style={{ borderRadius: 8 }}
+                >
+                  Manage Roles
+                </Button>
+
+                <Button
+                  type="primary"
+                  icon={<UserPlus size={15} />}
+                  onClick={() => openModal()}
+                  style={{
+                    borderRadius: 8,
+                    backgroundColor: "#00897b",
+                    borderColor: "#00897b",
+                  }}
+                >
+                  Add Employee
+                </Button>
+              </Space>
+            </div>
+
+            {/* Employee Table */}
+            <Table
+              columns={columns}
+              dataSource={filteredEmployees}
+              rowKey="_id"
+              loading={loading}
+              pagination={{
+                pageSize: 10,
+                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} employees`,
+                showSizeChanger: true,
+              }}
+              locale={{
+                emptyText: searchQuery
+                  ? "No employees match your search query."
+                  : "No employees registered yet. Click 'Add Employee' to register one.",
+              }}
+            />
+          </Card>
         </>
       )}
 
@@ -704,7 +746,8 @@ export default function SystemAdminPage() {
             {editingEmployee ? "Save Changes" : "Register Employee"}
           </Button>,
         ]}
-        destroyOnClose
+        forceRender
+        destroyOnHidden
         width={560}
       >
         <Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 20 }}>
@@ -713,11 +756,7 @@ export default function SystemAdminPage() {
             : "Set employee details, username, and password. The employee will sign in using these credentials."}
         </Paragraph>
 
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleFormSubmit}
-        >
+        <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
           <Form.Item
             name="name"
             label="Full Name"
@@ -742,7 +781,11 @@ export default function SystemAdminPage() {
                 name="password"
                 label={editingEmployee ? "Reset Password" : "Password"}
                 rules={[{ required: !editingEmployee, message: "Please enter a password" }]}
-                extra={editingEmployee ? "Leave blank to keep existing password" : "Set initial login password"}
+                extra={
+                  editingEmployee
+                    ? "Leave blank to keep existing password"
+                    : "Set initial login password"
+                }
               >
                 <Input.Password
                   placeholder={editingEmployee ? "Leave blank to keep current" : "••••••••"}
@@ -761,10 +804,7 @@ export default function SystemAdminPage() {
               { type: "email", message: "Please enter a valid email address" },
             ]}
           >
-            <Input
-              placeholder="e.g. rahul.sharma@company.com"
-              style={{ borderRadius: 6 }}
-            />
+            <Input placeholder="e.g. rahul.sharma@company.com" style={{ borderRadius: 6 }} />
           </Form.Item>
 
           <Form.Item
@@ -789,7 +829,7 @@ export default function SystemAdminPage() {
                   placeholder="Select or create a role..."
                   style={{ borderRadius: 6 }}
                   popupMatchSelectWidth={false}
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
                       <Divider style={{ margin: "8px 0" }} />
@@ -822,10 +862,22 @@ export default function SystemAdminPage() {
                 >
                   {roles.map((r) => (
                     <Option key={r._id || r.name} value={r.name}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <span>{r.label && r.label !== r.name ? `${r.label} (${r.name})` : r.name}</span>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span>
+                          {r.label && r.label !== r.name ? `${r.label} (${r.name})` : r.name}
+                        </span>
                         {r.isSystem ? (
-                          <Tag color="purple" style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}>
+                          <Tag
+                            color="purple"
+                            style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}
+                          >
                             Default
                           </Tag>
                         ) : (
@@ -879,22 +931,24 @@ export default function SystemAdminPage() {
           </Button>,
         ]}
         width={640}
-        destroyOnClose
+        forceRender
+        destroyOnHidden
       >
         <Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 16 }}>
-          Define custom roles for your organization. Only SYSTEM_ADMIN is default; all other roles are created and managed by you.
+          Define custom roles for your organization. Only SYSTEM_ADMIN is default; all other roles
+          are created and managed by you.
         </Paragraph>
 
         <Card
           size="small"
           style={{ marginBottom: 16, backgroundColor: "#fafafa", borderRadius: 8 }}
-          title={<Text strong style={{ fontSize: 13 }}>Create New Role</Text>}
+          title={
+            <Text strong style={{ fontSize: 13 }}>
+              Create New Role
+            </Text>
+          }
         >
-          <Form
-            form={roleForm}
-            layout="vertical"
-            onFinish={handleCreateRole}
-          >
+          <Form form={roleForm} layout="vertical" onFinish={handleCreateRole}>
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item
@@ -907,21 +961,17 @@ export default function SystemAdminPage() {
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item
-                  name="label"
-                  label="Display Label"
-                  extra="Human-readable title"
-                >
+                <Form.Item name="label" label="Display Label" extra="Human-readable title">
                   <Input placeholder="e.g. Human Resources" style={{ borderRadius: 6 }} />
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item
-              name="description"
-              label="Description"
-              style={{ marginBottom: 12 }}
-            >
-              <Input.TextArea rows={2} placeholder="Optional notes or responsibility summary..." style={{ borderRadius: 6 }} />
+            <Form.Item name="description" label="Description" style={{ marginBottom: 12 }}>
+              <Input.TextArea
+                rows={2}
+                placeholder="Optional notes or responsibility summary..."
+                style={{ borderRadius: 6 }}
+              />
             </Form.Item>
             <Button
               type="primary"
@@ -938,15 +988,36 @@ export default function SystemAdminPage() {
         <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
           Configured Roles ({roles.length})
         </Text>
-        <List
-          bordered
-          dataSource={roles}
-          size="small"
-          style={{ borderRadius: 8, maxHeight: 280, overflowY: "auto" }}
-          renderItem={(r) => (
-            <List.Item
-              actions={[
-                r.isSystem ? (
+        <div
+          style={{
+            borderRadius: 8,
+            maxHeight: 280,
+            overflowY: "auto",
+            border: "1px solid #f0f0f0",
+          }}
+        >
+          {roles.map((r, index) => (
+            <div
+              key={r._id || r.name}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "8px 16px",
+                borderBottom: index < roles.length - 1 ? "1px solid #f0f0f0" : "none",
+              }}
+            >
+              <div>
+                <Space>
+                  <Text strong>{r.name}</Text>
+                  {r.label && r.label !== r.name && <Text type="secondary">({r.label})</Text>}
+                </Space>
+                <div style={{ color: "rgba(0, 0, 0, 0.45)", fontSize: 13, marginTop: 4 }}>
+                  {r.description || "No description provided."}
+                </div>
+              </div>
+              <div>
+                {r.isSystem ? (
                   <Tag color="purple">Default Core</Tag>
                 ) : (
                   <Popconfirm
@@ -961,21 +1032,11 @@ export default function SystemAdminPage() {
                       Delete
                     </Button>
                   </Popconfirm>
-                ),
-              ]}
-            >
-              <List.Item.Meta
-                title={
-                  <Space>
-                    <Text strong>{r.name}</Text>
-                    {r.label && r.label !== r.name && <Text type="secondary">({r.label})</Text>}
-                  </Space>
-                }
-                description={r.description || "No description provided."}
-              />
-            </List.Item>
-          )}
-        />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </Modal>
     </div>
   );
