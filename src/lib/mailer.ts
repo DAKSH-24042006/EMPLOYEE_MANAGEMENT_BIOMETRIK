@@ -352,7 +352,7 @@ export function renderTemplate(template: string, data: Record<string, unknown>):
  * Retrieve active EmailConfig from DB, or fallback to sensible defaults and ENV
  * Migrates existing legacy templates to include direct task URLs and removes legacy text.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export async function getEmailConfig(): Promise<any> {
   await dbConnect();
   let config = await EmailConfig.findOne().sort({ createdAt: -1 });
@@ -476,13 +476,12 @@ export async function sendTaskAssignmentEmail({
   projectManager,
   project,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   task: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   assignee: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   projectManager?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   project: any;
 }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -579,13 +578,12 @@ export async function sendDeadlineReminderEmail({
   reminderType,
   days,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   task: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   assignee: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   projectManager?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   project: any;
   reminderType: "approaching" | "due_today" | "overdue";
   days?: number;

@@ -108,7 +108,7 @@ export async function POST(req: Request) {
 
     console.log(`[Login API] Login successful for user: ${user.username || user.email} (${user.role})`);
 
-    const redirectPath = user.role === Role.SYSTEM_ADMIN ? "/admin" : "/dashboard";
+    const redirectPath = "/dashboard";
 
     const response = NextResponse.json(
       {

@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     const includeAll = searchParams.get("includeAll") === "true";
     const projectId = searchParams.get("projectId");
 
-    let personalQuery: any = { createdBy: payload.userId };
+    const personalQuery: any = { createdBy: payload.userId };
     let dateFilter: any = null;
 
     if (startDate && endDate) {
@@ -54,14 +54,24 @@ export async function GET(req: Request) {
       }
     }
 
-    const personalTasks = await CalendarTask.find(personalQuery).sort({ date: 1, createdAt: 1 }).lean();
+    const personalTasks = await CalendarTask.find(personalQuery)
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
 
     const formattedPersonalTasks = personalTasks.map((t: any) => ({
       ...t,
       _id: String(t._id),
       itemType: "personal",
       isPersonal: true,
-      color: t.color || (t.priority === "Urgent" ? "#f55c5c" : t.priority === "High" ? "#f58c42" : t.priority === "Medium" ? "#f5c542" : "#6c8ef5"),
+      color:
+        t.color ||
+        (t.priority === "Urgent"
+          ? "#f55c5c"
+          : t.priority === "High"
+            ? "#f58c42"
+            : t.priority === "Medium"
+              ? "#f5c542"
+              : "#6c8ef5"),
     }));
 
     if (!includeAll) {
@@ -76,17 +86,14 @@ export async function GET(req: Request) {
       payload.role === "ADMIN";
 
     // Build scoped queries to prevent seeing other users' tasks
-    let workItemQuery: any = {};
-    let taskQuery: any = {};
-    let sprintQuery: any = {};
+    const workItemQuery: any = {};
+    const taskQuery: any = {};
+    const sprintQuery: any = {};
 
     if (dateFilter) {
       workItemQuery.dueDate = dateFilter;
       taskQuery.dueDate = dateFilter;
-      sprintQuery.$or = [
-        { endDate: dateFilter },
-        { startDate: dateFilter }
-      ];
+      sprintQuery.$or = [{ endDate: dateFilter }, { startDate: dateFilter }];
     }
 
     if (!isSystemAdmin) {
@@ -133,9 +140,7 @@ export async function GET(req: Request) {
         .populate("projectId", "title clientDetails")
         .populate("assignedTo", "name email")
         .lean(),
-      Sprint.find(sprintQuery)
-        .populate("projectId", "title")
-        .lean()
+      Sprint.find(sprintQuery).populate("projectId", "title").lean(),
     ]);
 
     const formattedWorkItems = workItems.map((w: any) => {
@@ -193,19 +198,19 @@ export async function GET(req: Request) {
       endDate: s.endDate,
     }));
 
-    const allEvents = [...formattedPersonalTasks, ...formattedWorkItems, ...formattedRegularTasks, ...formattedSprints].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    const allEvents = [
+      ...formattedPersonalTasks,
+      ...formattedWorkItems,
+      ...formattedRegularTasks,
+      ...formattedSprints,
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return NextResponse.json(allEvents, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });
   } catch (error: any) {
     console.error("GET Calendar Tasks Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch calendar tasks" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch calendar tasks" }, { status: 500 });
   }
 }
 
@@ -238,7 +243,8 @@ export async function POST(req: Request) {
     if (shouldSync) {
       const origin = req.headers.get("origin") || "http://localhost:3000";
       const dashboardUrl = `${origin}/calendar`;
-      const statusPrefix = body.status === "Done" ? "[COMPLETED] " : body.status === "Cancelled" ? "[CANCELLED] " : "";
+      const statusPrefix =
+        body.status === "Done" ? "[COMPLETED] " : body.status === "Cancelled" ? "[CANCELLED] " : "";
       const summary = `${statusPrefix}Task: ${body.title}`;
       const desc = body.description || "No description provided.";
 

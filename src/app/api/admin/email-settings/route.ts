@@ -109,11 +109,10 @@ export async function PUT(req: Request) {
           body: incoming.body?.trim() || existing.body || "",
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       config.templates = mergedTemplates as any;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     config.updatedBy = admin.userId as any;
     await config.save();
 
