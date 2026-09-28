@@ -331,7 +331,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
           label="Requirement / Project Title"
           rules={[{ required: true, message: "Project title is required" }]}
         >
-          <Input placeholder="E.g., Requirement Dashboard" />
+          <Input placeholder="E.g., Kramik Portal Project" />
         </Form.Item>
 
         <Form.Item name="description" label="Project Description">
@@ -372,9 +372,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
               <Select>
                 {Object.keys(STATUS_CONFIG).map((s) => (
                   <Option key={s} value={s}>
-                    <Tag color={STATUS_CONFIG[s].color} style={{ marginRight: 0 }}>
-                      {s}
-                    </Tag>
+                    {s}
                   </Option>
                 ))}
               </Select>

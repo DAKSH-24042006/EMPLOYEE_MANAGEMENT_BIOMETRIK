@@ -277,7 +277,7 @@ export const generateProjectPDF = async (project: any) => {
       doc.setFontSize(10);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        `Generated on ${dayjs().format("DD MMM YYYY")} | Biometrik Requirement Dashboard | Page ${i} of ${pageCount}`,
+        `Generated on ${dayjs().format("DD MMM YYYY")} | Kramik Portal | Page ${i} of ${pageCount}`,
         pageWidth / 2,
         pageHeight - 10,
         { align: "center" }

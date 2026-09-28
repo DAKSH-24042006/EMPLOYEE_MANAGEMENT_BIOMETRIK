@@ -281,8 +281,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       const displayLabel = isMongoId
         ? "Workspace"
         : (snippet === "admin" || snippet === "users")
-        ? "User Management"
-        : snippet.replace("-", " ");
+          ? "User Management"
+          : snippet.replace("-", " ");
       return {
         title: <Link href={url} style={{ textTransform: "capitalize" }}>{displayLabel}</Link>,
       };
@@ -391,38 +391,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           />
         </div>
 
-        <div style={{ padding: "16px", borderTop: "1px solid #f0f0f0" }}>
-          <Button
-            icon={<LogOut size={18} />}
-            block
-            size="large"
-            onClick={handleLogout}
-            style={{
-              height: 44,
-              borderRadius: 8,
-              border: "1.5px solid #d9d9d9",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: isActuallyCollapsed ? "center" : "flex-start",
-              padding: isActuallyCollapsed ? "0" : "0 16px",
-              fontWeight: 500,
-              color: "rgba(0, 0, 0, 0.65)",
-              transition: "all 0.3s ease",
-            }}
-            className="logout-button-hover"
-          >
-            {!isActuallyCollapsed && <span style={{ marginLeft: 8 }}>Logout</span>}
-          </Button>
-          <style jsx global>{`
-            .logout-button-hover:hover {
-              background-color: #fff1f0 !important;
-              color: #ff4d4f !important;
-              border-color: #ff4d4f !important;
-              transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(255, 77, 79, 0.15);
-            }
-          `}</style>
-        </div>
       </div>
     );
   };

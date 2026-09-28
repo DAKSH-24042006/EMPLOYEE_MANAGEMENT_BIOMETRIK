@@ -33,6 +33,7 @@ import {
   Switch,
   Result,
   Spin,
+  App,
 } from "antd";
 import {
   ArrowLeft,
@@ -102,6 +103,7 @@ const PROJECT_STAGES = [
 // ----------------------------------------------------
 function ProjectDetailsClient({ id }: { id: string }) {
   const router = useRouter();
+  const { message } = App.useApp();
   const [project, setProject] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -417,6 +419,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
           description: json.data.description || "",
           priority: json.data.priority,
           status: json.data.status,
+          techOwner: json.data.techOwner?._id || json.data.techOwner,
+          sprintId: json.data.sprintId?._id || json.data.sprintId,
           timeline: json.data.timeline?.startDate && json.data.timeline?.endDate
             ? [dayjs(json.data.timeline.startDate), dayjs(json.data.timeline.endDate)]
             : undefined,
@@ -655,6 +659,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
         description: values.description,
         priority: values.priority,
         status: values.status,
+        techOwner: values.techOwner,
+        sprintId: values.sprintId,
         timeline: values.timeline ? [values.timeline[0].toISOString(), values.timeline[1].toISOString()] : undefined,
         changeReason: values.changeReason || "Update specifications",
       };
@@ -1682,6 +1688,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       description: project.description || "",
                       priority: project.priority,
                       status: project.status,
+                      techOwner: project.techOwner?._id || project.techOwner,
                       timeline: project.timeline?.startDate && project.timeline?.endDate
                         ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
                         : undefined,
@@ -1706,7 +1713,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         {/* 4 Executive Metadata Cards */}
         <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
           {/* Card 1: Project Manager */}
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} lg={8}>
             <div
               style={{
                 background: "#ffffff",
@@ -1738,7 +1745,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Col>
 
           {/* Card 2: Creator / Admin */}
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} lg={8}>
             <div
               style={{
                 background: "#ffffff",
@@ -1779,7 +1786,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Col>
 
           {/* Card 3: Timeline */}
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} lg={8}>
             <div
               style={{
                 background: "#ffffff",
@@ -1824,46 +1831,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </div>
           </Col>
 
-          {/* Card 4: Client Information */}
-          <Col xs={24} sm={12} lg={6}>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                height: "100%",
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: "#eff6ff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#2563eb",
-                  flexShrink: 0,
-                }}
-              >
-                <Building2 size={16} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
-                  Client Partner
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {project.clientDetails?.companyName || "Client"}
-                </div>
-              </div>
-            </div>
-          </Col>
+
         </Row>
 
         {/* Executive Overview Container */}
@@ -4362,6 +4330,41 @@ function ProjectDetailsClient({ id }: { id: string }) {
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
               <Form.Item
+                name="techOwner"
+                label="Assigned User"
+              >
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Assign to a team member"
+                  options={users.map((u: any) => ({
+                    label: u.name,
+                    value: String(u._id || u.id),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="sprintId"
+                label="Sprint"
+              >
+                <Select
+                  allowClear
+                  placeholder="Select Sprint"
+                  options={sprints.map((s: any) => ({
+                    label: s.title || `Sprint ${s.sprintNumber}`,
+                    value: s._id,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
+              <Form.Item
                 name="priority"
                 label="Priority"
                 rules={[{ required: true, message: "Please select priority" }]}
@@ -4783,14 +4786,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="sprint" label="Sprint Assignment">
-                  <Select size="large" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} disabled={submittingWorkItem} />
+                <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 24 }}>
+                  <DatePicker size="large" style={{ width: "100%" }} placeholder="Select date" disabled={submittingWorkItem} />
                 </Form.Item>
               </Col>
             </Row>
-
-            <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 24 }}>
-              <DatePicker size="large" style={{ width: "100%" }} placeholder="Select date" disabled={submittingWorkItem} />
+            
+            <Form.Item name="sprintId" label="Sprint" style={{ marginBottom: 24 }}>
+              <Select
+                size="large"
+                placeholder="Select Sprint (Optional)"
+                allowClear
+                disabled={submittingWorkItem}
+                options={sprints.map((s: any) => ({
+                  label: s.title || `Sprint ${s.sprintNumber}`,
+                  value: s._id,
+                }))}
+              />
             </Form.Item>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -4867,7 +4879,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Row>
 
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={24}>
               <Form.Item name="assignee" label="Assign To" style={{ marginBottom: 14 }}>
                 <Select
                   size="middle"
@@ -4881,11 +4893,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     };
                   })}
                 />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="sprint" label="Sprint Assignment" style={{ marginBottom: 14 }}>
-                <Select size="middle" placeholder="Select Sprint" allowClear options={sprints.map(s => ({ label: s.name, value: s._id }))} />
               </Form.Item>
             </Col>
           </Row>
