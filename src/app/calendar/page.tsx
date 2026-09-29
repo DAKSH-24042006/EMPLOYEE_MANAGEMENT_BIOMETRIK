@@ -49,7 +49,7 @@ export interface CalendarEventItem {
   status: "Todo" | "In Progress" | "Done" | "Cancelled";
   rawStatus?: string;
   color: string;
-  itemType: "personal" | "work_item" | "sprint";
+  itemType: "personal" | "work_item" | "sprint" | "project";
   isPersonal: boolean;
   projectName?: string;
   projectId?: string;
