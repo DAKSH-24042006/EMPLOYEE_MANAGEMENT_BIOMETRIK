@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Typography,
-    Button,
+  Button,
   Tag,
   Space,
   Modal,
@@ -89,7 +89,7 @@ interface IProject {
   status: string;
   createdAt: string;
   updatedAt: string;
-  
+
   // Enriched fields
   createdBy?: {
     name: string;
@@ -111,23 +111,20 @@ interface IProject {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<
-  string,
-  { color: string; icon: React.ReactNode }
-> = {
+const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
   "Requirement Created": { color: "blue", icon: <ClockCircleOutlined /> },
   "Submitted for Tech Review": { color: "cyan", icon: <SyncOutlined /> },
   "Clarification Required": { color: "orange", icon: <ExclamationCircleOutlined /> },
   "Technically Approved": { color: "purple", icon: <CheckCircleOutlined /> },
-  "Planning": { color: "geekblue", icon: <SyncOutlined /> },
-  "Development": { color: "indigo", icon: <SyncOutlined /> },
+  Planning: { color: "geekblue", icon: <SyncOutlined /> },
+  Development: { color: "indigo", icon: <SyncOutlined /> },
   "Testing/UAT": { color: "warning", icon: <SyncOutlined /> },
   "Signoff Pending": { color: "magenta", icon: <SyncOutlined /> },
-  "Delivered": { color: "success", icon: <CheckCircleOutlined /> },
-  "Closed": { color: "default", icon: <CheckCircleOutlined /> },
+  Delivered: { color: "success", icon: <CheckCircleOutlined /> },
+  Closed: { color: "default", icon: <CheckCircleOutlined /> },
   Pending: { color: "orange", icon: <ClockCircleOutlined /> },
   Active: { color: "blue", icon: <SyncOutlined /> },
-  Completed: { color: "green", icon: <CheckCircleOutlined /> }
+  Completed: { color: "green", icon: <CheckCircleOutlined /> },
 };
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -257,9 +254,10 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
       form.setFieldsValue({
         title: project.title || "",
         description: project.description || "",
-        timeline: project.timeline?.startDate && project.timeline?.endDate
-          ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
-          : undefined,
+        timeline:
+          project.timeline?.startDate && project.timeline?.endDate
+            ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
+            : undefined,
         priority: project.priority || "Medium",
         status: project.status,
       });
@@ -321,11 +319,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
       destroyOnHidden
     >
       <Divider style={{ margin: "12px 0 20px" }} />
-      <Form
-        form={form}
-        layout="vertical"
-        requiredMark={false}
-      >
+      <Form form={form} layout="vertical" requiredMark={false}>
         <Form.Item
           name="title"
           label="Requirement / Project Title"
@@ -392,7 +386,12 @@ interface ProjectDetailsModalProps {
   onClose: () => void;
 }
 
-function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectDetailsModalProps & { onShowPreview: (doc: any, filename: string) => void }) {
+function ProjectDetailsModal({
+  open,
+  project,
+  onClose,
+  onShowPreview,
+}: ProjectDetailsModalProps & { onShowPreview: (doc: any, filename: string) => void }) {
   const [generating, setGenerating] = useState(false);
   const { message } = App.useApp();
 
@@ -446,28 +445,38 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
           <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
             Client Information
           </Title>
-          <Card size="small" variant="borderless" style={{ background: "#f9fafb", borderRadius: 8 }}>
+          <Card
+            size="small"
+            variant="borderless"
+            style={{ background: "#f9fafb", borderRadius: 8 }}
+          >
             <Row gutter={[24, 16]}>
               <Col xs={24} sm={12}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Company Name</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Company Name
+                </Text>
                 <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>
                   {project.clientDetails.companyName}
                 </div>
               </Col>
               <Col xs={24} sm={12}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Contact Person</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Contact Person
+                </Text>
                 <div style={{ fontSize: 15, color: "#374151" }}>
                   {project.clientDetails.contactPerson || "—"}
                 </div>
               </Col>
               <Col xs={24} sm={12}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Email Address</Text>
-                <div style={{ fontSize: 15, color: "#374151" }}>
-                  {project.clientDetails.email}
-                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Email Address
+                </Text>
+                <div style={{ fontSize: 15, color: "#374151" }}>{project.clientDetails.email}</div>
               </Col>
               <Col xs={24} sm={12}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Contact Number</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Contact Number
+                </Text>
                 <div style={{ fontSize: 15, color: "#374151" }}>
                   {project.clientDetails.contactNumber || "—"}
                 </div>
@@ -483,16 +492,22 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
           </Title>
           <Row gutter={[24, 16]}>
             <Col xs={24} sm={8}>
-              <Card size="small" variant="borderless" style={{
-                textAlign: "center",
-                background: "#f0fdfa",
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center"
-              }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>Status</Text>
+              <Card
+                size="small"
+                variant="borderless"
+                style={{
+                  textAlign: "center",
+                  background: "#f0fdfa",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Status
+                </Text>
                 <div style={{ marginTop: 4, display: "flex", justifyContent: "center" }}>
                   <Tag
                     color={STATUS_CONFIG[project.status].color}
@@ -505,16 +520,35 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
               </Card>
             </Col>
             <Col xs={24} sm={16}>
-              <Card size="small" variant="borderless" style={{ background: "#f9fafb", height: "100%" }}>
-                <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", height: "100%" }}>
+              <Card
+                size="small"
+                variant="borderless"
+                style={{ background: "#f9fafb", height: "100%" }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-around",
+                    alignItems: "center",
+                    height: "100%",
+                  }}
+                >
                   <div>
-                    <Text type="secondary" style={{ fontSize: 11 }}>Start Date</Text>
-                    <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.startDate).format("DD MMM YYYY")}</div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      Start Date
+                    </Text>
+                    <div style={{ fontWeight: 500 }}>
+                      {dayjs(project.timeline.startDate).format("DD MMM YYYY")}
+                    </div>
                   </div>
                   <Divider orientation="vertical" style={{ height: 40 }} />
                   <div>
-                    <Text type="secondary" style={{ fontSize: 11 }}>End Date</Text>
-                    <div style={{ fontWeight: 500 }}>{dayjs(project.timeline.endDate).format("DD MMM YYYY")}</div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      End Date
+                    </Text>
+                    <div style={{ fontWeight: 500 }}>
+                      {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -531,11 +565,19 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
             {Object.entries(project.features)
               .filter(([_, enabled]) => enabled)
               .map(([key, _]) => (
-                <Tag key={key} style={{ padding: "4px 12px", borderRadius: 4, background: "#fff", border: "1px solid #d1d5db" }}>
+                <Tag
+                  key={key}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: 4,
+                    background: "#fff",
+                    border: "1px solid #d1d5db",
+                  }}
+                >
                   {FEATURE_LABELS[key as keyof IProject["features"]]}
                 </Tag>
               ))}
-            {Object.values(project.features).every(v => !v) && (
+            {Object.values(project.features).every((v) => !v) && (
               <Text type="secondary">No features selected.</Text>
             )}
           </div>
@@ -547,14 +589,16 @@ function ProjectDetailsModal({ open, project, onClose, onShowPreview }: ProjectD
             <Title level={5} style={{ color: "#00897b", marginBottom: 16 }}>
               Additional Notes
             </Title>
-            <div style={{
-              background: "#fffbeb",
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #fde68a",
-              whiteSpace: "pre-wrap",
-              color: "#92400e"
-            }}>
+            <div
+              style={{
+                background: "#fffbeb",
+                padding: 16,
+                borderRadius: 8,
+                border: "1px solid #fde68a",
+                whiteSpace: "pre-wrap",
+                color: "#92400e",
+              }}
+            >
               {project.extraAddOns}
             </div>
           </section>
@@ -773,7 +817,16 @@ export default function ProjectsPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
+    >
       {/* ── Header ── */}
       <div
         style={{
@@ -834,7 +887,12 @@ export default function ProjectsPage() {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                style={{ background: "#00897b", borderColor: "#00897b", borderRadius: 8, fontWeight: 500 }}
+                style={{
+                  background: "#00897b",
+                  borderColor: "#00897b",
+                  borderRadius: 8,
+                  fontWeight: 500,
+                }}
               >
                 New Project
               </Button>
@@ -865,7 +923,15 @@ export default function ProjectsPage() {
       </div>
 
       {/* ── Content View (Cards) ── */}
-      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", paddingBottom: 24, paddingRight: 4 }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingBottom: 24,
+          paddingRight: 4,
+        }}
+      >
         {loading ? (
           <Row gutter={[16, 16]} style={{ marginLeft: 0, marginRight: 0 }}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -877,12 +943,22 @@ export default function ProjectsPage() {
             ))}
           </Row>
         ) : filteredProjects.length === 0 ? (
-          <div style={{ padding: "60px 0", textAlign: "center", background: "#fff", borderRadius: 14, border: "1px dashed #d9d9d9" }}>
+          <div
+            style={{
+              padding: "60px 0",
+              textAlign: "center",
+              background: "#fff",
+              borderRadius: 14,
+              border: "1px dashed #d9d9d9",
+            }}
+          >
             <div style={{ fontSize: 42, marginBottom: 12, color: "#9ca3af" }}>
               <ProjectOutlined />
             </div>
             <Title level={4} style={{ color: "#374151", margin: 0 }}>
-              {searchQuery || statusFilter !== "all" ? "No matching projects found" : "No projects found"}
+              {searchQuery || statusFilter !== "all"
+                ? "No matching projects found"
+                : "No projects found"}
             </Title>
             <Text type="secondary" style={{ fontSize: 13, marginTop: 4, display: "block" }}>
               {searchQuery || statusFilter !== "all"
@@ -905,7 +981,11 @@ export default function ProjectsPage() {
               currentUserRole === Role.SYSTEM_ADMIN && (
                 <div style={{ marginTop: 16 }}>
                   <Link href="/projects/new">
-                    <Button type="primary" icon={<PlusOutlined />} style={{ background: "#00897b", borderColor: "#00897b", borderRadius: 8 }}>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      style={{ background: "#00897b", borderColor: "#00897b", borderRadius: 8 }}
+                    >
                       New Project
                     </Button>
                   </Link>
@@ -928,8 +1008,8 @@ export default function ProjectsPage() {
               const daysRemainingText = isOverdue
                 ? `${Math.abs(diffDays)}d overdue`
                 : diffDays === 0
-                ? "Due today"
-                : `${diffDays}d remaining`;
+                  ? "Due today"
+                  : `${diffDays}d remaining`;
 
               const safeClick = (cb: () => void) => {
                 if (document.activeElement instanceof HTMLElement) {
@@ -978,9 +1058,15 @@ export default function ProjectsPage() {
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                             }}
-                            title={project.title || project.clientDetails?.companyName || "Unnamed Project"}
+                            title={
+                              project.title ||
+                              project.clientDetails?.companyName ||
+                              "Unnamed Project"
+                            }
                           >
-                            {project.title || project.clientDetails?.companyName || "Unnamed Project"}
+                            {project.title ||
+                              project.clientDetails?.companyName ||
+                              "Unnamed Project"}
                           </div>
                         </Link>
                         <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
@@ -1064,9 +1150,21 @@ export default function ProjectsPage() {
 
                       {/* 4. Overall Progress */}
                       <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 5 }}>
-                          <span style={{ color: "#6b7280", fontWeight: 500 }}>Overall Progress</span>
-                          <span style={{ fontWeight: 700, color: pct === 100 ? "#047857" : "#00897b" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: 12,
+                            marginBottom: 5,
+                          }}
+                        >
+                          <span style={{ color: "#6b7280", fontWeight: 500 }}>
+                            Overall Progress
+                          </span>
+                          <span
+                            style={{ fontWeight: 700, color: pct === 100 ? "#047857" : "#00897b" }}
+                          >
                             {pct}%
                           </span>
                         </div>
@@ -1080,7 +1178,14 @@ export default function ProjectsPage() {
                       </div>
 
                       {/* 5. Metadata: Due Date & Timeline (Sprint & Blockers removed) */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 14,
+                        }}
+                      >
                         <div
                           style={{
                             display: "inline-flex",
@@ -1111,18 +1216,38 @@ export default function ProjectsPage() {
                     </div>
 
                     {/* 6. Footer: Project Lead and Workspace Action */}
-                    <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12, marginTop: "auto" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div
+                      style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12, marginTop: "auto" }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
                         <div>
-                          <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#9ca3af",
+                              textTransform: "uppercase",
+                              fontWeight: 600,
+                              letterSpacing: "0.5px",
+                            }}
+                          >
                             Project Manager
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                          <div
+                            style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}
+                          >
                             <Avatar
                               size={22}
                               style={{ backgroundColor: "#00897b", fontSize: 11, fontWeight: 600 }}
                             >
-                              {(project.techOwner?.name || "Daksh Sheregar").charAt(0).toUpperCase()}
+                              {(project.techOwner?.name || "Daksh Sheregar")
+                                .charAt(0)
+                                .toUpperCase()}
                             </Avatar>
                             <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
                               {project.techOwner?.name ? project.techOwner.name : "Daksh Sheregar"}
@@ -1153,15 +1278,6 @@ export default function ProjectsPage() {
 
                           {currentUserRole === Role.SYSTEM_ADMIN && (
                             <>
-                              <Tooltip title="Edit Specifications">
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  icon={<EditOutlined />}
-                                  onClick={() => safeClick(() => openEdit(project))}
-                                  style={{ color: "#00897b" }}
-                                />
-                              </Tooltip>
                               <Tooltip title="Delete Project">
                                 <Button
                                   size="small"

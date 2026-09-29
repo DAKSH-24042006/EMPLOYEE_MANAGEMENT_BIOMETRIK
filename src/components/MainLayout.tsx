@@ -1,7 +1,23 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Layout, Menu, Button, theme, Avatar, Dropdown, Breadcrumb, Space, Grid, Drawer, ConfigProvider, Badge, List, message, Card } from "antd";
+import {
+  Layout,
+  Menu,
+  Button,
+  theme,
+  Avatar,
+  Dropdown,
+  Breadcrumb,
+  Space,
+  Grid,
+  Drawer,
+  ConfigProvider,
+  Badge,
+  List,
+  message,
+  Card,
+} from "antd";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,7 +36,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Role } from "@/lib/constants";
-import logo from '../../public/Biometrik_New_Logo.png'
+import logo from "../../public/Biometrik_New_Logo.png";
 
 // Notification Dropdown Component
 function NotificationDropdown() {
@@ -38,8 +54,10 @@ function NotificationDropdown() {
         setNotifications(json.data);
         setUnreadCount(json.data.filter((n: any) => !n.read).length);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err.message !== "Failed to fetch") {
+        console.error(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -52,7 +70,7 @@ function NotificationDropdown() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMarkAsRead = async (id: string, projectId?: string) => {
+  const handleMarkAsRead = async (id: string, projectId?: string, title?: string) => {
     try {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
@@ -60,12 +78,12 @@ function NotificationDropdown() {
         body: JSON.stringify({ notificationId: id }),
       });
       if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n._id === id ? { ...n, read: true } : n))
-        );
+        setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
         setUnreadCount((c) => Math.max(0, c - 1));
         if (projectId) {
-          router.push(`/projects/${projectId}`);
+          const isChat =
+            title?.toLowerCase().includes("chat") || title?.toLowerCase().includes("message");
+          router.push(`/projects/${projectId}${isChat ? "?tab=chat" : ""}`);
         }
       }
     } catch (err) {
@@ -100,7 +118,13 @@ function NotificationDropdown() {
       }
       variant="borderless"
       styles={{ body: { padding: 0 } }}
-      style={{ width: 350, maxHeight: 400, overflowY: "auto", boxShadow: "0 6px 16px rgba(0,0,0,0.15)", borderRadius: 8 }}
+      style={{
+        width: 350,
+        maxHeight: 400,
+        overflowY: "auto",
+        boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
+        borderRadius: 8,
+      }}
     >
       <List
         loading={loading}
@@ -108,7 +132,7 @@ function NotificationDropdown() {
         locale={{ emptyText: "No notifications" }}
         renderItem={(item) => (
           <List.Item
-            onClick={() => handleMarkAsRead(item._id, item.projectId)}
+            onClick={() => handleMarkAsRead(item._id, item.projectId, item.title)}
             style={{
               padding: "12px 16px",
               cursor: "pointer",
@@ -154,7 +178,9 @@ const { useBreakpoint } = Grid;
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(
+    null
+  );
   const pathname = usePathname() || "";
   const router = useRouter();
 
@@ -203,8 +229,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             window.location.reload();
           }
         }
-      } catch (err) {
-        console.error("Session sync check error:", err);
+      } catch (err: any) {
+        if (err.message !== "Failed to fetch") {
+          console.error("Session sync check error:", err);
+        }
       }
     };
 
@@ -259,7 +287,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       icon: <Users size={18} />,
       label: <Link href="/users">User Management</Link>,
     },
-  ].filter(item => {
+  ].filter((item) => {
     if (item.key === "/admin") {
       return user?.role === Role.SYSTEM_ADMIN;
     }
@@ -280,13 +308,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(snippet);
       const displayLabel = isMongoId
         ? "Workspace"
-        : (snippet === "admin" || snippet === "users")
+        : snippet === "admin" || snippet === "users"
           ? "User Management"
           : snippet.replace("-", " ");
       return {
-        title: <Link href={url} style={{ textTransform: "capitalize" }}>{displayLabel}</Link>,
+        title: (
+          <Link href={url} style={{ textTransform: "capitalize" }}>
+            {displayLabel}
+          </Link>
+        ),
       };
-    })
+    }),
   ];
 
   const handleLogout = async () => {
@@ -315,14 +347,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               marginBottom: 16,
             }}
           >
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              height: "100%",
-              position: "relative"
-            }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: "100%",
+                position: "relative",
+              }}
+            >
               <Image
                 src={logo}
                 alt="Logo"
@@ -333,46 +367,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   width: isActuallyCollapsed ? "48px" : "180px",
                   height: "auto",
                   objectFit: "contain",
-                  transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
+                  transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
                 }}
               />
             </div>
           </div>
-
-          {user?.role === Role.SYSTEM_ADMIN && (
-            <div style={{ padding: isActuallyCollapsed ? "8px" : "0 16px 16px 16px" }}>
-              <button
-                onClick={() => {
-                  if (isDrawer) setDrawerVisible(false);
-                  router.push("/projects/new");
-                }}
-                style={{
-                  height: 48,
-                  width: "100%",
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: isActuallyCollapsed ? "center" : "flex-start",
-                  padding: isActuallyCollapsed ? "0" : "0 16px",
-                  background: logoTeal,
-                  border: "none",
-                  color: "white",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.3s",
-                }}
-              >
-                {isActuallyCollapsed ? (
-                  <Plus size={20} />
-                ) : (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Plus size={16} />
-                    Create New
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
 
           <Menu
             theme="light"
@@ -386,11 +385,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             style={{
               background: "transparent",
               borderRight: 0,
-              marginTop: 8
+              marginTop: 8,
             }}
           />
         </div>
-
       </div>
     );
   };
@@ -433,7 +431,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </Drawer>
       )}
 
-      <Layout style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
+      <Layout
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          overflow: "hidden",
+          minWidth: 0,
+          maxWidth: "100%",
+        }}
+      >
         <Header
           style={{
             padding: "0 16px",
@@ -482,22 +489,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     label: "Logout",
                     icon: <LogOut size={16} />,
                     danger: true,
-                    onClick: handleLogout
-                  }
-                ]
+                    onClick: handleLogout,
+                  },
+                ],
               }}
               placement="bottomRight"
               trigger={["click"]}
             >
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                cursor: "pointer",
-                padding: "4px 8px",
-                borderRadius: "8px",
-                transition: "background 0.3s"
-              }} className="profile-trigger">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  borderRadius: "8px",
+                  transition: "background 0.3s",
+                }}
+                className="profile-trigger"
+              >
                 <Avatar
                   style={{
                     backgroundColor: "#00897b",
@@ -508,18 +518,30 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "16px"
+                    fontSize: "16px",
                   }}
                 >
                   {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
                 </Avatar>
                 {!isMobile && (
                   <div style={{ display: "flex", flexDirection: "column", lineHeight: "1.2" }}>
-                    <span style={{ fontWeight: 600, color: "rgba(0, 0, 0, 0.85)", fontSize: "14px" }}>
+                    <span
+                      style={{ fontWeight: 600, color: "rgba(0, 0, 0, 0.85)", fontSize: "14px" }}
+                    >
                       {user?.name || "Loading..."}
                     </span>
-                    <span style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.45)", textTransform: "capitalize" }}>
-                      {user?.role === Role.SYSTEM_ADMIN ? "System Admin" : (user?.designation || user?.role?.toLowerCase().replace("_", " ") || "Employee")}
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "rgba(0, 0, 0, 0.45)",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {user?.role === Role.SYSTEM_ADMIN
+                        ? "System Admin"
+                        : user?.designation ||
+                          user?.role?.toLowerCase().replace("_", " ") ||
+                          "Employee"}
                     </span>
                   </div>
                 )}
@@ -541,26 +563,32 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             overflow: "hidden",
             flex: 1,
             minWidth: 0,
-            maxWidth: "100%"
+            maxWidth: "100%",
           }}
         >
           <Breadcrumb
             items={breadcrumbItems}
-            style={{ margin: mounted && isMobile ? '8px 0' : '12px 0', padding: '0 8px', flex: "0 0 auto" }}
+            style={{
+              margin: mounted && isMobile ? "8px 0" : "12px 0",
+              padding: "0 8px",
+              flex: "0 0 auto",
+            }}
           />
-          <div style={{
-            padding: mounted && isMobile ? 12 : 20,
-            flex: 1,
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            display: "flex",
-            flexDirection: "column",
-            overflowY: "auto",
-            overflowX: "hidden",
-            minHeight: 0,
-            minWidth: 0,
-            maxWidth: "100%"
-          }}>
+          <div
+            style={{
+              padding: mounted && isMobile ? 12 : 20,
+              flex: 1,
+              background: colorBgContainer,
+              borderRadius: borderRadiusLG,
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "auto",
+              overflowX: "hidden",
+              minHeight: 0,
+              minWidth: 0,
+              maxWidth: "100%",
+            }}
+          >
             {children}
           </div>
         </Content>
@@ -577,10 +605,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           }}
         >
           © {new Date().getFullYear()}{" "}
-          <strong style={{ color: "#00897b" }}>
-            Biometrik® Systems
-          </strong>
-          . All rights reserved.
+          <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
         </Layout.Footer>
       </Layout>
     </Layout>
