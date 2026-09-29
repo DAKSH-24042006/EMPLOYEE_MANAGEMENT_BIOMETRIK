@@ -135,7 +135,7 @@ export default function LoginForm() {
         >
           <Input.Password
             size="large"
-            placeholder="••••••••"
+            placeholder="Enter Password"
             prefix={<Lock size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
             style={{ borderRadius: 8, height: 46 }}
           />

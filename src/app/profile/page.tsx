@@ -348,10 +348,10 @@ function ProfileContent() {
             label="Phone Number"
             rules={[
               { required: true, message: "Please enter your phone number" },
-              { pattern: /^[0-9]+$/, message: "Phone number must contain only digits" },
+              { pattern: /^[0-9]{10}$/, message: "Phone number must be exactly 10 digits" },
             ]}
           >
-            <Input placeholder="Enter your phone number" />
+            <Input placeholder="Enter your phone number" maxLength={10} />
           </Form.Item>
 
           <Form.Item name="location" label="Location">

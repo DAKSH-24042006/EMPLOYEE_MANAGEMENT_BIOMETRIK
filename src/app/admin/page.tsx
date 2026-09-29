@@ -707,7 +707,7 @@ export default function SystemAdminPage() {
               rowKey="_id"
               loading={loading}
               pagination={{
-                pageSize: 10,
+                defaultPageSize: 10,
                 showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} employees`,
                 showSizeChanger: true,
               }}

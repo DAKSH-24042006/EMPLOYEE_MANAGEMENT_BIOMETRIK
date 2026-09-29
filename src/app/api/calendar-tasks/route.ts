@@ -89,11 +89,15 @@ export async function GET(req: Request) {
     const workItemQuery: any = {};
     const taskQuery: any = {};
     const sprintQuery: any = {};
+    const projectQuery: any = {};
 
     if (dateFilter) {
       workItemQuery.dueDate = dateFilter;
       taskQuery.dueDate = dateFilter;
       sprintQuery.$or = [{ endDate: dateFilter }, { startDate: dateFilter }];
+
+      projectQuery["timeline.startDate"] = { $lte: dateFilter.$lte };
+      projectQuery["timeline.endDate"] = { $gte: dateFilter.$gte };
     }
 
     if (!isSystemAdmin) {
@@ -111,15 +115,18 @@ export async function GET(req: Request) {
           workItemQuery.projectId = projectId;
           taskQuery.projectId = projectId;
           sprintQuery.projectId = projectId;
+          projectQuery._id = projectId;
         } else {
           workItemQuery.projectId = null;
           taskQuery.projectId = null;
           sprintQuery.projectId = null;
+          projectQuery._id = null;
         }
       } else {
         workItemQuery.projectId = { $in: allowedProjects };
         taskQuery.projectId = { $in: allowedProjects };
         sprintQuery.projectId = { $in: allowedProjects };
+        projectQuery._id = { $in: allowedProjects };
       }
     } else {
       // System admin can filter by specific project if requested
@@ -127,10 +134,11 @@ export async function GET(req: Request) {
         workItemQuery.projectId = projectId;
         taskQuery.projectId = projectId;
         sprintQuery.projectId = projectId;
+        projectQuery._id = projectId;
       }
     }
 
-    const [workItems, regularTasks, sprints] = await Promise.all([
+    const [workItems, regularTasks, sprints, projects] = await Promise.all([
       WorkItem.find(workItemQuery)
         .populate("projectId", "title clientDetails")
         .populate("assignee", "name email")
@@ -141,6 +149,7 @@ export async function GET(req: Request) {
         .populate("assignedTo", "name email")
         .lean(),
       Sprint.find(sprintQuery).populate("projectId", "title").lean(),
+      Project.find(projectQuery).lean(),
     ]);
 
     const formattedWorkItems = workItems.map((w: any) => {
@@ -198,11 +207,31 @@ export async function GET(req: Request) {
       endDate: s.endDate,
     }));
 
+    const formattedProjects = projects
+      .filter((p: any) => p.timeline?.startDate && p.timeline?.endDate)
+      .map((p: any) => ({
+        _id: String(p._id),
+        title: `Project: ${p.title}`,
+        description: p.description || "Project Duration",
+        date: new Date(p.timeline.startDate).toISOString(),
+        priority: p.priority || "Medium",
+        status: p.status === "Completed" ? "Done" : "In Progress",
+        rawStatus: p.status,
+        color: "#8b5cf6",
+        itemType: "project",
+        isPersonal: false,
+        projectName: p.title,
+        projectId: String(p._id),
+        startDate: new Date(p.timeline.startDate).toISOString(),
+        endDate: new Date(p.timeline.endDate).toISOString(),
+      }));
+
     const allEvents = [
       ...formattedPersonalTasks,
       ...formattedWorkItems,
       ...formattedRegularTasks,
       ...formattedSprints,
+      ...formattedProjects,
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return NextResponse.json(allEvents, {

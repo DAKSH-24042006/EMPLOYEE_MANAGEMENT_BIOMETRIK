@@ -24,7 +24,6 @@ import {
 } from "antd";
 import { Role } from "@/lib/constants";
 
-
 import {
   Plus,
   RefreshCcw,
@@ -36,7 +35,7 @@ import {
   ShieldCheck,
   Briefcase,
   Phone,
-  MapPin
+  MapPin,
 } from "lucide-react";
 import type { TableProps } from "antd";
 
@@ -44,8 +43,6 @@ type ColumnsType<T> = TableProps<T>["columns"];
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-
-
 
 interface UserRecord {
   _id: string;
@@ -70,9 +67,10 @@ export default function UsersPage() {
 
   const screens = Grid.useBreakpoint();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const isMobile = mounted && !screens.md;
-
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -111,7 +109,6 @@ export default function UsersPage() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
-
 
   const showModal = (user?: UserRecord) => {
     if (user) {
@@ -191,22 +188,21 @@ export default function UsersPage() {
       dataIndex: "name",
       key: "name",
       render: (text, record) => (
-        <Space
-          onClick={() => showModal(record)}
-          style={{ cursor: "pointer" }}
-        >
-          <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            backgroundColor: '#00897b',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 600,
-            fontSize: 12,
-            color: "white"
-          }}>
+        <Space onClick={() => showModal(record)} style={{ cursor: "pointer" }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              backgroundColor: "#00897b",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 600,
+              fontSize: 12,
+              color: "white",
+            }}
+          >
             {text.charAt(0).toUpperCase()}
           </div>
           <span style={{ fontWeight: 600, color: "#0073ea" }}>{text}</span>
@@ -227,17 +223,22 @@ export default function UsersPage() {
         const isAdmin = role === Role.ADMIN;
         return (
           <Tag
-            icon={isAdmin ? <ShieldCheck size={12} style={{ marginRight: 4 }} /> : <Briefcase size={12} style={{ marginRight: 4 }} />}
+            icon={
+              isAdmin ? (
+                <ShieldCheck size={12} style={{ marginRight: 4 }} />
+              ) : (
+                <Briefcase size={12} style={{ marginRight: 4 }} />
+              )
+            }
             color={isAdmin ? "blue" : "default"}
             style={{
               borderRadius: 4,
-              padding: '2px 8px',
-              display: 'inline-flex',
-              alignItems: 'center'
+              padding: "2px 8px",
+              display: "inline-flex",
+              alignItems: "center",
             }}
           >
             {role === Role.SALES ? "SALES" : role}
-
           </Tag>
         );
       },
@@ -258,14 +259,17 @@ export default function UsersPage() {
       title: "Created At",
       dataIndex: "createdAt",
       key: "createdAt",
-      render: (date) => <span style={{ color: "#676879" }}>{new Date(date).toLocaleDateString()}</span>,
+      render: (date) => (
+        <span style={{ color: "#676879" }}>{new Date(date).toLocaleDateString()}</span>
+      ),
     },
     {
       title: "Actions",
       key: "actions",
       width: 120,
       render: (_, record) => {
-        const shouldForceClose = isModalVisible || (typeof window !== "undefined" && navigator.maxTouchPoints > 0);
+        const shouldForceClose =
+          isModalVisible || (typeof window !== "undefined" && navigator.maxTouchPoints > 0);
 
         const safeClick = (cb: () => void) => {
           if (document.activeElement instanceof HTMLElement) {
@@ -277,7 +281,12 @@ export default function UsersPage() {
 
         return (
           <Space size="middle">
-            <Tooltip title="Edit User" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+            <Tooltip
+              title="Edit User"
+              trigger="hover"
+              open={shouldForceClose ? false : undefined}
+              destroyOnHidden
+            >
               <Button
                 type="text"
                 icon={<Edit2 size={16} />}
@@ -285,7 +294,12 @@ export default function UsersPage() {
                 style={{ color: "#0073ea" }}
               />
             </Tooltip>
-            <Tooltip title="Delete User" trigger="hover" open={shouldForceClose ? false : undefined} destroyOnHidden>
+            <Tooltip
+              title="Delete User"
+              trigger="hover"
+              open={shouldForceClose ? false : undefined}
+              destroyOnHidden
+            >
               <Popconfirm
                 title="Delete the user"
                 description="Are you sure to delete this user?"
@@ -298,7 +312,7 @@ export default function UsersPage() {
                   type="text"
                   danger
                   icon={<Trash2 size={16} />}
-                  onClick={() => safeClick(() => { })}
+                  onClick={() => safeClick(() => {})}
                 />
               </Popconfirm>
             </Tooltip>
@@ -308,13 +322,18 @@ export default function UsersPage() {
     },
   ];
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = users.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (isCheckingAuth) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: '100px' }}>Loading permissions...</div>;
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: "100px" }}>
+        Loading permissions...
+      </div>
+    );
   }
 
   if (!currentUser || currentUser.role !== Role.ADMIN) {
@@ -333,34 +352,47 @@ export default function UsersPage() {
   }
 
   return (
-    <div style={{
-      padding: "0",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      minWidth: 0,
-      maxWidth: "100%"
-    }}>
-
-      <div style={{
+    <div
+      style={{
+        padding: "0",
+        height: "100%",
         display: "flex",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 16,
-        marginBottom: 16
-      }}>
+        flexDirection: "column",
+        overflow: "hidden",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
         <div>
-          <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Users Management</Title>
-          <Text type="secondary" style={{ fontSize: 14 }}>Manage your team members and their permissions.</Text>
+          <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>
+            Users Management
+          </Title>
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Manage your team members and their permissions.
+          </Text>
         </div>
-        <div style={{ display: 'flex', gap: 8, width: isMobile ? '100%' : 'auto' }}>
+        <div style={{ display: "flex", gap: 8, width: isMobile ? "100%" : "auto" }}>
           <Button
             icon={<RefreshCcw size={16} className={loading ? "animate-spin" : ""} />}
             onClick={fetchUsers}
             disabled={loading}
-            style={{ flex: isMobile ? 1 : 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            style={{
+              flex: isMobile ? 1 : "unset",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
           >
             Refresh
           </Button>
@@ -369,13 +401,13 @@ export default function UsersPage() {
             icon={<UserPlus size={16} />}
             onClick={() => showModal()}
             style={{
-              flex: isMobile ? 1 : 'unset',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              flex: isMobile ? 1 : "unset",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               gap: 8,
-              backgroundColor: '#0073ea',
-              boxShadow: '0 4px 6px rgba(0, 115, 234, 0.2)'
+              backgroundColor: "#0073ea",
+              boxShadow: "0 4px 6px rgba(0, 115, 234, 0.2)",
             }}
           >
             Add New User
@@ -387,11 +419,11 @@ export default function UsersPage() {
         variant="borderless"
         style={{
           borderRadius: 12,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden"
+          overflow: "hidden",
         }}
         styles={{
           body: {
@@ -399,37 +431,54 @@ export default function UsersPage() {
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden"
-          }
+            overflow: "hidden",
+          },
         }}
       >
-        <div style={{ padding: '16px 0px', borderBottom: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: '#f5f6f8',
-            padding: '6px 12px',
-            borderRadius: 6,
-            flex: 1,
-            maxWidth: 400
-          }}>
+        <div
+          style={{
+            padding: "16px 0px",
+            borderBottom: "1px solid #f0f0f0",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              background: "#f5f6f8",
+              padding: "6px 12px",
+              borderRadius: 6,
+              flex: 1,
+              maxWidth: 400,
+            }}
+          >
             <Search size={16} color="#676879" />
             <input
               placeholder="Search users by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
+                border: "none",
+                background: "transparent",
+                outline: "none",
                 marginLeft: 8,
-                width: '100%',
-                color: '#323338'
+                width: "100%",
+                color: "#323338",
               }}
             />
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Text type="secondary">Total Users: <Badge count={filteredUsers.length} overflowCount={999} style={{ backgroundColor: '#0073ea' }} /></Text>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <Text type="secondary">
+              Total Users:{" "}
+              <Badge
+                count={filteredUsers.length}
+                overflowCount={999}
+                style={{ backgroundColor: "#0073ea" }}
+              />
+            </Text>
           </div>
         </div>
 
@@ -439,19 +488,25 @@ export default function UsersPage() {
           rowKey="_id"
           loading={loading}
           pagination={{
-            pageSize: 10,
+            defaultPageSize: 10,
             showSizeChanger: true,
-            style: { paddingRight: 24 }
+            style: { paddingRight: 24 },
           }}
-          scroll={{ x: 'max-content', y: 'calc(100vh - 380px)' }}
+          scroll={{ x: "max-content", y: "calc(100vh - 380px)" }}
         />
       </Card>
 
       <Modal
         title={
           <Space style={{ marginBottom: 16 }}>
-            {editingUser ? <Settings size={20} color="#0073ea" /> : <UserPlus size={20} color="#0073ea" />}
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{editingUser ? "Edit User Details" : "Create New User"}</span>
+            {editingUser ? (
+              <Settings size={20} color="#0073ea" />
+            ) : (
+              <UserPlus size={20} color="#0073ea" />
+            )}
+            <span style={{ fontSize: 18, fontWeight: 600 }}>
+              {editingUser ? "Edit User Details" : "Create New User"}
+            </span>
           </Space>
         }
         open={isModalVisible}
@@ -474,7 +529,10 @@ export default function UsersPage() {
             label="Full Name"
             rules={[{ required: true, message: "Please input the name!" }]}
           >
-            <Input placeholder="Enter full name" prefix={<Briefcase size={14} color="#676879" style={{ marginRight: 4 }} />} />
+            <Input
+              placeholder="Enter full name"
+              prefix={<Briefcase size={14} color="#676879" style={{ marginRight: 4 }} />}
+            />
           </Form.Item>
 
           <Form.Item
@@ -482,10 +540,13 @@ export default function UsersPage() {
             label="Email Address"
             rules={[
               { required: true, message: "Please input the email!" },
-              { type: "email", message: "Please enter a valid email!" }
+              { type: "email", message: "Please enter a valid email!" },
             ]}
           >
-            <Input placeholder="email@example.com" prefix={<Search size={14} color="#676879" style={{ marginRight: 4 }} />} />
+            <Input
+              placeholder="email@example.com"
+              prefix={<Search size={14} color="#676879" style={{ marginRight: 4 }} />}
+            />
           </Form.Item>
 
           <Form.Item
@@ -517,27 +578,35 @@ export default function UsersPage() {
                 label="Phone Number"
                 rules={[
                   { required: true, message: "Please input the phone number!" },
-                  { pattern: /^[0-9]+$/, message: "Phone number must contain only digits!" }
+                  { pattern: /^[0-9]+$/, message: "Phone number must contain only digits!" },
                 ]}
               >
-                <Input placeholder="Enter phone number (digits only)" prefix={<Phone size={14} color="#676879" style={{ marginRight: 4 }} />} />
+                <Input
+                  placeholder="Enter phone number (digits only)"
+                  prefix={<Phone size={14} color="#676879" style={{ marginRight: 4 }} />}
+                />
               </Form.Item>
             </Col>
 
             <Col xs={24} sm={12}>
-              <Form.Item
-                name="location"
-                label="Location"
-              >
-                <Input placeholder="Enter employee work location (e.g. Remote, Mumbai)" prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />} />
+              <Form.Item name="location" label="Location">
+                <Input
+                  placeholder="Enter employee work location (e.g. Remote, Mumbai)"
+                  prefix={<MapPin size={14} color="#676879" style={{ marginRight: 4 }} />}
+                />
               </Form.Item>
             </Col>
           </Row>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
               <Button onClick={handleCancel}>Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={loading} style={{ backgroundColor: '#0073ea' }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                style={{ backgroundColor: "#0073ea" }}
+              >
                 {editingUser ? "Update User" : "Create User"}
               </Button>
             </div>

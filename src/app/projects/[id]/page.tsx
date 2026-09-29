@@ -74,9 +74,9 @@ import {
   Shield,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
-import { FilePdfOutlined } from "@ant-design/icons";
+import { FilePdfOutlined, EyeOutlined } from "@ant-design/icons";
 import { generateProjectPDF } from "@/lib/reportUtils";
 
 const { Title, Text, Paragraph } = Typography;
@@ -107,6 +107,8 @@ const PROJECT_STAGES = [
 // ----------------------------------------------------
 function ProjectDetailsClient({ id }: { id: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabQuery = searchParams.get("tab");
   const { message } = App.useApp();
   const [project, setProject] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -150,7 +152,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workFilterPriority, setWorkFilterPriority] = useState<string>("All");
   const [workFilterOverdue, setWorkFilterOverdue] = useState<boolean>(false);
   const [workSearchQuery, setWorkSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<string>("work-items");
+  const [activeTab, setActiveTab] = useState<string>(tabQuery || "work-items");
   const [todoStatusFilter, setTodoStatusFilter] = useState<
     "all" | "todo" | "inprogress" | "blocked" | "completed" | "overdue"
   >("all");
@@ -228,6 +230,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
     }
   }, [currentUser, isProjectLead, activeTab]);
 
+  useEffect(() => {
+    if (tabQuery) {
+      setActiveTab(tabQuery);
+    }
+  }, [tabQuery]);
+
   const projectTeamMembers = React.useMemo(() => {
     const list: any[] = [];
     const addedIds = new Set<string>();
@@ -258,25 +266,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
     return list.length > 0 ? list : users;
   }, [project, users]);
 
-  // Mentions list for Project Chat (includes System Admins and Project Team)
+  // Mentions list for Project Chat (restricted to Project Team only)
   const chatMentionOptions = React.useMemo(() => {
     const list: { label: string; value: string }[] = [];
     const addedIds = new Set<string>();
 
-    // 1. System Admins (allow tagging System Admins!)
-    const sysAdmins = users.filter((u: any) => u.role === "SYSTEM_ADMIN" || u.role === "ADMIN");
-    sysAdmins.forEach((sa: any) => {
-      const saId = String(sa._id || sa.id);
-      if (!addedIds.has(saId)) {
-        list.push({
-          label: `@${sa.name} (Admin)`,
-          value: saId,
-        });
-        addedIds.add(saId);
-      }
-    });
-
-    // 2. Project Team Members & Project Manager
+    // 1. Project Team Members & Project Manager
     projectTeamMembers.forEach((u: any) => {
       const uId = String(u._id || u.id);
       if (!addedIds.has(uId)) {
@@ -290,7 +285,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
     });
 
     return list;
-  }, [users, projectTeamMembers, techOwnerId]);
+  }, [projectTeamMembers, techOwnerId]);
 
   // Initialize
   useEffect(() => {
@@ -1755,21 +1750,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </div>
 
           <Space size={10} wrap>
-            <Button
-              icon={<FilePdfOutlined style={{ color: "#00897b" }} />}
-              loading={generatingPDF}
-              onClick={handleGeneratePDF}
-              style={{
-                borderColor: "#00897b",
-                color: "#00897b",
-                borderRadius: 8,
-                fontWeight: 500,
-                height: 36,
-              }}
-            >
-              Generate PDF
-            </Button>
-
             {(currentUser?.role === "SYSTEM_ADMIN" ||
               currentUser?.role === "ADMIN" ||
               currentUser?.role === "SALES" ||
@@ -2298,7 +2278,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         <Table
                           dataSource={filteredWorkItems}
                           rowKey="_id"
-                          pagination={{ pageSize: 15 }}
+                          pagination={{ defaultPageSize: 15, showSizeChanger: true }}
                           columns={[
                             {
                               title: "Title",
@@ -4946,7 +4926,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                               dataSource={files}
                               rowKey="_id"
                               size="small"
-                              pagination={{ pageSize: 10 }}
+                              pagination={{ defaultPageSize: 10, showSizeChanger: true }}
                               columns={[
                                 {
                                   title: "File Name",
@@ -5006,6 +4986,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                     const downloadUrl = `/api/projects/${id}/attachments/${record._id}`;
                                     return (
                                       <Space size={6}>
+                                        <Button
+                                          size="small"
+                                          icon={<EyeOutlined />}
+                                          onClick={() => {
+                                            setPreviewUrl(`${downloadUrl}?inline=true`);
+                                            setPreviewFilename(record.originalName);
+                                            setPreviewOpen(true);
+                                          }}
+                                        />
                                         <Button
                                           size="small"
                                           icon={<Download size={12} />}
@@ -5792,7 +5781,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         }}
         open={workItemDetailOpen}
         extra={
-          selectedWorkItem ? (
+          selectedWorkItem && isProjectLead ? (
             <Button
               size="small"
               icon={<Edit3 size={12} />}
@@ -5900,11 +5889,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   </Text>
                   <Input
                     type="number"
+                    min={0}
+                    step={0.5}
                     style={{ width: "100%", marginTop: 4 }}
                     value={selectedWorkItem.estimatedHours}
                     onChange={(e) =>
                       handleUpdateWorkItem(selectedWorkItem._id, {
-                        estimatedHours: Number(e.target.value),
+                        estimatedHours: Math.max(0, Number(e.target.value)),
                       })
                     }
                   />
@@ -5922,11 +5913,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     max={100}
                     style={{ width: "100%", marginTop: 4 }}
                     value={selectedWorkItem.progress}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      let val = Number(e.target.value);
+                      if (val < 0) val = 0;
+                      if (val > 100) val = 100;
                       handleUpdateWorkItem(selectedWorkItem._id, {
-                        progress: Number(e.target.value),
-                      })
-                    }
+                        progress: val,
+                      });
+                    }}
                   />
                 </div>
               </Col>
@@ -6912,24 +6906,26 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </Col>
           </Row>
 
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={24}>
-              <Form.Item name="assignee" label="Assign To" style={{ marginBottom: 14 }}>
-                <Select
-                  size="middle"
-                  placeholder="Select Employee"
-                  allowClear
-                  options={projectTeamMembers.map((u: any) => {
-                    const isLead = String(u._id) === String(techOwnerId);
-                    return {
-                      label: `${u.name} (${isLead ? "Project Manager" : u.role || "Team Member"})`,
-                      value: u._id,
-                    };
-                  })}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
+          {isProjectLead && (
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={24}>
+                <Form.Item name="assignee" label="Assign To" style={{ marginBottom: 14 }}>
+                  <Select
+                    size="middle"
+                    placeholder="Select Employee"
+                    allowClear
+                    options={projectTeamMembers.map((u: any) => {
+                      const isLead = String(u._id) === String(techOwnerId);
+                      return {
+                        label: `${u.name} (${isLead ? "Project Manager" : u.role || "Team Member"})`,
+                        value: u._id,
+                      };
+                    })}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
 
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={8}>
@@ -7214,8 +7210,8 @@ function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModal
       onCancel={onClose}
       title={
         <Space>
-          <FilePdfOutlined style={{ color: "#ef4444" }} />
-          <span style={{ fontWeight: 600 }}>Report Preview</span>
+          <FileText size={18} color="#00897b" />
+          <span style={{ fontWeight: 600 }}>File Preview</span>
           <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
             — {filename}
           </Text>
@@ -7230,7 +7226,7 @@ function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModal
         <Button
           key="download"
           type="primary"
-          icon={<FilePdfOutlined />}
+          icon={<Download size={14} />}
           style={{ background: "#00897b", borderColor: "#00897b" }}
           onClick={() => {
             const link = document.createElement("a");
@@ -7240,7 +7236,7 @@ function ReportPreviewModal({ open, url, filename, onClose }: ReportPreviewModal
             onClose();
           }}
         >
-          Download PDF
+          Download
         </Button>,
       ]}
     >

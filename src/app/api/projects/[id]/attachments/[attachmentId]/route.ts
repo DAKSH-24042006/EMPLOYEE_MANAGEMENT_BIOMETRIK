@@ -29,7 +29,10 @@ export async function GET(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access restricted to project members" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access restricted to project members" },
+        { status: 403 }
+      );
     }
 
     const attachment = await ProjectAttachment.findById(attachmentId);
@@ -50,11 +53,14 @@ export async function GET(
     // Read file as buffer
     const fileBuffer = fs.readFileSync(filePath);
 
+    const { searchParams } = new URL(req.url);
+    const isInline = searchParams.get("inline") === "true";
+
     // Return the file with proper headers to download/preview
     return new Response(fileBuffer, {
       status: 200,
       headers: {
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(
+        "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${encodeURIComponent(
           attachment.originalName || "download"
         )}"`,
         "Content-Type": attachment.mimeType || "application/octet-stream",
@@ -88,7 +94,10 @@ export async function DELETE(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access restricted to project members" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access restricted to project members" },
+        { status: 403 }
+      );
     }
 
     const attachment = await ProjectAttachment.findById(attachmentId);
@@ -104,21 +113,23 @@ export async function DELETE(
       // Find all nested items to delete disk files
       const children = await ProjectAttachment.find({
         projectId: id,
-        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}` },
       });
 
       for (const child of children) {
         if (!child.isFolder && child.filename) {
           const childFilePath = path.join(process.cwd(), "uploads", child.filename);
           if (fs.existsSync(childFilePath)) {
-            try { fs.unlinkSync(childFilePath); } catch (e) {}
+            try {
+              fs.unlinkSync(childFilePath);
+            } catch (e) {}
           }
         }
       }
 
       await ProjectAttachment.deleteMany({
         projectId: id,
-        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+        folder: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}` },
       });
     }
 
@@ -126,7 +137,9 @@ export async function DELETE(
     if (!attachment.isFolder && attachment.filename) {
       const filePath = path.join(process.cwd(), "uploads", attachment.filename);
       if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) {}
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {}
       }
     }
 
