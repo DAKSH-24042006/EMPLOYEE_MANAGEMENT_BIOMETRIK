@@ -15,7 +15,7 @@ import {
   Tag,
   Space,
   Divider,
-  message,
+  App,
   Alert,
   Spin,
   Tooltip,
@@ -62,6 +62,7 @@ interface EmailConfigData {
 }
 
 export default function EmailSettingsPanel() {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);

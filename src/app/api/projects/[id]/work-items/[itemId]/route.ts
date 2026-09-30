@@ -29,11 +29,15 @@ export async function GET(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const workItem = await WorkItem.findById(itemId)
       .populate("assignee", "name email role")
+      .populate("assignees", "name email role")
       .populate("sprint", "name status")
       .populate("comments.author", "name email role")
       .populate("workLogs.loggedBy", "name email role")
@@ -66,7 +70,10 @@ export async function PUT(
 
     // Sales cannot update work items
     if (payload.role === "SALES_TEAM" || payload.role === "SALES") {
-      return NextResponse.json({ error: "Forbidden: Sales cannot edit work items" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Sales cannot edit work items" },
+        { status: 403 }
+      );
     }
 
     const { id, itemId } = await params;
@@ -76,7 +83,10 @@ export async function PUT(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const workItem = await WorkItem.findById(itemId);
@@ -94,8 +104,10 @@ export async function PUT(
     if (body.priority !== undefined) workItem.priority = body.priority;
     if (body.status !== undefined) workItem.status = body.status;
     if (body.assignee !== undefined) workItem.assignee = body.assignee || undefined;
+    if (body.assignees !== undefined) workItem.assignees = body.assignees || [];
     if (body.sprint !== undefined) workItem.sprint = body.sprint || undefined;
-    if (body.dueDate !== undefined) workItem.dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
+    if (body.dueDate !== undefined)
+      workItem.dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
     if (body.estimatedHours !== undefined) workItem.estimatedHours = body.estimatedHours;
     if (body.progress !== undefined) workItem.progress = body.progress;
 
@@ -106,14 +118,22 @@ export async function PUT(
         author: payload.userId as any,
         createdAt: new Date(),
       });
-      await logActivity(id, "work_item", `Added comment to work item "${workItem.title}"`, payload.userId);
+      await logActivity(
+        id,
+        "work_item",
+        `Added comment to work item "${workItem.title}"`,
+        payload.userId
+      );
     }
 
     // Append Work Logs & update actualHours
     if (body.newWorkLog) {
       const { date, hoursSpent, description } = body.newWorkLog;
       if (!date || !hoursSpent) {
-        return NextResponse.json({ error: "Work log requires date and hours spent" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Work log requires date and hours spent" },
+          { status: 400 }
+        );
       }
       workItem.workLogs.push({
         date: new Date(date),
@@ -123,8 +143,11 @@ export async function PUT(
       });
 
       // Recalculate total actual hours
-      workItem.actualHours = workItem.workLogs.reduce((sum, log) => sum + Number(log.hoursSpent), 0);
-      
+      workItem.actualHours = workItem.workLogs.reduce(
+        (sum, log) => sum + Number(log.hoursSpent),
+        0
+      );
+
       await logActivity(
         id,
         "work_log",
@@ -138,7 +161,12 @@ export async function PUT(
       const { name, url } = body.newAttachment;
       if (name && url) {
         workItem.attachments.push({ name, url });
-        await logActivity(id, "work_item", `Uploaded attachment "${name}" to work item "${workItem.title}"`, payload.userId);
+        await logActivity(
+          id,
+          "work_item",
+          `Uploaded attachment "${name}" to work item "${workItem.title}"`,
+          payload.userId
+        );
       }
     }
 
@@ -183,8 +211,16 @@ export async function DELETE(
     }
 
     // Permissions check: Admins, Tech Managers, or the creator can delete
-    if (payload.role !== "ADMIN" && payload.role !== "SYSTEM_ADMIN" && payload.role !== "TECH_MANAGER" && workItem.createdBy.toString() !== payload.userId) {
-      return NextResponse.json({ error: "Forbidden: Insufficient privileges to delete this work item" }, { status: 403 });
+    if (
+      payload.role !== "ADMIN" &&
+      payload.role !== "SYSTEM_ADMIN" &&
+      payload.role !== "TECH_MANAGER" &&
+      workItem.createdBy.toString() !== payload.userId
+    ) {
+      return NextResponse.json(
+        { error: "Forbidden: Insufficient privileges to delete this work item" },
+        { status: 403 }
+      );
     }
 
     await WorkItem.findByIdAndDelete(itemId);

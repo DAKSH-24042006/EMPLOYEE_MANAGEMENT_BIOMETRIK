@@ -1135,6 +1135,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
       priority: item.priority || "Medium",
       status: item.status || "To Do",
       assignee: item.assignee?._id || item.assignee || undefined,
+      assignees:
+        item.assignees?.map((a: any) => a._id || a) ||
+        (item.assignee ? [item.assignee._id || item.assignee] : []),
       sprint: item.sprint?._id || item.sprint || undefined,
       dueDate: item.dueDate ? dayjs(item.dueDate) : undefined,
       estimatedHours: item.estimatedHours !== undefined ? item.estimatedHours : undefined,
@@ -1153,7 +1156,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
         type: values.type,
         priority: values.priority,
         status: values.status,
-        assignee: values.assignee || null,
+        assignee: values.assignees && values.assignees.length > 0 ? values.assignees[0] : null,
+        assignees: values.assignees || [],
         sprint: values.sprint || null,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         estimatedHours:
@@ -2345,10 +2349,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
                             },
                             {
                               title: "Assignee",
-                              dataIndex: ["assignee", "name"],
-                              key: "assignee",
-                              render: (name) => {
-                                if (!name)
+                              key: "assignees",
+                              render: (_, record) => {
+                                const names =
+                                  record.assignees && record.assignees.length > 0
+                                    ? record.assignees.map((a: any) => a.name)
+                                    : record.assignee
+                                      ? [record.assignee.name]
+                                      : [];
+
+                                if (names.length === 0 || !names[0])
                                   return (
                                     <Text
                                       type="secondary"
@@ -2367,12 +2377,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                         fontWeight: 600,
                                       }}
                                     >
-                                      {name.charAt(0).toUpperCase()}
+                                      {names[0].charAt(0).toUpperCase()}
                                     </Avatar>
                                     <span
                                       style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}
                                     >
-                                      {name}
+                                      {names.join(", ")}
                                     </span>
                                   </div>
                                 );
@@ -5404,7 +5414,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                           {item.status}
                                         </Tag>
                                         <Text type="secondary" style={{ fontSize: 11 }}>
-                                          {item.assignee?.name || "Unassigned"}
+                                          {item.assignees && item.assignees.length > 0
+                                            ? item.assignees.map((a: any) => a.name).join(", ")
+                                            : item.assignee?.name || "Unassigned"}
                                         </Text>
                                       </div>
                                     </div>
@@ -5585,7 +5597,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                                 }}
                                               >
                                                 <span>{item.type}</span>
-                                                <span>{item.assignee?.name || "Unassigned"}</span>
+                                                <span>
+                                                  {item.assignees && item.assignees.length > 0
+                                                    ? item.assignees
+                                                        .map((a: any) => a.name)
+                                                        .join(", ")
+                                                    : item.assignee?.name || "Unassigned"}
+                                                </span>
                                               </div>
                                             </div>
                                           </Col>
@@ -5702,7 +5720,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                         }}
                                       >
                                         <span>Status: {item.status}</span>
-                                        <span>{item.assignee?.name || "Unassigned"}</span>
+                                        <span>
+                                          {item.assignees && item.assignees.length > 0
+                                            ? item.assignees.map((a: any) => a.name).join(", ")
+                                            : item.assignee?.name || "Unassigned"}
+                                        </span>
                                       </div>
                                     </div>
                                   </Col>
@@ -6759,10 +6781,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={12}>
-                <Form.Item name="assignee" label="Assign To">
+                <Form.Item name="assignees" label="Assign To">
                   <Select
+                    mode="multiple"
                     size="large"
-                    placeholder="Select Employee"
+                    placeholder="Select Employees"
                     allowClear
                     disabled={submittingWorkItem}
                     options={projectTeamMembers.map((u: any) => {
@@ -6909,10 +6932,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
           {isProjectLead && (
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={24}>
-                <Form.Item name="assignee" label="Assign To" style={{ marginBottom: 14 }}>
+                <Form.Item name="assignees" label="Assign To" style={{ marginBottom: 14 }}>
                   <Select
+                    mode="multiple"
                     size="middle"
-                    placeholder="Select Employee"
+                    placeholder="Select Employees"
                     allowClear
                     options={projectTeamMembers.map((u: any) => {
                       const isLead = String(u._id) === String(techOwnerId);
