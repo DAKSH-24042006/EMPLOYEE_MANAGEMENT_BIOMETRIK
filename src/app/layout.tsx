@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
-import { App } from "antd";
 import ThemeProvider from "@/components/ThemeProvider";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import "./globals.css";
@@ -23,9 +22,7 @@ export default function RootLayout({
       <body>
         <AntdRegistry>
           <ThemeProvider>
-            <LayoutWrapper>
-              {children}
-            </LayoutWrapper>
+            <LayoutWrapper>{children}</LayoutWrapper>
           </ThemeProvider>
         </AntdRegistry>
       </body>
