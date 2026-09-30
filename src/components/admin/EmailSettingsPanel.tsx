@@ -82,13 +82,13 @@ export default function EmailSettingsPanel() {
       const cfg = data.data;
       setConfig(cfg);
       form.setFieldsValue({
-        smtpHost: cfg.smtpHost || "smtp.office365.com",
-        smtpPort: cfg.smtpPort || 587,
-        smtpSecure: cfg.smtpSecure || false,
-        smtpUser: cfg.smtpUser || "notifications@biometrik.in",
-        smtpPass: cfg.hasPassword ? "••••••••" : "••••••••", // Set value so eye icon works
-        fromEmail: cfg.fromEmail || "notifications@biometrik.in",
-        fromName: cfg.fromName || "Biometrik Systems Notifications",
+        smtpHost: "smtp.office365.com",
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUser: "notifications@biometrik.in",
+        smtpPass: "••••••••", // Hidden password representation
+        fromEmail: "notifications@biometrik.in",
+        fromName: "Biometrik Systems Notifications",
         isEnabled: cfg.isEnabled ?? true,
         reminderDaysBeforeDue: cfg.reminderDaysBeforeDue ?? 1,
         sendOnDueDate: cfg.sendOnDueDate ?? true,
