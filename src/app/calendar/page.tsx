@@ -168,6 +168,23 @@ export default function CalendarPage() {
     }
   };
 
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete project");
+      }
+      messageApi.success("Project deleted successfully");
+      setDrawerVisible(false);
+      fetchTasks(currentDate);
+    } catch (error: any) {
+      messageApi.error(error.message || "Could not delete project");
+    }
+  };
+
   const handleToggleStatus = async (task: CalendarEventItem) => {
     if (!task.isPersonal) return;
     try {
@@ -1112,16 +1129,27 @@ export default function CalendarPage() {
                             )}
                           </div>
                           {pItem.projectId && (
-                            <Button
-                              type="link"
-                              size="small"
-                              onClick={() => {
-                                setDrawerVisible(false);
-                                router.push(`/projects/${pItem.projectId}`);
-                              }}
-                            >
-                              View Project
-                            </Button>
+                            <Space>
+                              <Button
+                                type="link"
+                                size="small"
+                                onClick={() => {
+                                  setDrawerVisible(false);
+                                  router.push(`/projects/${pItem.projectId}`);
+                                }}
+                              >
+                                View Project
+                              </Button>
+                              <Popconfirm
+                                title="Delete project"
+                                description="Are you sure you want to delete this project? This will also remove all associated tasks."
+                                onConfirm={() => handleDeleteProject(pItem.projectId)}
+                                okText="Yes"
+                                cancelText="No"
+                              >
+                                <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                              </Popconfirm>
+                            </Space>
                           )}
                         </div>
                       </Card>

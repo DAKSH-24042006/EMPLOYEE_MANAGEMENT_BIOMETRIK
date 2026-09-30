@@ -38,7 +38,10 @@ export async function GET(req: Request) {
     const includeAll = searchParams.get("includeAll") === "true";
     const projectId = searchParams.get("projectId");
 
-    const personalQuery: any = { createdBy: payload.userId };
+    const personalQuery: any = {
+      createdBy: payload.userId,
+      status: { $nin: ["Done", "Completed", "Cancelled"] },
+    };
     let dateFilter: any = null;
 
     if (startDate && endDate) {
@@ -86,10 +89,10 @@ export async function GET(req: Request) {
       payload.role === "ADMIN";
 
     // Build scoped queries to prevent seeing other users' tasks
-    const workItemQuery: any = {};
-    const taskQuery: any = {};
-    const sprintQuery: any = {};
-    const projectQuery: any = {};
+    const workItemQuery: any = { status: { $nin: ["Done", "Completed", "Cancelled"] } };
+    const taskQuery: any = { status: { $nin: ["Done", "Completed", "Cancelled"] } };
+    const sprintQuery: any = { status: { $nin: ["Done", "Completed", "Cancelled"] } };
+    const projectQuery: any = { status: { $nin: ["Delivered", "Completed", "Closed"] } };
 
     if (dateFilter) {
       workItemQuery.dueDate = dateFilter;
@@ -102,7 +105,7 @@ export async function GET(req: Request) {
 
     if (!isSystemAdmin) {
       // Regular employees can ONLY see tasks and work items assigned to THEM
-      workItemQuery.assignee = payload.userId;
+      workItemQuery.$or = [{ assignee: payload.userId }, { assignees: payload.userId }];
       taskQuery.assignedTo = payload.userId;
 
       // Ensure projects are also restricted to projects they have permission to access
@@ -142,6 +145,7 @@ export async function GET(req: Request) {
       WorkItem.find(workItemQuery)
         .populate("projectId", "title clientDetails")
         .populate("assignee", "name email")
+        .populate("assignees", "name email")
         .populate("sprint", "name")
         .lean(),
       Task.find(taskQuery)
@@ -168,7 +172,10 @@ export async function GET(req: Request) {
         isPersonal: false,
         projectName: w.projectId?.title || "Project Work Item",
         projectId: w.projectId?._id ? String(w.projectId._id) : undefined,
-        assigneeName: w.assignee?.name || "Unassigned",
+        assigneeName:
+          w.assignees && w.assignees.length > 0
+            ? w.assignees.map((a: any) => a.name).join(", ")
+            : w.assignee?.name || "Unassigned",
         progress: w.progress || 0,
         type: w.type,
       };

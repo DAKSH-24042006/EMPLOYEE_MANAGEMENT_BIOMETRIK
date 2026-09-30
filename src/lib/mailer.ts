@@ -215,10 +215,7 @@ export function buildEmailHtml({
           </a>
         </td>
       </tr>
-    </table>
-    <p style="margin: 8px 0 0 0; font-size: 12px; color: #64748b; font-family: Arial, Helvetica, sans-serif;">
-      Or copy this link: <a href="${escapeHtml(taskUrl)}" style="color: #00897b; word-break: break-all; font-weight: 600;">${escapeHtml(taskUrl)}</a>
-    </p>`
+    </table>`
     : "";
 
   // ─── Full HTML Layout ────────────────────────────────────────────────────────
@@ -475,6 +472,7 @@ export async function sendTaskAssignmentEmail({
   assignee,
   projectManager,
   project,
+  assignedBy,
 }: {
   task: any;
 
@@ -483,6 +481,7 @@ export async function sendTaskAssignmentEmail({
   projectManager?: any;
 
   project: any;
+  assignedBy?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     if (!assignee?.email) {
@@ -512,6 +511,7 @@ export async function sendTaskAssignmentEmail({
       status: task.status || "Backlog",
       projectManagerName: projectManager?.name || "Project Manager",
       description: task.description || "No description provided.",
+      assignedBy: assignedBy || "System Admin",
       taskUrl,
       projectUrl: taskUrl,
     };
@@ -523,7 +523,7 @@ export async function sendTaskAssignmentEmail({
     );
     const bodyText = renderTemplate(
       template.body ||
-        'Hello {{assigneeName}},\n\nA new task has been assigned to you in project "{{projectName}}".\n\nReview the task details and update your progress directly in the workspace:\n{{taskUrl}}\n\nBest regards,',
+        'Hello {{assigneeName}},\n\nA new task has been assigned to you in project "{{projectName}}".\n\n- Project Name: {{projectName}}\n- Task Title: {{taskTitle}}\n- Task Description: {{description}}\n- Priority: {{priority}}\n- Due Date: {{dueDate}}\n- Assigned By: {{assignedBy}}\n\nReview the task details and update your progress directly in the workspace:\n{{taskUrl}}\n\nBest regards,',
       data
     );
 

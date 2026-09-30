@@ -25,8 +25,17 @@ export interface IWorkItem extends Document {
   type: "Feature" | "Bug" | "Task" | "Chore";
   module?: string;
   priority: "Low" | "Medium" | "High" | "Urgent";
-  status: "Backlog" | "To Do" | "In Progress" | "Blocked" | "In Review" | "Testing" | "Done" | "Cancelled";
+  status:
+    | "Backlog"
+    | "To Do"
+    | "In Progress"
+    | "Blocked"
+    | "In Review"
+    | "Testing"
+    | "Done"
+    | "Cancelled";
   assignee?: mongoose.Types.ObjectId;
+  assignees?: mongoose.Types.ObjectId[];
   sprint?: mongoose.Types.ObjectId;
   dueDate?: Date;
   lastReminderSentAt?: Date;
@@ -75,13 +84,28 @@ const WorkItemSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Backlog", "To Do", "In Progress", "Blocked", "In Review", "Testing", "Done", "Cancelled"],
+      enum: [
+        "Backlog",
+        "To Do",
+        "In Progress",
+        "Blocked",
+        "In Review",
+        "Testing",
+        "Done",
+        "Cancelled",
+      ],
       default: "Backlog",
     },
     assignee: {
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    assignees: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     sprint: {
       type: Schema.Types.ObjectId,
       ref: "Sprint",
@@ -144,6 +168,8 @@ const WorkItemSchema: Schema = new Schema(
 
 WorkItemSchema.index({ projectId: 1, sprint: 1, assignee: 1 });
 
-export const WorkItem: Model<IWorkItem> =
-  mongoose.models.WorkItem ||
-  mongoose.model<IWorkItem>("WorkItem", WorkItemSchema);
+if (mongoose.models.WorkItem) {
+  delete mongoose.models.WorkItem;
+}
+
+export const WorkItem: Model<IWorkItem> = mongoose.model<IWorkItem>("WorkItem", WorkItemSchema);

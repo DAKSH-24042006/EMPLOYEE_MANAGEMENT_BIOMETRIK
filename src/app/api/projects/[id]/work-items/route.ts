@@ -18,10 +18,7 @@ async function getAuthPayload() {
   return payload?.userId ? payload : null;
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +28,10 @@ export async function GET(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(req.url);
@@ -75,6 +75,7 @@ export async function GET(
 
     const workItems = await WorkItem.find(query)
       .populate("assignee", "name email role")
+      .populate("assignees", "name email role")
       .populate("sprint", "name status")
       .sort({ createdAt: -1 })
       .exec();
@@ -86,10 +87,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const payload = await getAuthPayload();
     if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -100,7 +98,10 @@ export async function POST(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const project = await Project.findById(id).select("title clientDetails techOwner");
@@ -121,15 +122,17 @@ export async function POST(
 
     // Role check: Regular team members can create tasks for THEMSELVES.
     // Only Project Managers and System Admins can assign tasks to other team members.
-    let targetAssignee = body.assignee || undefined;
+    let targetAssignee =
+      body.assignees && body.assignees.length > 0 ? body.assignees[0] : body.assignee || undefined;
     if (!isProjectLead) {
-      if (body.assignee && String(body.assignee) !== String(payload.userId)) {
+      if (body.assignees && body.assignees.some((a: any) => String(a) !== String(payload.userId))) {
         return NextResponse.json(
           { error: "Forbidden: Team members can only create tasks for themselves." },
           { status: 403 }
         );
       }
       targetAssignee = payload.userId; // Enforce assigning to self
+      body.assignees = [payload.userId];
     }
 
     const newItem = await WorkItem.create({
@@ -141,6 +144,7 @@ export async function POST(
       priority: body.priority || "Medium",
       status: body.status || "Backlog",
       assignee: targetAssignee,
+      assignees: body.assignees || (targetAssignee ? [targetAssignee] : []),
       sprint: body.sprint || undefined,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
       estimatedHours: body.estimatedHours || 0,
@@ -150,28 +154,38 @@ export async function POST(
     await logActivity(id, "work_item", `Created work item "${newItem.title}"`, payload.userId);
 
     // Send email notification with Project Manager CC'd in the background (non-blocking)
-    if (targetAssignee) {
+    const assigneesToNotify =
+      newItem.assignees && newItem.assignees.length > 0
+        ? newItem.assignees
+        : targetAssignee
+          ? [targetAssignee]
+          : [];
+
+    if (assigneesToNotify.length > 0) {
       Promise.all([
-        User.findById(targetAssignee).select("name email"),
+        User.find({ _id: { $in: assigneesToNotify } }).select("name email"),
         project.techOwner ? User.findById(project.techOwner).select("name email") : null,
+        User.findById(payload.userId).select("name"),
       ])
-        .then(([assigneeUser, pmUser]) => {
-          if (assigneeUser) {
-            return sendTaskAssignmentEmail({
+        .then(([assigneeUsers, pmUser, assignerUser]) => {
+          assigneeUsers.forEach((assigneeUser) => {
+            sendTaskAssignmentEmail({
               task: newItem,
               assignee: assigneeUser,
               projectManager: pmUser,
               project,
-            });
-          }
+              assignedBy: assignerUser?.name || "Admin",
+            }).catch((mailErr) => console.error("Email err:", mailErr));
+          });
         })
-        .catch((mailErr) => {
-          console.error("Failed to send task assignment email in background:", mailErr);
+        .catch((err) => {
+          console.error("Failed to fetch users for emails:", err);
         });
     }
 
     const populatedItem = await WorkItem.findById(newItem._id)
       .populate("assignee", "name email role")
+      .populate("assignees", "name email role")
       .populate("sprint", "name status");
 
     return NextResponse.json({ data: populatedItem || newItem }, { status: 201 });
