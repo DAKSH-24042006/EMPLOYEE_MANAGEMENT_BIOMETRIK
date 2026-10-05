@@ -3,16 +3,15 @@ import dbConnect from "@/lib/db";
 import { Project } from "@/lib/models/Project";
 import { ChatMessage } from "@/lib/models/ChatMessage";
 import { Notification } from "@/lib/models/Notification";
+import { WorkItem } from "@/lib/models/WorkItem";
+import { Task } from "@/lib/models/Task";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
-import { canUserViewProject } from "@/lib/projectAccess";
+import { canUserViewProject, canUserEditProject } from "@/lib/projectAccess";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
@@ -29,9 +28,17 @@ export async function GET(
     const { id } = await params;
     await dbConnect();
 
-    const canView = await canUserViewProject(id, payload.userId, payload.role);
-    if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    const project = await Project.findById(id);
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const canChat = await canUserEditProject(project, payload.userId, payload.role);
+    if (!canChat) {
+      return NextResponse.json(
+        { error: "Forbidden: Chat is restricted to project team members only" },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(req.url);
@@ -58,10 +65,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
@@ -90,9 +94,12 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const canView = await canUserViewProject(project, payload.userId, payload.role);
-    if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    const canChat = await canUserEditProject(project, payload.userId, payload.role);
+    if (!canChat) {
+      return NextResponse.json(
+        { error: "Forbidden: Chat is restricted to project team members only" },
+        { status: 403 }
+      );
     }
 
     // Save chat message
@@ -104,30 +111,65 @@ export async function POST(
       mentions: mentions || [],
     });
 
-    // Send notifications to mentioned users
-    if (mentions && mentions.length > 0) {
-      for (const mentionedId of mentions) {
-        if (mentionedId !== payload.userId) { // Don't notify self
-          await Notification.create({
-            recipientId: mentionedId,
-            projectId: id,
-            type: "CHAT_MENTION",
-            title: "Tagged in Chat",
-            message: `You were mentioned in a chat message by a team member for project "${project.title || "Project"}".`,
-          });
-        }
-      }
+    // Gather all members of the project to notify them at the bell icon
+    const memberSet = new Set<string>();
+
+    if (project.createdBy) memberSet.add(project.createdBy.toString());
+    if (project.techOwner) memberSet.add(project.techOwner.toString());
+    if (project.productOwner) memberSet.add(project.productOwner.toString());
+
+    if (Array.isArray(project.techTeamMembers)) {
+      project.techTeamMembers.forEach((m: any) => {
+        if (m) memberSet.add(m.toString());
+      });
     }
 
-    // If the sender is not project creator, notify the creator
-    if (project.createdBy && project.createdBy.toString() !== payload.userId) {
-      await Notification.create({
-        recipientId: project.createdBy,
-        projectId: id,
-        type: "CHAT_MESSAGE",
-        title: "New Message in Project Chat",
-        message: `New message posted in chat for project "${project.title || "Project"}".`,
+    // Also get assignees on project work items and tasks
+    try {
+      const [workItemAssignees, taskAssignees] = await Promise.all([
+        WorkItem.find({ projectId: id }).distinct("assignee"),
+        Task.find({ projectId: id }).distinct("assignedTo"),
+      ]);
+      workItemAssignees.forEach((a: any) => {
+        if (a) memberSet.add(a.toString());
       });
+      taskAssignees.forEach((a: any) => {
+        if (a) memberSet.add(a.toString());
+      });
+    } catch (err) {
+      console.warn("Could not query work items/tasks for chat notifications:", err);
+    }
+
+    // Include directly mentioned users
+    if (Array.isArray(mentions)) {
+      mentions.forEach((m: any) => {
+        if (m) memberSet.add(m.toString());
+      });
+    }
+
+    // Exclude the message sender (don't notify self)
+    memberSet.delete(payload.userId);
+
+    const mentionSet = new Set((mentions || []).map((m: any) => m.toString()));
+
+    // Create notifications for all relevant project members
+    const notificationsToCreate = Array.from(memberSet).map((recipientId) => {
+      const isMentioned = mentionSet.has(recipientId);
+      return {
+        recipientId,
+        projectId: id,
+        type: isMentioned ? "CHAT_MENTION" : "CHAT_MESSAGE",
+        title: isMentioned
+          ? "Tagged in Project Chat"
+          : `Project Chat: ${project.title || "Project"}`,
+        message: isMentioned
+          ? `You were mentioned in project "${project.title || "Project"}" chat.`
+          : `New message posted in project "${project.title || "Project"}".`,
+      };
+    });
+
+    if (notificationsToCreate.length > 0) {
+      await Notification.insertMany(notificationsToCreate);
     }
 
     const populatedMsg = await ChatMessage.findById(chatMsg._id)

@@ -37,6 +37,7 @@ import {
   Plus,
   Key,
   Mail,
+  Phone,
 } from "lucide-react";
 import EmailSettingsPanel from "@/components/admin/EmailSettingsPanel";
 import type { TableProps } from "antd";
@@ -355,29 +356,12 @@ export default function SystemAdminPage() {
   if (isCheckingAuth) {
     return (
       <div style={{ textAlign: "center", padding: "100px 0" }}>
-        <Text type="secondary">Verifying System Admin permissions...</Text>
+        <Text type="secondary">Loading User Management directory...</Text>
       </div>
     );
   }
 
-  if (!currentUser || currentUser.role !== Role.SYSTEM_ADMIN) {
-    return (
-      <div style={{ padding: "40px 20px", display: "flex", justifyContent: "center" }}>
-        <Card style={{ maxWidth: 500, textAlign: "center", borderRadius: 12 }}>
-          <Result
-            status="403"
-            title="Access Restricted: System Admin Only"
-            subTitle="Only the dedicated System Administrator has access to this management dashboard."
-            extra={
-              <Button type="primary" onClick={() => router.push("/dashboard")}>
-                Back to Employee Dashboard
-              </Button>
-            }
-          />
-        </Card>
-      </div>
-    );
-  }
+  const isSuperAdmin = currentUser?.role === Role.SYSTEM_ADMIN;
 
   const columns: TableProps<EmployeeRecord>["columns"] = [
     {
@@ -385,7 +369,7 @@ export default function SystemAdminPage() {
       dataIndex: "name",
       key: "name",
       render: (text: string, record: EmployeeRecord) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Text strong style={{ fontSize: 14 }}>
             {text}
           </Text>
@@ -401,14 +385,18 @@ export default function SystemAdminPage() {
       ),
     },
     {
-      title: "Username",
-      dataIndex: "username",
-      key: "username",
-      render: (username: string) => (
-        <Tag color="geekblue" style={{ fontFamily: "monospace", fontSize: 13 }}>
-          {username || "admin"}
-        </Tag>
-      ),
+      title: "Phone Number",
+      dataIndex: "phoneNumber",
+      key: "phoneNumber",
+      render: (phoneNumber: string) =>
+        phoneNumber ? (
+          <Space size={6}>
+            <Phone size={14} style={{ color: "#00897b" }} />
+            <span style={{ fontWeight: 500, color: "#1e293b" }}>{phoneNumber}</span>
+          </Space>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       title: "Email",
@@ -417,12 +405,6 @@ export default function SystemAdminPage() {
       render: (email: string) => (
         <span style={{ fontFamily: "monospace", color: "#434343" }}>{email}</span>
       ),
-    },
-    {
-      title: "Company Designation",
-      dataIndex: "designation",
-      key: "designation",
-      render: (desig: string) => desig || <Text type="secondary">—</Text>,
     },
     {
       title: "Role",
@@ -455,119 +437,143 @@ export default function SystemAdminPage() {
         );
       },
     },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (_text: unknown, record: EmployeeRecord) => {
-        const isActive = record.status !== UserStatus.INACTIVE;
-        const isSelf =
-          record.email === currentUser?.email ||
-          (record.username && record.username === currentUser?.username);
+    ...(isSuperAdmin
+      ? [
+          {
+            title: "Actions",
+            key: "actions",
+            render: (_text: unknown, record: EmployeeRecord) => {
+              const isActive = record.status !== UserStatus.INACTIVE;
+              const isSelf =
+                record.email === currentUser?.email ||
+                (record.username && record.username === currentUser?.username);
 
-        return (
-          <Space size="middle">
-            <Tooltip title="Edit details, role, or reset password">
-              <Button
-                type="text"
-                icon={<Edit2 size={16} />}
-                onClick={() => openModal(record)}
-                style={{ color: "#1890ff" }}
-              />
-            </Tooltip>
+              return (
+                <Space size="middle">
+                  <Tooltip title="Edit details, role, or reset password">
+                    <Button
+                      type="text"
+                      icon={<Edit2 size={16} />}
+                      onClick={() => openModal(record)}
+                      style={{ color: "#1890ff" }}
+                    />
+                  </Tooltip>
 
-            {isSelf ? (
-              <Tooltip title="Cannot deactivate your own active System Admin session">
-                <Button type="text" disabled style={{ color: "#d9d9d9" }}>
-                  Active
-                </Button>
-              </Tooltip>
-            ) : (
-              <Popconfirm
-                title={`${isActive ? "Deactivate" : "Activate"} Employee`}
-                description={`Are you sure you want to ${isActive ? "deactivate" : "activate"} ${record.name}? ${
-                  isActive
-                    ? "They will be denied login access immediately."
-                    : "They will be able to log in."
-                }`}
-                onConfirm={() => toggleStatus(record)}
-                okText="Yes"
-                cancelText="No"
-              >
-                <Button
-                  type="text"
-                  danger={isActive}
-                  style={{ color: isActive ? "#ff4d4f" : "#52c41a", fontWeight: 500 }}
-                >
-                  {isActive ? "Deactivate" : "Activate"}
-                </Button>
-              </Popconfirm>
-            )}
+                  {isSelf ? (
+                    <Tooltip title="Cannot deactivate your own active System Admin session">
+                      <Button type="text" disabled style={{ color: "#d9d9d9" }}>
+                        Active
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Popconfirm
+                      title={`${isActive ? "Deactivate" : "Activate"} Employee`}
+                      description={`Are you sure you want to ${isActive ? "deactivate" : "activate"} ${record.name}? ${
+                        isActive
+                          ? "They will be denied login access immediately."
+                          : "They will be able to log in."
+                      }`}
+                      onConfirm={() => toggleStatus(record)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        type="text"
+                        danger={isActive}
+                        style={{ color: isActive ? "#ff4d4f" : "#52c41a", fontWeight: 500 }}
+                      >
+                        {isActive ? "Deactivate" : "Activate"}
+                      </Button>
+                    </Popconfirm>
+                  )}
 
-            {!isSelf && (
-              <Popconfirm
-                title="Remove Employee"
-                description={`Are you sure you want to remove ${record.name}? Their login credentials will be revoked.`}
-                onConfirm={() => handleDelete(record._id, record.name)}
-                okText="Remove"
-                cancelText="Cancel"
-                okButtonProps={{ danger: true }}
-              >
-                <Tooltip title="Remove employee">
-                  <Button type="text" danger icon={<Trash2 size={16} />} />
-                </Tooltip>
-              </Popconfirm>
-            )}
-          </Space>
-        );
-      },
-    },
+                  {!isSelf && (
+                    <Popconfirm
+                      title="Remove Employee"
+                      description={`Are you sure you want to remove ${record.name}? Their login credentials will be revoked.`}
+                      onConfirm={() => handleDelete(record._id, record.name)}
+                      okText="Remove"
+                      cancelText="Cancel"
+                      okButtonProps={{ danger: true }}
+                    >
+                      <Tooltip title="Remove employee">
+                        <Button type="text" danger icon={<Trash2 size={16} />} />
+                      </Tooltip>
+                    </Popconfirm>
+                  )}
+                </Space>
+              );
+            },
+          },
+        ]
+      : []),
   ];
+
+  if (!isSuperAdmin) {
+    return (
+      <div style={{ textAlign: "center", padding: "100px 20px" }}>
+        <Title level={3}>Access Denied</Title>
+        <Text type="secondary">
+          Only Super Administrators have access to Employee & User Management.
+        </Text>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "8px 0" }}>
       {/* Header Title Section */}
       <div style={{ marginBottom: 18 }}>
-        <Title
-          level={3}
-          style={{ margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: 10 }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 4,
+          }}
         >
-          <ShieldCheck size={26} color="#00897b" />
-          User Management
-        </Title>
+          <Title level={3} style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+            <ShieldCheck size={26} color="#00897b" />
+            User Management
+          </Title>
+        </div>
         <Text type="secondary">
           Manage authorized employees, set login credentials, customize roles, and configure
           automated email notifications.
         </Text>
       </div>
 
-      {/* Navigation Segmented Bar */}
-      <div style={{ marginBottom: 24 }}>
-        <Segmented
-          size="large"
-          value={adminTab}
-          onChange={(val) => setAdminTab(val as "employees" | "email")}
-          options={[
-            {
-              label: (
-                <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
-                  <Users size={16} />
-                  <span>Employee & Access Management</span>
-                </Space>
-              ),
-              value: "employees",
-            },
-            {
-              label: (
-                <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
-                  <Mail size={16} />
-                  <span>Email & Automated Notifications</span>
-                </Space>
-              ),
-              value: "email",
-            },
-          ]}
-        />
-      </div>
+      {/* Navigation Segmented Bar (Super Admin Only) */}
+      {isSuperAdmin && (
+        <div style={{ marginBottom: 24 }}>
+          <Segmented
+            size="large"
+            value={adminTab}
+            onChange={(val) => setAdminTab(val as "employees" | "email")}
+            options={[
+              {
+                label: (
+                  <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
+                    <Users size={16} />
+                    <span>Employee & Access Management</span>
+                  </Space>
+                ),
+                value: "employees",
+              },
+              {
+                label: (
+                  <Space style={{ padding: "4px 14px", fontWeight: 600 }}>
+                    <Mail size={16} />
+                    <span>Email & Automated Notifications</span>
+                  </Space>
+                ),
+                value: "email",
+              },
+            ]}
+          />
+        </div>
+      )}
 
       {adminTab === "email" ? (
         <EmailSettingsPanel />
@@ -677,26 +683,30 @@ export default function SystemAdminPage() {
                   Refresh
                 </Button>
 
-                <Button
-                  icon={<ShieldCheck size={15} />}
-                  onClick={() => setIsRoleModalOpen(true)}
-                  style={{ borderRadius: 8 }}
-                >
-                  Manage Roles
-                </Button>
+                {isSuperAdmin && (
+                  <>
+                    <Button
+                      icon={<ShieldCheck size={15} />}
+                      onClick={() => setIsRoleModalOpen(true)}
+                      style={{ borderRadius: 8 }}
+                    >
+                      Manage Roles
+                    </Button>
 
-                <Button
-                  type="primary"
-                  icon={<UserPlus size={15} />}
-                  onClick={() => openModal()}
-                  style={{
-                    borderRadius: 8,
-                    backgroundColor: "#00897b",
-                    borderColor: "#00897b",
-                  }}
-                >
-                  Add Employee
-                </Button>
+                    <Button
+                      type="primary"
+                      icon={<UserPlus size={15} />}
+                      onClick={() => openModal()}
+                      style={{
+                        borderRadius: 8,
+                        backgroundColor: "#00897b",
+                        borderColor: "#00897b",
+                      }}
+                    >
+                      Add Employee
+                    </Button>
+                  </>
+                )}
               </Space>
             </div>
 

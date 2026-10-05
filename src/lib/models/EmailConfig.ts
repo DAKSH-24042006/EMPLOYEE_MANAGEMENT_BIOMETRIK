@@ -63,7 +63,7 @@ const EmailConfigSchema: Schema = new Schema(
       taskCreated: {
         type: EmailTemplateSchema,
         default: () => ({
-          subject: "[Biometrik Systems] New Task Assigned: {{taskTitle}}",
+          subject: "[kramik] New Task Assigned: {{taskTitle}}",
           body: `Hello {{assigneeName}},
 
 A new task has been created and assigned to you in project "{{projectName}}".
@@ -77,8 +77,7 @@ Task Details:
 Description:
 {{description}}
 
-Review the task details and update your progress directly in the workspace:
-{{taskUrl}}
+Review the task details and update your progress directly in the workspace.
 
 Best regards,`,
         }),

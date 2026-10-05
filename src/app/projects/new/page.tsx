@@ -17,12 +17,7 @@ import {
   Tag,
   Result,
 } from "antd";
-import {
-  ArrowLeftOutlined,
-  UserOutlined,
-  CalendarOutlined,
-  TeamOutlined,
-} from "@ant-design/icons";
+import { ArrowLeftOutlined, UserOutlined, CalendarOutlined, TeamOutlined } from "@ant-design/icons";
 import { Paperclip } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -52,7 +47,9 @@ export default function NewProjectPage() {
           const userData = await userRes.json();
           setCurrentUser(userData.user);
           if (userData.user?.role !== "SYSTEM_ADMIN") {
-            message.error("Access Denied: Only System Administrator has access to create projects.");
+            message.error(
+              "Access Denied: Only System Administrator has access to create projects."
+            );
             router.push("/projects");
             return;
           }
@@ -98,7 +95,10 @@ export default function NewProjectPage() {
 
       // 2. Upload attachments sequentially if selected
       if (fileList.length > 0) {
-        message.loading({ content: "Uploading file attachments to Project Drive...", key: "uploading" });
+        message.loading({
+          content: "Uploading file attachments to Project Drive...",
+          key: "uploading",
+        });
 
         let uploadCount = 0;
         for (const fileItem of fileList) {
@@ -124,7 +124,10 @@ export default function NewProjectPage() {
           }
         }
 
-        message.success({ content: `Project created and ${uploadCount} document(s) uploaded to Project Drive!`, key: "uploading" });
+        message.success({
+          content: `Project created and ${uploadCount} document(s) uploaded to Project Drive!`,
+          key: "uploading",
+        });
       } else {
         message.success("Project created successfully!");
       }
@@ -139,7 +142,6 @@ export default function NewProjectPage() {
       setSubmitting(false);
     }
   };
-
 
   if (authChecking || mounting) {
     return (
@@ -167,17 +169,28 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, maxWidth: "100%" }}>
-      {/* Header */}
-      <div style={{
+    <div
+      style={{
+        height: "100%",
         display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-end",
-        marginBottom: 20,
-        flexWrap: "wrap",
-        gap: 16,
-        flex: "0 0 auto"
-      }}>
+        flexDirection: "column",
+        overflow: "hidden",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          marginBottom: 20,
+          flexWrap: "wrap",
+          gap: 16,
+          flex: "0 0 auto",
+        }}
+      >
         <div>
           <Title level={2} style={{ margin: 0, fontWeight: 700, fontSize: 24 }}>
             Create New Project
@@ -187,11 +200,23 @@ export default function NewProjectPage() {
           </Text>
         </div>
         <Link href="/projects">
-          <Button icon={<ArrowLeftOutlined />} size="small">Back to list</Button>
+          <Button icon={<ArrowLeftOutlined />} size="small">
+            Back to list
+          </Button>
         </Link>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, paddingBottom: 40, minWidth: 0, maxWidth: "100%" }} className="hide-scrollbar">
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingRight: 8,
+          paddingBottom: 40,
+          minWidth: 0,
+          maxWidth: "100%",
+        }}
+        className="hide-scrollbar"
+      >
         <Skeleton active loading={mounting} paragraph={{ rows: 15 }}>
           <Form
             form={form}
@@ -209,24 +234,28 @@ export default function NewProjectPage() {
                 borderRadius: 16,
                 marginBottom: 24,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                border: "1px solid #f0f0f0"
+                border: "1px solid #f0f0f0",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: "#eef2ff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: PRIMARY_COLOR
-                }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: "#eef2ff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: PRIMARY_COLOR,
+                  }}
+                >
                   <UserOutlined />
                 </div>
                 <div>
-                  <Title level={4} style={{ margin: 0 }}>Client & Project Identity</Title>
+                  <Title level={4} style={{ margin: 0 }}>
+                    Client & Project Identity
+                  </Title>
                   <Text type="secondary" style={{ fontSize: 13 }}>
                     Specify the client company name or project identity and detailed description.
                   </Text>
@@ -239,7 +268,10 @@ export default function NewProjectPage() {
                 rules={[{ required: true, message: "Project title is required" }]}
                 style={{ marginBottom: 20 }}
               >
-                <Input size="large" placeholder="E.g., NovaTech Solutions, Apex Healthcare Systems" />
+                <Input
+                  size="large"
+                  placeholder="E.g., NovaTech Solutions, Apex Healthcare Systems"
+                />
               </Form.Item>
 
               <Form.Item
@@ -261,23 +293,27 @@ export default function NewProjectPage() {
                 borderRadius: 16,
                 marginBottom: 24,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                border: "1px solid #f0f0f0"
+                border: "1px solid #f0f0f0",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: "#fff7ed",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ea580c"
-                }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: "#fff7ed",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ea580c",
+                  }}
+                >
                   <CalendarOutlined />
                 </div>
-                <Title level={4} style={{ margin: 0 }}>Project Roadmap & Scope</Title>
+                <Title level={4} style={{ margin: 0 }}>
+                  Project Roadmap & Scope
+                </Title>
               </div>
 
               <Row gutter={24}>
@@ -297,12 +333,15 @@ export default function NewProjectPage() {
                     label={<span style={{ fontWeight: 500 }}>Priority Level</span>}
                     rules={[{ required: true }]}
                   >
-                    <Select size="large" options={[
-                      { label: "Low", value: "Low" },
-                      { label: "Medium", value: "Medium" },
-                      { label: "High", value: "High" },
-                      { label: "Critical", value: "Critical" },
-                    ]} />
+                    <Select
+                      size="large"
+                      options={[
+                        { label: "Low", value: "Low" },
+                        { label: "Medium", value: "Medium" },
+                        { label: "High", value: "High" },
+                        { label: "Critical", value: "Critical" },
+                      ]}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -315,25 +354,38 @@ export default function NewProjectPage() {
                 borderRadius: 16,
                 marginBottom: 24,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                border: "1px solid #f0f0f0"
+                border: "1px solid #f0f0f0",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 20,
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    background: "#ede9fe",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#7c3aed"
-                  }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: "#ede9fe",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#7c3aed",
+                    }}
+                  >
                     <TeamOutlined />
                   </div>
                   <div>
-                    <Title level={4} style={{ margin: 0 }}>Project Manager & Team Assignment</Title>
+                    <Title level={4} style={{ margin: 0 }}>
+                      Project Manager & Team Assignment
+                    </Title>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       Appoint the Project Manager and assign project team members.
                     </Text>
@@ -356,7 +408,7 @@ export default function NewProjectPage() {
                       showSearch
                       optionFilterProp="label"
                       options={users.map((u) => ({
-                        label: `${u.name} (${u.designation || u.role})`,
+                        label: `${u.name} (${u.role || "Employee"})`,
                         value: u._id,
                       }))}
                     />
@@ -364,6 +416,26 @@ export default function NewProjectPage() {
                 </Col>
 
                 <Col xs={24} md={12}>
+                  <Form.Item
+                    name="productOwner"
+                    label={<span style={{ fontWeight: 500 }}>Product Owner</span>}
+                    extra="Designate the Product Owner chosen from all employees listed in User Management."
+                  >
+                    <Select
+                      size="large"
+                      placeholder="Select Product Owner (Optional)"
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      options={users.map((u) => ({
+                        label: `${u.name} (${u.role || "Employee"})`,
+                        value: u._id,
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={24}>
                   <Form.Item
                     name="techTeamMembers"
                     label={<span style={{ fontWeight: 500 }}>Assigned Project Members</span>}
@@ -377,7 +449,7 @@ export default function NewProjectPage() {
                       showSearch
                       optionFilterProp="label"
                       options={users.map((u) => ({
-                        label: `${u.name} (${u.designation || u.role})`,
+                        label: `${u.name} (${u.role || "Employee"})`,
                         value: u._id,
                       }))}
                     />
@@ -393,11 +465,15 @@ export default function NewProjectPage() {
                 borderRadius: 16,
                 marginBottom: 32,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                border: "1px solid #f0f0f0"
+                border: "1px solid #f0f0f0",
               }}
             >
-              <Title level={5} style={{ marginBottom: 12 }}>Initial File Attachments</Title>
-              <Paragraph type="secondary">Upload client specification PDFs, scope emails, or mockups.</Paragraph>
+              <Title level={5} style={{ marginBottom: 12 }}>
+                Initial File Attachments
+              </Title>
+              <Paragraph type="secondary">
+                Upload client specification PDFs, scope emails, or mockups.
+              </Paragraph>
 
               <Upload
                 beforeUpload={(file) => {
@@ -410,13 +486,21 @@ export default function NewProjectPage() {
                 fileList={fileList}
                 multiple
               >
-                <Button icon={<Paperclip size={14} />} size="large">Add Document Draft</Button>
+                <Button icon={<Paperclip size={14} />} size="large">
+                  Add Document Draft
+                </Button>
               </Upload>
             </Card>
 
             {/* Footer Actions */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 16 }}>
-              <Button size="large" onClick={() => { form.resetFields(); setFileList([]); }}>
+              <Button
+                size="large"
+                onClick={() => {
+                  form.resetFields();
+                  setFileList([]);
+                }}
+              >
                 Clear Form
               </Button>
               <Button
@@ -424,7 +508,11 @@ export default function NewProjectPage() {
                 htmlType="submit"
                 size="large"
                 loading={submitting}
-                style={{ padding: "0 32px", backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }}
+                style={{
+                  padding: "0 32px",
+                  backgroundColor: PRIMARY_COLOR,
+                  borderColor: PRIMARY_COLOR,
+                }}
               >
                 Create Project
               </Button>
