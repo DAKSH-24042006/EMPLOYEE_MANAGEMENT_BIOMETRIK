@@ -6,52 +6,35 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { User, Lock, ArrowRight } from "lucide-react";
 import logo from "../../../../public/Biometrik_New_Logo.png";
+import WebcamCapture from "../../../components/WebcamCapture";
 
 const { Title, Text } = Typography;
 
 export default function LoginForm() {
-  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form] = Form.useForm();
   const searchParams = useSearchParams();
-  const handleLogin = async (values: { username: string; password: string }) => {
-    setLoading(true);
-    setErrorMessage(null);
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: values.username.trim(),
-          password: values.password,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrorMessage(data.error || "Invalid username or password.");
-        return;
-      }
-
-      // Check callback URL if provided
-      const callbackUrl = searchParams ? searchParams.get("callbackUrl") : null;
-      const targetPath =
-        callbackUrl && !callbackUrl.startsWith("/auth")
-          ? callbackUrl
-          : data.redirect || "/dashboard";
-
-      window.location.href = targetPath;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setErrorMessage(err.message || "Failed to connect to authentication server.");
-      } else {
-        setErrorMessage("Failed to connect to authentication server.");
-      }
-    } finally {
-      setLoading(false);
+  const handleNext = async (values: { username: string }) => {
+    const trimmedEmail = values.username.trim();
+    if (!trimmedEmail) {
+      setErrorMessage("Please enter an email.");
+      return;
     }
+    setEmail(trimmedEmail);
+    setErrorMessage(null);
+    setStep(2);
+  };
+
+  const handleSuccess = (data: any) => {
+    // Check callback URL if provided
+    const callbackUrl = searchParams ? searchParams.get("callbackUrl") : null;
+    const targetPath =
+      callbackUrl && !callbackUrl.startsWith("/auth") ? callbackUrl : data.redirect || "/dashboard";
+
+    window.location.href = targetPath;
   };
 
   return (
@@ -83,10 +66,10 @@ export default function LoginForm() {
           }}
         />
         <Title level={4} style={{ margin: "0 0 6px 0", color: "#1f1f1f", fontWeight: 600 }}>
-          KRAMIK Portal Login
+          Access Granted.
         </Title>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          Enter your authorized username and password to sign in.
+          {step === 1 ? "Enter your email to verify identity." : "Face Authentication"}
         </Text>
       </div>
 
@@ -104,66 +87,59 @@ export default function LoginForm() {
         />
       )}
 
-      <Form form={form} layout="vertical" onFinish={handleLogin} requiredMark={false}>
-        <Form.Item
-          name="username"
-          label={
-            <Text strong style={{ fontSize: 13, color: "#434343" }}>
-              Username or Email
-            </Text>
-          }
-          rules={[{ required: true, message: "Please enter your username or email" }]}
-        >
-          <Input
-            size="large"
-            placeholder="e.g. admin or username"
-            prefix={<User size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
-            style={{ borderRadius: 8, height: 46 }}
-            autoCapitalize="none"
-            autoCorrect="off"
-          />
-        </Form.Item>
-
-        <Form.Item
-          name="password"
-          label={
-            <Text strong style={{ fontSize: 13, color: "#434343" }}>
-              Password
-            </Text>
-          }
-          rules={[{ required: true, message: "Please enter your password" }]}
-        >
-          <Input.Password
-            size="large"
-            placeholder="Enter Password"
-            prefix={<Lock size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
-            style={{ borderRadius: 8, height: 46 }}
-          />
-        </Form.Item>
-
-        <Form.Item style={{ marginTop: 24, marginBottom: 12 }}>
-          <Button
-            type="primary"
-            htmlType="submit"
-            block
-            size="large"
-            loading={loading}
-            icon={<ArrowRight size={18} />}
-            iconPlacement="end"
-            style={{
-              height: 48,
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              backgroundColor: "#00897b",
-              borderColor: "#00897b",
-              boxShadow: "0 4px 12px rgba(0, 137, 123, 0.25)",
-            }}
+      {step === 1 && (
+        <Form form={form} layout="vertical" onFinish={handleNext} requiredMark={false}>
+          <Form.Item
+            name="username"
+            label={
+              <Text strong style={{ fontSize: 13, color: "#434343" }}>
+                Email
+              </Text>
+            }
+            rules={[{ required: true, message: "Please enter your email" }]}
           >
-            Sign In
-          </Button>
-        </Form.Item>
-      </Form>
+            <Input
+              size="large"
+              placeholder="e.g. admin@biometrik.com"
+              prefix={<User size={18} style={{ color: "#8c8c8c", marginRight: 8 }} />}
+              style={{ borderRadius: 8, height: 46 }}
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginTop: 24, marginBottom: 12 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              size="large"
+              style={{
+                height: 48,
+                borderRadius: 8,
+                fontSize: 15,
+                fontWeight: 600,
+                backgroundColor: "#00897b",
+                borderColor: "#00897b",
+                boxShadow: "0 4px 12px rgba(0, 137, 123, 0.25)",
+              }}
+            >
+              Next
+            </Button>
+          </Form.Item>
+        </Form>
+      )}
+
+      {step === 2 && (
+        <WebcamCapture
+          email={email}
+          onSuccess={handleSuccess}
+          onBack={() => {
+            setStep(1);
+            setErrorMessage(null);
+          }}
+        />
+      )}
 
       <div style={{ textAlign: "center", marginTop: 20 }}>
         <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}></Text>
