@@ -39,10 +39,13 @@ export async function POST(req: Request) {
         email: data.email || "",
         contactNumber: data.contactNumber || "",
       },
-      features: FEATURE_KEYS.reduce((acc: any, key: string) => {
-        acc[key] = !!data[key];
-        return acc;
-      }, {} as Record<string, boolean>),
+      features: FEATURE_KEYS.reduce(
+        (acc: any, key: string) => {
+          acc[key] = !!data[key];
+          return acc;
+        },
+        {} as Record<string, boolean>
+      ),
       extraAddOns: data.extraAddOns || "",
       useCase: data.useCase || "",
       targetUsers: data.targetUsers || "",
@@ -52,27 +55,30 @@ export async function POST(req: Request) {
       integrations: data.integrations || "",
       priority: data.priority || "Medium",
       timeline: {
-        startDate: data.startDate ? new Date(data.startDate) : (data.timeline?.[0] ? new Date(data.timeline[0]) : undefined),
-        endDate: data.endDate ? new Date(data.endDate) : (data.timeline?.[1] ? new Date(data.timeline[1]) : undefined),
+        startDate: data.startDate
+          ? new Date(data.startDate)
+          : data.timeline?.[0]
+            ? new Date(data.timeline[0])
+            : undefined,
+        endDate: data.endDate
+          ? new Date(data.endDate)
+          : data.timeline?.[1]
+            ? new Date(data.timeline[1])
+            : undefined,
       },
       createdBy: payload.userId,
       techOwner: data.techOwner || undefined,
+      productOwner: data.productOwner || undefined,
       techTeamMembers: Array.isArray(data.techTeamMembers) ? data.techTeamMembers : [],
     };
 
     // Basic Validation Strategy
     if (!newProject.title) {
-      return NextResponse.json(
-        { error: "Project Title is required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Project Title is required." }, { status: 400 });
     }
 
     if (!newProject.timeline.startDate || !newProject.timeline.endDate) {
-      return NextResponse.json(
-        { error: "A comprehensive Timeline is required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "A comprehensive Timeline is required." }, { status: 400 });
     }
 
     await dbConnect();
@@ -87,13 +93,14 @@ export async function POST(req: Request) {
   } catch (error: any) {
     if (error.name === "ValidationError") {
       return NextResponse.json(
-        { error: Object.values(error.errors).map((err: any) => err.message).join(", ") },
+        {
+          error: Object.values(error.errors)
+            .map((err: any) => err.message)
+            .join(", "),
+        },
         { status: 400 }
       );
     }
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -213,28 +213,54 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [folderForm] = Form.useForm();
   const [driveUploading, setDriveUploading] = useState(false);
 
-  // Project Manager & Team determination
+  // Drive Bulk Download states
+  const [selectedDriveRowKeys, setSelectedDriveRowKeys] = useState<React.Key[]>([]);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+
+  const handleBulkDownload = (downloadAll: boolean = false) => {
+    let url = `/api/projects/${id}/attachments/bulk-download`;
+    if (!downloadAll && selectedDriveRowKeys.length > 0) {
+      url += `?ids=${selectedDriveRowKeys.join(",")}`;
+    } else {
+      url += `?folder=${encodeURIComponent(currentFolder)}`;
+    }
+    window.open(url, "_blank");
+  };
+
+  // Project Manager, Product Owner & Team determination
   const currentUserId = currentUser?._id || currentUser?.id;
   const techOwnerId = project?.techOwner?._id || project?.techOwner;
-  const isProjectLead = Boolean(
-    currentUser &&
-    (currentUser.role === "SYSTEM_ADMIN" ||
-      currentUser.role === "ADMIN" ||
-      (techOwnerId && String(currentUserId) === String(techOwnerId)))
+  const productOwnerId = project?.productOwner?._id || project?.productOwner;
+  const isSuperAdmin = Boolean(
+    currentUser && (currentUser.role === "SYSTEM_ADMIN" || currentUser.role === "ADMIN")
   );
-
-  // Ensure regular employees default to todo-progress if they cannot view work-items
-  useEffect(() => {
-    if (currentUser && !isProjectLead && activeTab === "work-items") {
-      setActiveTab("todo-progress");
-    }
-  }, [currentUser, isProjectLead, activeTab]);
+  const isProjectLead = Boolean(
+    currentUser && (isSuperAdmin || (techOwnerId && String(currentUserId) === String(techOwnerId)))
+  );
+  const isProductOwner = Boolean(
+    currentUser && productOwnerId && String(currentUserId) === String(productOwnerId)
+  );
+  const isAssignedMember = Boolean(
+    currentUser &&
+    ((Array.isArray(project?.techTeamMembers) &&
+      project.techTeamMembers.some((m: any) => String(m?._id || m) === String(currentUserId))) ||
+      workItems.some((w: any) =>
+        Array.isArray(w.assignees)
+          ? w.assignees.some((a: any) => String(a?._id || a) === String(currentUserId))
+          : String(w.assignee?._id || w.assignee) === String(currentUserId)
+      ))
+  );
+  const isProjectEditor = isSuperAdmin || isProjectLead || isProductOwner || isAssignedMember;
 
   useEffect(() => {
     if (tabQuery) {
-      setActiveTab(tabQuery);
+      if (tabQuery === "chat" && !isProjectEditor) {
+        setActiveTab("work-items");
+      } else {
+        setActiveTab(tabQuery);
+      }
     }
-  }, [tabQuery]);
+  }, [tabQuery, isProjectEditor]);
 
   const projectTeamMembers = React.useMemo(() => {
     const list: any[] = [];
@@ -248,6 +274,20 @@ function ProjectDetailsClient({ id }: { id: string }) {
       if (ownerObj) {
         list.push(ownerObj);
         addedIds.add(String(ownerObj._id || ownerObj.id));
+      }
+    }
+
+    if (project?.productOwner) {
+      const poObj =
+        typeof project.productOwner === "object"
+          ? project.productOwner
+          : users.find((u: any) => u._id === project.productOwner);
+      if (poObj) {
+        const poid = String(poObj._id || poObj.id);
+        if (!addedIds.has(poid)) {
+          list.push(poObj);
+          addedIds.add(poid);
+        }
       }
     }
 
@@ -292,14 +332,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
     refreshData();
   }, [id]);
 
-  // Real-time chat polling (every 3 seconds)
+  // Real-time chat polling (every 3 seconds) — only for project team members
   useEffect(() => {
-    if (!id) return;
+    if (!id || !isProjectEditor) return;
     const chatPollInterval = setInterval(() => {
       fetchChat();
     }, 3000);
     return () => clearInterval(chatPollInterval);
-  }, [id]);
+  }, [id, isProjectEditor]);
 
   // Scroll chat container internally without moving window/page
   const scrollToChatBottom = (behavior: "smooth" | "auto" = "smooth") => {
@@ -383,7 +423,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
     fetchProject();
     fetchUsers();
     fetchTasks();
-    fetchChat();
+    if (isProjectEditor) {
+      fetchChat();
+    }
     fetchBlockers();
     fetchAttachments();
     fetchVersions();
@@ -425,6 +467,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           priority: json.data.priority,
           status: json.data.status,
           techOwner: json.data.techOwner?._id || json.data.techOwner,
+          productOwner: json.data.productOwner?._id || json.data.productOwner,
           techTeamMembers:
             json.data.techTeamMembers?.map((m: any) => m._id) || json.data.techTeamMembers || [],
           sprintId: json.data.sprintId?._id || json.data.sprintId,
@@ -466,14 +509,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
   };
 
   const fetchChat = async () => {
+    if (!id || !isProjectEditor) return;
     try {
       const res = await fetch(`/api/projects/${id}/chat`, { cache: "no-store" });
-      if (res.status === 403) {
-        setAccessDenied(true);
-        return;
-      }
-      if (res.status === 401) {
-        window.location.href = "/auth/login";
+      if (res.status === 403 || res.status === 401) {
         return;
       }
       const json = await res.json();
@@ -670,6 +709,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         priority: values.priority,
         status: values.status,
         techOwner: values.techOwner,
+        productOwner: values.productOwner,
         techTeamMembers: values.techTeamMembers,
         sprintId: values.sprintId,
         timeline: values.timeline
@@ -1754,10 +1794,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </div>
 
           <Space size={10} wrap>
-            {(currentUser?.role === "SYSTEM_ADMIN" ||
-              currentUser?.role === "ADMIN" ||
-              currentUser?.role === "SALES" ||
-              currentUser?.role === "SALES_TEAM") && (
+            {isProjectEditor && (
               <Button
                 type="primary"
                 onClick={() => {
@@ -1768,6 +1805,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       priority: project.priority,
                       status: project.status,
                       techOwner: project.techOwner?._id || project.techOwner,
+                      productOwner: project.productOwner?._id || project.productOwner,
                       timeline:
                         project.timeline?.startDate && project.timeline?.endDate
                           ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
@@ -1793,7 +1831,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         {/* 4 Executive Metadata Cards */}
         <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
           {/* Card 1: Project Manager */}
-          <Col xs={24} sm={12} lg={8}>
+          <Col xs={24} sm={12} lg={6}>
             <div
               style={{
                 background: "#ffffff",
@@ -1841,8 +1879,57 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </div>
           </Col>
 
-          {/* Card 2: Creator / Admin */}
-          <Col xs={24} sm={12} lg={8}>
+          {/* Card 2: Product Owner */}
+          <Col xs={24} sm={12} lg={6}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                height: "100%",
+              }}
+            >
+              <Avatar
+                size={34}
+                style={{ backgroundColor: "#3b82f6", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+              >
+                {(project.productOwner?.name || "Unassigned").charAt(0).toUpperCase()}
+              </Avatar>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                    color: "#94a3b8",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Product Owner
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#1e293b",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {project.productOwner?.name || "Unassigned"}
+                </div>
+              </div>
+            </div>
+          </Col>
+
+          {/* Card 3: Creator / Admin */}
+          <Col xs={24} sm={12} lg={6}>
             <div
               style={{
                 background: "#ffffff",
@@ -1899,8 +1986,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </div>
           </Col>
 
-          {/* Card 3: Timeline */}
-          <Col xs={24} sm={12} lg={8}>
+          {/* Card 4: Timeline */}
+          <Col xs={24} sm={12} lg={6}>
             <div
               style={{
                 background: "#ffffff",
@@ -2131,453 +2218,460 @@ function ProjectDetailsClient({ id }: { id: string }) {
           activeKey={activeTab}
           onChange={setActiveTab}
           items={[
-            ...(isProjectLead
-              ? [
-                  {
-                    key: "work-items",
-                    label: (
-                      <Space size={6}>
-                        <CheckSquare size={14} />
-                        <span>Work Items & Tasks</span>
-                        <Badge
-                          count={workItems.length}
+            {
+              key: "work-items",
+              label: (
+                <Space size={6}>
+                  <CheckSquare size={14} />
+                  <span>Work Items & Tasks</span>
+                  <Badge
+                    count={workItems.length}
+                    size="small"
+                    style={{ backgroundColor: "#00897b" }}
+                  />
+                </Space>
+              ),
+              children: (
+                <div style={{ padding: "8px 0" }}>
+                  {/* Filters & Actions Row */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      marginBottom: 16,
+                      padding: "10px 14px",
+                      background: "#f8fafc",
+                      borderRadius: 10,
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <Space size={10} wrap style={{ flex: 1, minWidth: 280 }}>
+                      <Input
+                        placeholder="Search tasks or assignees..."
+                        prefix={<Search size={14} color="#94a3b8" />}
+                        value={workSearchQuery}
+                        onChange={(e) => setWorkSearchQuery(e.target.value)}
+                        allowClear
+                        style={{ width: 220, borderRadius: 6 }}
+                      />
+                      <Select
+                        value={workFilterStatus}
+                        onChange={setWorkFilterStatus}
+                        style={{ width: 130 }}
+                      >
+                        <Select.Option value="All">All Statuses</Select.Option>
+                        {[
+                          "Backlog",
+                          "To Do",
+                          "In Progress",
+                          "Blocked",
+                          "In Review",
+                          "Testing",
+                          "Done",
+                          "Cancelled",
+                        ].map((s) => (
+                          <Select.Option key={s} value={s}>
+                            {s}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={workFilterAssignee}
+                        onChange={setWorkFilterAssignee}
+                        style={{ width: 150 }}
+                        placeholder="Assignee"
+                      >
+                        <Select.Option value="All">All Assignees</Select.Option>
+                        {users.map((u) => (
+                          <Select.Option key={u._id} value={u._id}>
+                            {u.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={workFilterSprint}
+                        onChange={setWorkFilterSprint}
+                        style={{ width: 130 }}
+                        placeholder="Sprint"
+                      >
+                        <Select.Option value="All">All Sprints</Select.Option>
+                        {sprints.map((s) => (
+                          <Select.Option key={s._id} value={s._id}>
+                            {s.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={workFilterPriority}
+                        onChange={setWorkFilterPriority}
+                        style={{ width: 120 }}
+                        placeholder="Priority"
+                      >
+                        <Select.Option value="All">All Priorities</Select.Option>
+                        {["Low", "Medium", "High", "Urgent"].map((p) => (
+                          <Select.Option key={p} value={p}>
+                            {p}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      <Checkbox
+                        checked={workFilterOverdue}
+                        onChange={(e) => setWorkFilterOverdue(e.target.checked)}
+                      >
+                        <span style={{ fontSize: 13, color: "#475569" }}>Show Overdue</span>
+                      </Checkbox>
+                      {(workSearchQuery ||
+                        workFilterStatus !== "All" ||
+                        workFilterAssignee !== "All" ||
+                        workFilterSprint !== "All" ||
+                        workFilterPriority !== "All" ||
+                        workFilterOverdue) && (
+                        <Button
                           size="small"
-                          style={{ backgroundColor: "#00897b" }}
-                        />
-                      </Space>
-                    ),
-                    children: (
-                      <div style={{ padding: "8px 0" }}>
-                        {/* Filters & Actions Row */}
-                        <div
+                          type="text"
+                          onClick={() => {
+                            setWorkSearchQuery("");
+                            setWorkFilterStatus("All");
+                            setWorkFilterAssignee("All");
+                            setWorkFilterSprint("All");
+                            setWorkFilterPriority("All");
+                            setWorkFilterOverdue(false);
+                          }}
+                          style={{ color: "#00897b", fontSize: 12 }}
+                        >
+                          Reset Filters
+                        </Button>
+                      )}
+                    </Space>
+
+                    {isProjectEditor && (
+                      <Space>
+                        <Button
+                          type="primary"
+                          icon={<Plus size={14} />}
+                          onClick={() => setIsWorkItemModalOpen(true)}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            flexWrap: "wrap",
-                            gap: 12,
-                            marginBottom: 16,
-                            padding: "10px 14px",
-                            background: "#f8fafc",
-                            borderRadius: 10,
-                            border: "1px solid #e2e8f0",
+                            backgroundColor: "#00897b",
+                            borderColor: "#00897b",
+                            borderRadius: 6,
+                            fontWeight: 500,
                           }}
                         >
-                          <Space size={10} wrap style={{ flex: 1, minWidth: 280 }}>
-                            <Input
-                              placeholder="Search tasks or assignees..."
-                              prefix={<Search size={14} color="#94a3b8" />}
-                              value={workSearchQuery}
-                              onChange={(e) => setWorkSearchQuery(e.target.value)}
-                              allowClear
-                              style={{ width: 220, borderRadius: 6 }}
+                          Create Work Item
+                        </Button>
+                      </Space>
+                    )}
+                  </div>
+
+                  <Table
+                    dataSource={filteredWorkItems}
+                    rowKey="_id"
+                    pagination={{ defaultPageSize: 15, showSizeChanger: true }}
+                    columns={[
+                      {
+                        title: "Title",
+                        dataIndex: "title",
+                        key: "title",
+                        render: (text, record: any) => {
+                          const typeStyle = getWorkItemTypeStyle(record.type);
+                          const isTaskOverdue =
+                            record.dueDate &&
+                            dayjs(record.dueDate).isBefore(dayjs(), "day") &&
+                            record.status !== "Done" &&
+                            record.status !== "Cancelled";
+
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              <a
+                                onClick={() => {
+                                  setSelectedWorkItem(record);
+                                  setWorkItemDetailOpen(true);
+                                }}
+                                style={{
+                                  fontWeight: 600,
+                                  color: "#0f172a",
+                                  fontSize: 13,
+                                  transition: "color 0.2s",
+                                }}
+                                className="hover:text-teal-700"
+                              >
+                                {text}
+                              </a>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    padding: "1px 6px",
+                                    borderRadius: 4,
+                                    background: typeStyle.bg,
+                                    color: typeStyle.color,
+                                    border: `1px solid ${typeStyle.border}`,
+                                  }}
+                                >
+                                  {record.type}
+                                </span>
+                                {isTaskOverdue && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                      background: "#fef2f2",
+                                      color: "#991b1b",
+                                      border: "1px solid #fecaca",
+                                    }}
+                                  >
+                                    Overdue
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        },
+                      },
+                      {
+                        title: "Assignee",
+                        key: "assignees",
+                        render: (_, record) => {
+                          const names =
+                            record.assignees && record.assignees.length > 0
+                              ? record.assignees.map((a: any) => a.name)
+                              : record.assignee
+                                ? [record.assignee.name]
+                                : [];
+
+                          if (names.length === 0 || !names[0])
+                            return (
+                              <Text type="secondary" style={{ fontStyle: "italic", fontSize: 12 }}>
+                                Unassigned
+                              </Text>
+                            );
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Avatar
+                                size={22}
+                                style={{
+                                  backgroundColor: "#00897b",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {names[0].charAt(0).toUpperCase()}
+                              </Avatar>
+                              <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>
+                                {names.join(", ")}
+                              </span>
+                            </div>
+                          );
+                        },
+                      },
+                      {
+                        title: "Sprint",
+                        dataIndex: ["sprint", "name"],
+                        key: "sprint",
+                        render: (name) => {
+                          const sprintName = name || "Backlog";
+                          const isBacklog = sprintName.toLowerCase() === "backlog";
+                          return (
+                            <Tag
+                              style={{
+                                margin: 0,
+                                borderRadius: 12,
+                                fontSize: 11,
+                                fontWeight: 500,
+                                background: isBacklog ? "#f1f5f9" : "#eff6ff",
+                                color: isBacklog ? "#475569" : "#1d4ed8",
+                                border: `1px solid ${isBacklog ? "#cbd5e1" : "#bfdbfe"}`,
+                              }}
+                            >
+                              {sprintName}
+                            </Tag>
+                          );
+                        },
+                      },
+                      {
+                        title: "Priority",
+                        dataIndex: "priority",
+                        key: "priority",
+                        render: (p: string = "Medium") => {
+                          const pStyle = getWorkItemPriorityStyle(p);
+                          return (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "2px 8px",
+                                borderRadius: 12,
+                                background: pStyle.bg,
+                                color: pStyle.color,
+                                border: `1px solid ${pStyle.border}`,
+                              }}
+                            >
+                              {p}
+                            </span>
+                          );
+                        },
+                      },
+                      {
+                        title: "Status",
+                        dataIndex: "status",
+                        key: "status",
+                        render: (s: string = "Backlog") => {
+                          const sStyle = getWorkItemStatusStyle(s);
+                          return (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "2px 8px",
+                                borderRadius: 12,
+                                background: sStyle.bg,
+                                color: sStyle.color,
+                                border: `1px solid ${sStyle.border}`,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 5,
+                                  height: 5,
+                                  borderRadius: "50%",
+                                  background: sStyle.dot,
+                                }}
+                              />
+                              {s}
+                            </span>
+                          );
+                        },
+                      },
+                      {
+                        title: "Progress",
+                        dataIndex: "progress",
+                        key: "progress",
+                        width: 130,
+                        render: (p) => (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Progress
+                              percent={p || 0}
+                              showInfo={false}
+                              strokeColor={p === 100 ? "#10b981" : "#00897b"}
+                              size="small"
+                              style={{ flex: 1, margin: 0 }}
                             />
-                            <Select
-                              value={workFilterStatus}
-                              onChange={setWorkFilterStatus}
-                              style={{ width: 130 }}
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: p === 100 ? "#16a34a" : "#00897b",
+                                minWidth: 26,
+                                textAlign: "right",
+                              }}
                             >
-                              <Select.Option value="All">All Statuses</Select.Option>
-                              {[
-                                "Backlog",
-                                "To Do",
-                                "In Progress",
-                                "Blocked",
-                                "In Review",
-                                "Testing",
-                                "Done",
-                                "Cancelled",
-                              ].map((s) => (
-                                <Select.Option key={s} value={s}>
-                                  {s}
-                                </Select.Option>
-                              ))}
-                            </Select>
-                            <Select
-                              value={workFilterAssignee}
-                              onChange={setWorkFilterAssignee}
-                              style={{ width: 150 }}
-                              placeholder="Assignee"
+                              {p || 0}%
+                            </span>
+                          </div>
+                        ),
+                      },
+                      {
+                        title: "Due Date",
+                        dataIndex: "dueDate",
+                        key: "dueDate",
+                        render: (d, record: any) => {
+                          if (!d)
+                            return (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                —
+                              </Text>
+                            );
+                          const isTaskOverdue =
+                            dayjs(d).isBefore(dayjs(), "day") &&
+                            record.status !== "Done" &&
+                            record.status !== "Cancelled";
+                          return (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 5,
+                                fontSize: 12,
+                                color: isTaskOverdue ? "#b91c1c" : "#475569",
+                                fontWeight: isTaskOverdue ? 600 : 400,
+                              }}
                             >
-                              <Select.Option value="All">All Assignees</Select.Option>
-                              {users.map((u) => (
-                                <Select.Option key={u._id} value={u._id}>
-                                  {u.name}
-                                </Select.Option>
-                              ))}
-                            </Select>
-                            <Select
-                              value={workFilterSprint}
-                              onChange={setWorkFilterSprint}
-                              style={{ width: 130 }}
-                              placeholder="Sprint"
-                            >
-                              <Select.Option value="All">All Sprints</Select.Option>
-                              {sprints.map((s) => (
-                                <Select.Option key={s._id} value={s._id}>
-                                  {s.name}
-                                </Select.Option>
-                              ))}
-                            </Select>
-                            <Select
-                              value={workFilterPriority}
-                              onChange={setWorkFilterPriority}
-                              style={{ width: 120 }}
-                              placeholder="Priority"
-                            >
-                              <Select.Option value="All">All Priorities</Select.Option>
-                              {["Low", "Medium", "High", "Urgent"].map((p) => (
-                                <Select.Option key={p} value={p}>
-                                  {p}
-                                </Select.Option>
-                              ))}
-                            </Select>
-                            <Checkbox
-                              checked={workFilterOverdue}
-                              onChange={(e) => setWorkFilterOverdue(e.target.checked)}
-                            >
-                              <span style={{ fontSize: 13, color: "#475569" }}>Show Overdue</span>
-                            </Checkbox>
-                            {(workSearchQuery ||
-                              workFilterStatus !== "All" ||
-                              workFilterAssignee !== "All" ||
-                              workFilterSprint !== "All" ||
-                              workFilterPriority !== "All" ||
-                              workFilterOverdue) && (
+                              <CalendarIcon
+                                size={12}
+                                style={{ color: isTaskOverdue ? "#b91c1c" : "#94a3b8" }}
+                              />
+                              <span>{dayjs(d).format("DD MMM YYYY")}</span>
+                            </div>
+                          );
+                        },
+                      },
+                      {
+                        title: "Actions",
+                        key: "actions",
+                        width: 110,
+                        render: (_: any, record: any) => (
+                          <Space size={6}>
+                            {isProjectEditor ? (
+                              <Button
+                                size="small"
+                                icon={<Edit3 size={12} />}
+                                onClick={() => openEditWorkItem(record)}
+                                style={{
+                                  color: "#00897b",
+                                  borderColor: "#00897b",
+                                  fontWeight: 500,
+                                  borderRadius: 5,
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            ) : (
                               <Button
                                 size="small"
                                 type="text"
                                 onClick={() => {
-                                  setWorkSearchQuery("");
-                                  setWorkFilterStatus("All");
-                                  setWorkFilterAssignee("All");
-                                  setWorkFilterSprint("All");
-                                  setWorkFilterPriority("All");
-                                  setWorkFilterOverdue(false);
+                                  setSelectedWorkItem(record);
+                                  setWorkItemDetailOpen(true);
                                 }}
-                                style={{ color: "#00897b", fontSize: 12 }}
+                                style={{ color: "#64748b", fontSize: 12 }}
                               >
-                                Reset Filters
+                                View
                               </Button>
                             )}
+                            {isProjectLead && (
+                              <Popconfirm
+                                title="Delete this task?"
+                                description="Are you sure you want to delete this work item?"
+                                onConfirm={() => handleDeleteWorkItem(record._id)}
+                                okText="Yes"
+                                cancelText="No"
+                              >
+                                <Button
+                                  size="small"
+                                  danger
+                                  icon={<Trash2 size={12} />}
+                                  style={{ borderRadius: 5 }}
+                                />
+                              </Popconfirm>
+                            )}
                           </Space>
-
-                          <Space>
-                            <Button
-                              type="primary"
-                              icon={<Plus size={14} />}
-                              onClick={() => setIsWorkItemModalOpen(true)}
-                              style={{
-                                backgroundColor: "#00897b",
-                                borderColor: "#00897b",
-                                borderRadius: 6,
-                                fontWeight: 500,
-                              }}
-                            >
-                              Create Work Item
-                            </Button>
-                          </Space>
-                        </div>
-
-                        <Table
-                          dataSource={filteredWorkItems}
-                          rowKey="_id"
-                          pagination={{ defaultPageSize: 15, showSizeChanger: true }}
-                          columns={[
-                            {
-                              title: "Title",
-                              dataIndex: "title",
-                              key: "title",
-                              render: (text, record: any) => {
-                                const typeStyle = getWorkItemTypeStyle(record.type);
-                                const isTaskOverdue =
-                                  record.dueDate &&
-                                  dayjs(record.dueDate).isBefore(dayjs(), "day") &&
-                                  record.status !== "Done" &&
-                                  record.status !== "Cancelled";
-
-                                return (
-                                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                    <a
-                                      onClick={() => {
-                                        setSelectedWorkItem(record);
-                                        setWorkItemDetailOpen(true);
-                                      }}
-                                      style={{
-                                        fontWeight: 600,
-                                        color: "#0f172a",
-                                        fontSize: 13,
-                                        transition: "color 0.2s",
-                                      }}
-                                      className="hover:text-teal-700"
-                                    >
-                                      {text}
-                                    </a>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                      <span
-                                        style={{
-                                          fontSize: 10,
-                                          fontWeight: 600,
-                                          padding: "1px 6px",
-                                          borderRadius: 4,
-                                          background: typeStyle.bg,
-                                          color: typeStyle.color,
-                                          border: `1px solid ${typeStyle.border}`,
-                                        }}
-                                      >
-                                        {record.type}
-                                      </span>
-                                      {isTaskOverdue && (
-                                        <span
-                                          style={{
-                                            fontSize: 10,
-                                            fontWeight: 600,
-                                            padding: "1px 6px",
-                                            borderRadius: 4,
-                                            background: "#fef2f2",
-                                            color: "#991b1b",
-                                            border: "1px solid #fecaca",
-                                          }}
-                                        >
-                                          Overdue
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              },
-                            },
-                            {
-                              title: "Assignee",
-                              key: "assignees",
-                              render: (_, record) => {
-                                const names =
-                                  record.assignees && record.assignees.length > 0
-                                    ? record.assignees.map((a: any) => a.name)
-                                    : record.assignee
-                                      ? [record.assignee.name]
-                                      : [];
-
-                                if (names.length === 0 || !names[0])
-                                  return (
-                                    <Text
-                                      type="secondary"
-                                      style={{ fontStyle: "italic", fontSize: 12 }}
-                                    >
-                                      Unassigned
-                                    </Text>
-                                  );
-                                return (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <Avatar
-                                      size={22}
-                                      style={{
-                                        backgroundColor: "#00897b",
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      {names[0].charAt(0).toUpperCase()}
-                                    </Avatar>
-                                    <span
-                                      style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}
-                                    >
-                                      {names.join(", ")}
-                                    </span>
-                                  </div>
-                                );
-                              },
-                            },
-                            {
-                              title: "Sprint",
-                              dataIndex: ["sprint", "name"],
-                              key: "sprint",
-                              render: (name) => {
-                                const sprintName = name || "Backlog";
-                                const isBacklog = sprintName.toLowerCase() === "backlog";
-                                return (
-                                  <Tag
-                                    style={{
-                                      margin: 0,
-                                      borderRadius: 12,
-                                      fontSize: 11,
-                                      fontWeight: 500,
-                                      background: isBacklog ? "#f1f5f9" : "#eff6ff",
-                                      color: isBacklog ? "#475569" : "#1d4ed8",
-                                      border: `1px solid ${isBacklog ? "#cbd5e1" : "#bfdbfe"}`,
-                                    }}
-                                  >
-                                    {sprintName}
-                                  </Tag>
-                                );
-                              },
-                            },
-                            {
-                              title: "Priority",
-                              dataIndex: "priority",
-                              key: "priority",
-                              render: (p: string = "Medium") => {
-                                const pStyle = getWorkItemPriorityStyle(p);
-                                return (
-                                  <span
-                                    style={{
-                                      display: "inline-block",
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      padding: "2px 8px",
-                                      borderRadius: 12,
-                                      background: pStyle.bg,
-                                      color: pStyle.color,
-                                      border: `1px solid ${pStyle.border}`,
-                                    }}
-                                  >
-                                    {p}
-                                  </span>
-                                );
-                              },
-                            },
-                            {
-                              title: "Status",
-                              dataIndex: "status",
-                              key: "status",
-                              render: (s: string = "Backlog") => {
-                                const sStyle = getWorkItemStatusStyle(s);
-                                return (
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 5,
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      padding: "2px 8px",
-                                      borderRadius: 12,
-                                      background: sStyle.bg,
-                                      color: sStyle.color,
-                                      border: `1px solid ${sStyle.border}`,
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        width: 5,
-                                        height: 5,
-                                        borderRadius: "50%",
-                                        background: sStyle.dot,
-                                      }}
-                                    />
-                                    {s}
-                                  </span>
-                                );
-                              },
-                            },
-                            {
-                              title: "Progress",
-                              dataIndex: "progress",
-                              key: "progress",
-                              width: 130,
-                              render: (p) => (
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <Progress
-                                    percent={p || 0}
-                                    showInfo={false}
-                                    strokeColor={p === 100 ? "#10b981" : "#00897b"}
-                                    size="small"
-                                    style={{ flex: 1, margin: 0 }}
-                                  />
-                                  <span
-                                    style={{
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      color: p === 100 ? "#16a34a" : "#00897b",
-                                      minWidth: 26,
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {p || 0}%
-                                  </span>
-                                </div>
-                              ),
-                            },
-                            {
-                              title: "Due Date",
-                              dataIndex: "dueDate",
-                              key: "dueDate",
-                              render: (d, record: any) => {
-                                if (!d)
-                                  return (
-                                    <Text type="secondary" style={{ fontSize: 12 }}>
-                                      —
-                                    </Text>
-                                  );
-                                const isTaskOverdue =
-                                  dayjs(d).isBefore(dayjs(), "day") &&
-                                  record.status !== "Done" &&
-                                  record.status !== "Cancelled";
-                                return (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 5,
-                                      fontSize: 12,
-                                      color: isTaskOverdue ? "#b91c1c" : "#475569",
-                                      fontWeight: isTaskOverdue ? 600 : 400,
-                                    }}
-                                  >
-                                    <CalendarIcon
-                                      size={12}
-                                      style={{ color: isTaskOverdue ? "#b91c1c" : "#94a3b8" }}
-                                    />
-                                    <span>{dayjs(d).format("DD MMM YYYY")}</span>
-                                  </div>
-                                );
-                              },
-                            },
-                            {
-                              title: "Actions",
-                              key: "actions",
-                              width: 110,
-                              render: (_: any, record: any) => (
-                                <Space size={6}>
-                                  <Button
-                                    size="small"
-                                    icon={<Edit3 size={12} />}
-                                    onClick={() => openEditWorkItem(record)}
-                                    style={{
-                                      color: "#00897b",
-                                      borderColor: "#00897b",
-                                      fontWeight: 500,
-                                      borderRadius: 5,
-                                    }}
-                                  >
-                                    Edit
-                                  </Button>
-                                  {isProjectLead && (
-                                    <Popconfirm
-                                      title="Delete this task?"
-                                      description="Are you sure you want to delete this work item?"
-                                      onConfirm={() => handleDeleteWorkItem(record._id)}
-                                      okText="Yes"
-                                      cancelText="No"
-                                    >
-                                      <Button
-                                        size="small"
-                                        danger
-                                        icon={<Trash2 size={12} />}
-                                        style={{ borderRadius: 5 }}
-                                      />
-                                    </Popconfirm>
-                                  )}
-                                </Space>
-                              ),
-                            },
-                          ]}
-                        />
-                      </div>
-                    ),
-                  },
-                ]
-              : []),
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+              ),
+            },
             {
               key: "todo-progress",
               label: (
@@ -3579,505 +3673,537 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 </div>
               ),
             },
-            {
-              key: "chat",
-              label: (
-                <Space size={6}>
-                  <MessageSquare size={14} />
-                  <span>Project Chat</span>
-                  <Badge count="Live" style={{ backgroundColor: "#25D366", fontSize: 10 }} />
-                </Space>
-              ),
-              children: (
-                <div style={{ padding: "12px 0" }}>
-                  <Row gutter={[20, 20]}>
-                    {/* WhatsApp Messages Board */}
-                    <Col xs={24} lg={18}>
-                      <Card
-                        size="small"
-                        styles={{ body: { padding: 0 } }}
-                        style={{
-                          borderRadius: 12,
-                          overflow: "hidden",
-                          border: "1px solid #dcdad5",
-                          boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-                        }}
-                      >
-                        {/* WhatsApp Chat Header */}
-                        <div
-                          style={{
-                            padding: "10px 16px",
-                            backgroundColor: "#075e54",
-                            color: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <Space size={10}>
-                            <Avatar style={{ backgroundColor: "#128c7e", color: "#fff" }}>
-                              {project.title ? project.title.charAt(0).toUpperCase() : "P"}
-                            </Avatar>
-                            <div>
-                              <Text
-                                strong
-                                style={{ color: "#fff", fontSize: 14, display: "block" }}
-                              >
-                                {project.title} - Team Chat
-                              </Text>
-                              <span style={{ fontSize: 11, color: "#d1fae5" }}>
-                                ● Live realtime updates &bull; {projectTeamMembers.length} members
-                              </span>
-                            </div>
-                          </Space>
-                          <Tag
-                            color="#128c7e"
-                            style={{ border: "none", color: "#fff", fontSize: 11 }}
-                          >
-                            Real-time
-                          </Tag>
-                        </div>
-
-                        {/* WhatsApp Messages Scrollable Area */}
-                        <div
-                          ref={chatContainerRef}
-                          style={{
-                            height: 440,
-                            overflowY: "auto",
-                            padding: "16px 20px",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 10,
-                            backgroundColor: "#efeae2",
-                            backgroundImage: "radial-gradient(#e0d9cf 1px, transparent 1px)",
-                            backgroundSize: "16px 16px",
-                          }}
-                        >
-                          {chatMessages.length === 0 ? (
-                            <div style={{ textAlign: "center", marginTop: 120 }}>
+            ...(isProjectEditor
+              ? [
+                  {
+                    key: "chat",
+                    label: (
+                      <Space size={6}>
+                        <MessageSquare size={14} />
+                        <span>Project Chat</span>
+                        <Badge count="Live" style={{ backgroundColor: "#25D366", fontSize: 10 }} />
+                      </Space>
+                    ),
+                    children: (
+                      <div style={{ padding: "12px 0" }}>
+                        <Row gutter={[20, 20]}>
+                          {/* WhatsApp Messages Board */}
+                          <Col xs={24} lg={18}>
+                            <Card
+                              size="small"
+                              styles={{ body: { padding: 0 } }}
+                              style={{
+                                borderRadius: 12,
+                                overflow: "hidden",
+                                border: "1px solid #dcdad5",
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                              }}
+                            >
+                              {/* WhatsApp Chat Header */}
                               <div
                                 style={{
-                                  display: "inline-block",
-                                  padding: "10px 18px",
-                                  backgroundColor: "#fff",
-                                  borderRadius: 16,
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                                  padding: "10px 16px",
+                                  backgroundColor: "#075e54",
+                                  color: "#fff",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
                                 }}
                               >
-                                <MessageSquare
-                                  size={24}
-                                  color="#075e54"
-                                  style={{ margin: "0 auto 6px" }}
-                                />
-                                <Text style={{ fontSize: 12, color: "#555", display: "block" }}>
-                                  No messages in this project yet.
-                                </Text>
-                                <Text type="secondary" style={{ fontSize: 11 }}>
-                                  Start chatting with your team or share project files!
-                                </Text>
-                              </div>
-                            </div>
-                          ) : (
-                            chatMessages.map((msg) => {
-                              const isMe =
-                                String(msg.senderId?._id || msg.senderId) === String(currentUserId);
-                              const senderName = msg.senderId?.name || "Team Member";
-                              const senderRole = msg.senderId?.role || "Member";
-                              const isLead =
-                                String(msg.senderId?._id || msg.senderId) === String(techOwnerId);
-
-                              // Collect all attachments (both schema array and legacy single attachment)
-                              const allAttachments = [...(msg.attachments || [])];
-                              if (
-                                msg.attachment?.url &&
-                                !allAttachments.some((a) => a.path === msg.attachment.url)
-                              ) {
-                                allAttachments.push({
-                                  name: msg.attachment.name || "Attachment",
-                                  path: msg.attachment.url,
-                                  mimeType: "application/octet-stream",
-                                  size: 0,
-                                });
-                              }
-
-                              return (
-                                <div
-                                  key={msg._id}
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignSelf: isMe ? "flex-end" : "flex-start",
-                                    maxWidth: "80%",
-                                    minWidth: "160px",
-                                  }}
+                                <Space size={10}>
+                                  <Avatar style={{ backgroundColor: "#128c7e", color: "#fff" }}>
+                                    {project.title ? project.title.charAt(0).toUpperCase() : "P"}
+                                  </Avatar>
+                                  <div>
+                                    <Text
+                                      strong
+                                      style={{ color: "#fff", fontSize: 14, display: "block" }}
+                                    >
+                                      {project.title} - Team Chat
+                                    </Text>
+                                    <span style={{ fontSize: 11, color: "#d1fae5" }}>
+                                      ● Live realtime updates &bull; {projectTeamMembers.length}{" "}
+                                      members
+                                    </span>
+                                  </div>
+                                </Space>
+                                <Tag
+                                  color="#128c7e"
+                                  style={{ border: "none", color: "#fff", fontSize: 11 }}
                                 >
-                                  <div
-                                    style={{
-                                      backgroundColor: isMe ? "#d9fdd3" : "#ffffff",
-                                      border: isMe ? "1px solid #c7f0bf" : "1px solid #e9edef",
-                                      borderRadius: isMe
-                                        ? "12px 12px 2px 12px"
-                                        : "12px 12px 12px 2px",
-                                      padding: "8px 12px",
-                                      boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                                    }}
-                                  >
-                                    {/* Sender info (for incoming messages) */}
-                                    {!isMe && (
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 6,
-                                          marginBottom: 4,
-                                        }}
-                                      >
-                                        <Text strong style={{ fontSize: 12, color: "#075e54" }}>
-                                          {senderName}
-                                        </Text>
-                                        <Tag
-                                          color={
-                                            isLead
-                                              ? "gold"
-                                              : senderRole === "TECH_TEAM" ||
-                                                  senderRole === "TECH_MANAGER"
-                                                ? "blue"
-                                                : "default"
-                                          }
-                                          style={{ fontSize: 9, margin: 0, lineHeight: "14px" }}
-                                        >
-                                          {isLead ? "Project Manager" : senderRole}
-                                        </Tag>
-                                      </div>
-                                    )}
+                                  Real-time
+                                </Tag>
+                              </div>
 
-                                    {/* Text Message Content */}
-                                    {msg.message && (
-                                      <div
-                                        style={{
-                                          fontSize: 13,
-                                          color: "#111b21",
-                                          whiteSpace: "pre-wrap",
-                                          wordBreak: "break-word",
-                                          lineHeight: "18px",
-                                        }}
+                              {/* WhatsApp Messages Scrollable Area */}
+                              <div
+                                ref={chatContainerRef}
+                                style={{
+                                  height: 440,
+                                  overflowY: "auto",
+                                  padding: "16px 20px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 10,
+                                  backgroundColor: "#efeae2",
+                                  backgroundImage: "radial-gradient(#e0d9cf 1px, transparent 1px)",
+                                  backgroundSize: "16px 16px",
+                                }}
+                              >
+                                {chatMessages.length === 0 ? (
+                                  <div style={{ textAlign: "center", marginTop: 120 }}>
+                                    <div
+                                      style={{
+                                        display: "inline-block",
+                                        padding: "10px 18px",
+                                        backgroundColor: "#fff",
+                                        borderRadius: 16,
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                                      }}
+                                    >
+                                      <MessageSquare
+                                        size={24}
+                                        color="#075e54"
+                                        style={{ margin: "0 auto 6px" }}
+                                      />
+                                      <Text
+                                        style={{ fontSize: 12, color: "#555", display: "block" }}
                                       >
-                                        {msg.message}
-                                      </div>
-                                    )}
+                                        No messages in this project yet.
+                                      </Text>
+                                      <Text type="secondary" style={{ fontSize: 11 }}>
+                                        Start chatting with your team or share project files!
+                                      </Text>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  chatMessages.map((msg) => {
+                                    const isMe =
+                                      String(msg.senderId?._id || msg.senderId) ===
+                                      String(currentUserId);
+                                    const senderName = msg.senderId?.name || "Team Member";
+                                    const senderRole = msg.senderId?.role || "Member";
+                                    const isLead =
+                                      String(msg.senderId?._id || msg.senderId) ===
+                                      String(techOwnerId);
 
-                                    {/* Mentions */}
-                                    {msg.mentions && msg.mentions.length > 0 && (
-                                      <div
-                                        style={{
-                                          marginTop: 4,
-                                          display: "flex",
-                                          flexWrap: "wrap",
-                                          gap: 4,
-                                        }}
-                                      >
-                                        {msg.mentions.map((m: any) => {
-                                          const isSysAdmin =
-                                            m.role === "SYSTEM_ADMIN" || m.role === "ADMIN";
-                                          return (
-                                            <Tag
-                                              key={m._id}
-                                              color={isSysAdmin ? "purple" : "cyan"}
-                                              style={{ fontSize: 10, margin: 0, fontWeight: 500 }}
-                                            >
-                                              @{m.name} {isSysAdmin ? "(Admin)" : ""}
-                                            </Tag>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                                    // Collect all attachments (both schema array and legacy single attachment)
+                                    const allAttachments = [...(msg.attachments || [])];
+                                    if (
+                                      msg.attachment?.url &&
+                                      !allAttachments.some((a) => a.path === msg.attachment.url)
+                                    ) {
+                                      allAttachments.push({
+                                        name: msg.attachment.name || "Attachment",
+                                        path: msg.attachment.url,
+                                        mimeType: "application/octet-stream",
+                                        size: 0,
+                                      });
+                                    }
 
-                                    {/* Attachments & Documents */}
-                                    {allAttachments.length > 0 && (
+                                    return (
                                       <div
+                                        key={msg._id}
                                         style={{
-                                          marginTop: 6,
                                           display: "flex",
                                           flexDirection: "column",
-                                          gap: 6,
+                                          alignSelf: isMe ? "flex-end" : "flex-start",
+                                          maxWidth: "80%",
+                                          minWidth: "160px",
                                         }}
                                       >
-                                        {allAttachments.map((att: any, idx: number) => {
-                                          const isImg =
-                                            att.mimeType?.startsWith("image/") ||
-                                            /\.(jpg|jpeg|png|gif|webp)$/i.test(
-                                              att.name || att.path
-                                            );
-                                          if (isImg) {
-                                            return (
-                                              <div
-                                                key={idx}
-                                                style={{
-                                                  borderRadius: 6,
-                                                  overflow: "hidden",
-                                                  cursor: "pointer",
-                                                }}
-                                                onClick={() => window.open(att.path, "_blank")}
-                                              >
-                                                <img
-                                                  src={att.path}
-                                                  alt={att.name}
-                                                  style={{
-                                                    maxWidth: "100%",
-                                                    maxHeight: 200,
-                                                    objectFit: "cover",
-                                                    display: "block",
-                                                    borderRadius: 6,
-                                                  }}
-                                                />
-                                                <div
-                                                  style={{
-                                                    fontSize: 10,
-                                                    color: "#666",
-                                                    marginTop: 2,
-                                                  }}
-                                                >
-                                                  {att.name}
-                                                </div>
-                                              </div>
-                                            );
-                                          }
-
-                                          return (
+                                        <div
+                                          style={{
+                                            backgroundColor: isMe ? "#d9fdd3" : "#ffffff",
+                                            border: isMe
+                                              ? "1px solid #c7f0bf"
+                                              : "1px solid #e9edef",
+                                            borderRadius: isMe
+                                              ? "12px 12px 2px 12px"
+                                              : "12px 12px 12px 2px",
+                                            padding: "8px 12px",
+                                            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                          }}
+                                        >
+                                          {/* Sender info (for incoming messages) */}
+                                          {!isMe && (
                                             <div
-                                              key={idx}
-                                              onClick={() => window.open(att.path, "_blank")}
                                               style={{
                                                 display: "flex",
                                                 alignItems: "center",
-                                                gap: 8,
-                                                padding: "6px 10px",
-                                                backgroundColor: isMe ? "#cbf0c2" : "#f4f6f8",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                border: "1px solid rgba(0,0,0,0.06)",
+                                                gap: 6,
+                                                marginBottom: 4,
                                               }}
                                             >
-                                              <FileText size={20} color="#075e54" />
-                                              <div style={{ flex: 1, minWidth: 0 }}>
-                                                <Text
-                                                  strong
-                                                  ellipsis
-                                                  style={{ fontSize: 12, display: "block" }}
-                                                >
-                                                  {att.name}
-                                                </Text>
-                                                <Text type="secondary" style={{ fontSize: 10 }}>
-                                                  {att.size
-                                                    ? `${(att.size / 1024).toFixed(0)} KB`
-                                                    : "Document"}{" "}
-                                                  &bull; Click to download
-                                                </Text>
-                                              </div>
-                                              <Download size={14} color="#555" />
+                                              <Text
+                                                strong
+                                                style={{ fontSize: 12, color: "#075e54" }}
+                                              >
+                                                {senderName}
+                                              </Text>
+                                              <Tag
+                                                color={
+                                                  isLead
+                                                    ? "gold"
+                                                    : senderRole === "TECH_TEAM" ||
+                                                        senderRole === "TECH_MANAGER"
+                                                      ? "blue"
+                                                      : "default"
+                                                }
+                                                style={{
+                                                  fontSize: 9,
+                                                  margin: 0,
+                                                  lineHeight: "14px",
+                                                }}
+                                              >
+                                                {isLead ? "Project Manager" : senderRole}
+                                              </Tag>
                                             </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                                          )}
 
-                                    {/* Timestamp & Status */}
+                                          {/* Text Message Content */}
+                                          {msg.message && (
+                                            <div
+                                              style={{
+                                                fontSize: 13,
+                                                color: "#111b21",
+                                                whiteSpace: "pre-wrap",
+                                                wordBreak: "break-word",
+                                                lineHeight: "18px",
+                                              }}
+                                            >
+                                              {msg.message}
+                                            </div>
+                                          )}
+
+                                          {/* Mentions */}
+                                          {msg.mentions && msg.mentions.length > 0 && (
+                                            <div
+                                              style={{
+                                                marginTop: 4,
+                                                display: "flex",
+                                                flexWrap: "wrap",
+                                                gap: 4,
+                                              }}
+                                            >
+                                              {msg.mentions.map((m: any) => {
+                                                const isSysAdmin =
+                                                  m.role === "SYSTEM_ADMIN" || m.role === "ADMIN";
+                                                return (
+                                                  <Tag
+                                                    key={m._id}
+                                                    color={isSysAdmin ? "purple" : "cyan"}
+                                                    style={{
+                                                      fontSize: 10,
+                                                      margin: 0,
+                                                      fontWeight: 500,
+                                                    }}
+                                                  >
+                                                    @{m.name} {isSysAdmin ? "(Admin)" : ""}
+                                                  </Tag>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+
+                                          {/* Attachments & Documents */}
+                                          {allAttachments.length > 0 && (
+                                            <div
+                                              style={{
+                                                marginTop: 6,
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: 6,
+                                              }}
+                                            >
+                                              {allAttachments.map((att: any, idx: number) => {
+                                                const isImg =
+                                                  att.mimeType?.startsWith("image/") ||
+                                                  /\.(jpg|jpeg|png|gif|webp)$/i.test(
+                                                    att.name || att.path
+                                                  );
+                                                if (isImg) {
+                                                  return (
+                                                    <div
+                                                      key={idx}
+                                                      style={{
+                                                        borderRadius: 6,
+                                                        overflow: "hidden",
+                                                        cursor: "pointer",
+                                                      }}
+                                                      onClick={() =>
+                                                        window.open(att.path, "_blank")
+                                                      }
+                                                    >
+                                                      <img
+                                                        src={att.path}
+                                                        alt={att.name}
+                                                        style={{
+                                                          maxWidth: "100%",
+                                                          maxHeight: 200,
+                                                          objectFit: "cover",
+                                                          display: "block",
+                                                          borderRadius: 6,
+                                                        }}
+                                                      />
+                                                      <div
+                                                        style={{
+                                                          fontSize: 10,
+                                                          color: "#666",
+                                                          marginTop: 2,
+                                                        }}
+                                                      >
+                                                        {att.name}
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                }
+
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    onClick={() => window.open(att.path, "_blank")}
+                                                    style={{
+                                                      display: "flex",
+                                                      alignItems: "center",
+                                                      gap: 8,
+                                                      padding: "6px 10px",
+                                                      backgroundColor: isMe ? "#cbf0c2" : "#f4f6f8",
+                                                      borderRadius: 6,
+                                                      cursor: "pointer",
+                                                      border: "1px solid rgba(0,0,0,0.06)",
+                                                    }}
+                                                  >
+                                                    <FileText size={20} color="#075e54" />
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                      <Text
+                                                        strong
+                                                        ellipsis
+                                                        style={{ fontSize: 12, display: "block" }}
+                                                      >
+                                                        {att.name}
+                                                      </Text>
+                                                      <Text
+                                                        type="secondary"
+                                                        style={{ fontSize: 10 }}
+                                                      >
+                                                        {att.size
+                                                          ? `${(att.size / 1024).toFixed(0)} KB`
+                                                          : "Document"}{" "}
+                                                        &bull; Click to download
+                                                      </Text>
+                                                    </div>
+                                                    <Download size={14} color="#555" />
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+
+                                          {/* Timestamp & Status */}
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              justifyContent: "flex-end",
+                                              alignItems: "center",
+                                              gap: 2,
+                                              marginTop: 4,
+                                            }}
+                                          >
+                                            <span style={{ fontSize: 10, color: "#667781" }}>
+                                              {dayjs(msg.createdAt).format("h:mm A")}
+                                            </span>
+                                            {isMe && (
+                                              <CheckCheck
+                                                size={13}
+                                                color="#53bdeb"
+                                                style={{ marginLeft: 2 }}
+                                              />
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                                <div ref={chatBottomRef} />
+                              </div>
+
+                              {/* WhatsApp Input Panel */}
+                              <div
+                                style={{
+                                  padding: "10px 14px",
+                                  borderTop: "1px solid #e0e0e0",
+                                  backgroundColor: "#f0f2f5",
+                                }}
+                              >
+                                <form onSubmit={handleSendChatMessage}>
+                                  <Row gutter={8} align="middle">
+                                    <Col flex="36px">
+                                      <Upload
+                                        customRequest={handleChatFileUpload}
+                                        showUploadList={false}
+                                        disabled={chatUploading}
+                                      >
+                                        <Button
+                                          shape="circle"
+                                          icon={<Paperclip size={16} />}
+                                          loading={chatUploading}
+                                          title="Attach document or file"
+                                        />
+                                      </Upload>
+                                    </Col>
+                                    <Col flex="auto">
+                                      <Input
+                                        placeholder="Type a message or press Enter to send..."
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        style={{ borderRadius: 20, padding: "6px 16px" }}
+                                      />
+                                    </Col>
+                                    <Col flex="180px">
+                                      <Select
+                                        mode="multiple"
+                                        style={{ width: "100%" }}
+                                        placeholder="@mention admin/team"
+                                        maxTagCount={1}
+                                        value={chatMentions}
+                                        onChange={setChatMentions}
+                                        options={chatMentionOptions}
+                                        optionFilterProp="label"
+                                      />
+                                    </Col>
+                                    <Col flex="40px">
+                                      <Button
+                                        type="primary"
+                                        shape="circle"
+                                        htmlType="submit"
+                                        icon={<Send size={16} />}
+                                        style={{
+                                          backgroundColor: "#075e54",
+                                          borderColor: "#075e54",
+                                        }}
+                                      />
+                                    </Col>
+                                  </Row>
+
+                                  {/* Chat file attachment staged pill */}
+                                  {chatFile && (
                                     <div
                                       style={{
-                                        display: "flex",
-                                        justifyContent: "flex-end",
+                                        marginTop: 8,
+                                        display: "inline-flex",
                                         alignItems: "center",
-                                        gap: 2,
-                                        marginTop: 4,
+                                        gap: 8,
+                                        backgroundColor: "#e8f5e9",
+                                        padding: "4px 10px",
+                                        borderRadius: 16,
+                                        border: "1px solid #c8e6c9",
                                       }}
                                     >
-                                      <span style={{ fontSize: 10, color: "#667781" }}>
-                                        {dayjs(msg.createdAt).format("h:mm A")}
-                                      </span>
-                                      {isMe && (
-                                        <CheckCheck
-                                          size={13}
-                                          color="#53bdeb"
-                                          style={{ marginLeft: 2 }}
-                                        />
-                                      )}
+                                      <Paperclip size={12} color="#2e7d32" />
+                                      <Text style={{ fontSize: 11, color: "#2e7d32" }}>
+                                        Ready to share: <strong>{chatFile.name}</strong>
+                                      </Text>
+                                      <Button
+                                        size="small"
+                                        type="link"
+                                        danger
+                                        onClick={() => setChatFile(null)}
+                                        style={{ padding: 0 }}
+                                      >
+                                        Remove
+                                      </Button>
                                     </div>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                          <div ref={chatBottomRef} />
-                        </div>
-
-                        {/* WhatsApp Input Panel */}
-                        <div
-                          style={{
-                            padding: "10px 14px",
-                            borderTop: "1px solid #e0e0e0",
-                            backgroundColor: "#f0f2f5",
-                          }}
-                        >
-                          <form onSubmit={handleSendChatMessage}>
-                            <Row gutter={8} align="middle">
-                              <Col flex="36px">
-                                <Upload
-                                  customRequest={handleChatFileUpload}
-                                  showUploadList={false}
-                                  disabled={chatUploading}
-                                >
-                                  <Button
-                                    shape="circle"
-                                    icon={<Paperclip size={16} />}
-                                    loading={chatUploading}
-                                    title="Attach document or file"
-                                  />
-                                </Upload>
-                              </Col>
-                              <Col flex="auto">
-                                <Input
-                                  placeholder="Type a message or press Enter to send..."
-                                  value={chatInput}
-                                  onChange={(e) => setChatInput(e.target.value)}
-                                  style={{ borderRadius: 20, padding: "6px 16px" }}
-                                />
-                              </Col>
-                              <Col flex="180px">
-                                <Select
-                                  mode="multiple"
-                                  style={{ width: "100%" }}
-                                  placeholder="@mention admin/team"
-                                  maxTagCount={1}
-                                  value={chatMentions}
-                                  onChange={setChatMentions}
-                                  options={chatMentionOptions}
-                                  optionFilterProp="label"
-                                />
-                              </Col>
-                              <Col flex="40px">
-                                <Button
-                                  type="primary"
-                                  shape="circle"
-                                  htmlType="submit"
-                                  icon={<Send size={16} />}
-                                  style={{ backgroundColor: "#075e54", borderColor: "#075e54" }}
-                                />
-                              </Col>
-                            </Row>
-
-                            {/* Chat file attachment staged pill */}
-                            {chatFile && (
-                              <div
-                                style={{
-                                  marginTop: 8,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  backgroundColor: "#e8f5e9",
-                                  padding: "4px 10px",
-                                  borderRadius: 16,
-                                  border: "1px solid #c8e6c9",
-                                }}
-                              >
-                                <Paperclip size={12} color="#2e7d32" />
-                                <Text style={{ fontSize: 11, color: "#2e7d32" }}>
-                                  Ready to share: <strong>{chatFile.name}</strong>
-                                </Text>
-                                <Button
-                                  size="small"
-                                  type="link"
-                                  danger
-                                  onClick={() => setChatFile(null)}
-                                  style={{ padding: 0 }}
-                                >
-                                  Remove
-                                </Button>
+                                  )}
+                                </form>
                               </div>
-                            )}
-                          </form>
-                        </div>
-                      </Card>
-                    </Col>
+                            </Card>
+                          </Col>
 
-                    {/* Right Column: Project Members & Roles */}
-                    <Col xs={24} lg={6}>
-                      <Card
-                        size="small"
-                        title="Project Team"
-                        style={{ borderRadius: 12, border: "1px solid #e8e8e8" }}
-                        extra={
-                          currentUser?.role === "SYSTEM_ADMIN" ? (
-                            <Button
-                              type="link"
+                          {/* Right Column: Project Members & Roles */}
+                          <Col xs={24} lg={6}>
+                            <Card
                               size="small"
-                              onClick={openTeamModal}
-                              style={{ padding: 0, color: "#00897b", fontWeight: 600 }}
+                              title="Project Team"
+                              style={{ borderRadius: 12, border: "1px solid #e8e8e8" }}
+                              extra={
+                                currentUser?.role === "SYSTEM_ADMIN" ? (
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    onClick={openTeamModal}
+                                    style={{ padding: 0, color: "#00897b", fontWeight: 600 }}
+                                  >
+                                    Manage
+                                  </Button>
+                                ) : null
+                              }
                             >
-                              Manage
-                            </Button>
-                          ) : null
-                        }
-                      >
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          {[
-                            {
-                              name: project.techOwner?.name,
-                              role: "Project Manager",
-                              email: project.techOwner?.email,
-                              isLead: true,
-                            },
-                            ...(project.techTeamMembers?.map((m: any) => ({
-                              name: m.name,
-                              role: m.role || "Developer",
-                              email: m.email,
-                              isLead: false,
-                            })) || []),
-                            {
-                              name: project.createdBy?.name,
-                              role: "Sales Owner",
-                              email: project.createdBy?.email,
-                              isLead: false,
-                            },
-                          ]
-                            .filter((member) => member.name)
-                            .map((item, idx, arr) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "12px",
-                                  padding: "8px 0",
-                                  borderBottom:
-                                    idx === arr.length - 1 ? "none" : "1px solid #f0f0f0",
-                                }}
-                              >
-                                <Avatar
-                                  icon={<UserIcon size={12} />}
-                                  style={{ backgroundColor: item.isLead ? "#f59e0b" : "#00897b" }}
-                                />
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <Text strong style={{ fontSize: 12 }}>
-                                    {item.name}
-                                  </Text>
-                                  <div>
-                                    <Tag
-                                      color={item.isLead ? "gold" : "blue"}
-                                      style={{ fontSize: 9, margin: 0 }}
+                              <div style={{ display: "flex", flexDirection: "column" }}>
+                                {[
+                                  {
+                                    name: project.techOwner?.name,
+                                    role: "Project Manager",
+                                    email: project.techOwner?.email,
+                                    isLead: true,
+                                  },
+                                  ...(project.techTeamMembers?.map((m: any) => ({
+                                    name: m.name,
+                                    role: m.role || "Developer",
+                                    email: m.email,
+                                    isLead: false,
+                                  })) || []),
+                                  {
+                                    name: project.createdBy?.name,
+                                    role: "Sales Owner",
+                                    email: project.createdBy?.email,
+                                    isLead: false,
+                                  },
+                                ]
+                                  .filter((member) => member.name)
+                                  .map((item, idx, arr) => (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "12px",
+                                        padding: "8px 0",
+                                        borderBottom:
+                                          idx === arr.length - 1 ? "none" : "1px solid #f0f0f0",
+                                      }}
                                     >
-                                      {item.role}
-                                    </Tag>
-                                  </div>
-                                </div>
+                                      <Avatar
+                                        icon={<UserIcon size={12} />}
+                                        style={{
+                                          backgroundColor: item.isLead ? "#f59e0b" : "#00897b",
+                                        }}
+                                      />
+                                      <div style={{ display: "flex", flexDirection: "column" }}>
+                                        <Text strong style={{ fontSize: 12 }}>
+                                          {item.name}
+                                        </Text>
+                                        <div>
+                                          <Tag
+                                            color={item.isLead ? "gold" : "blue"}
+                                            style={{ fontSize: 9, margin: 0 }}
+                                          >
+                                            {item.role}
+                                          </Tag>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                               </div>
-                            ))}
-                        </div>
-                      </Card>
-                    </Col>
-                  </Row>
-                </div>
-              ),
-            },
+                            </Card>
+                          </Col>
+                        </Row>
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
             {
               key: "calendar",
               label: (
@@ -4696,205 +4822,155 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   )}
                 </Space>
               ),
-              children: (
-                <div style={{ padding: "12px 0" }}>
-                  {/* Drive Header Bar & Breadcrumbs */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 12,
-                      marginBottom: 16,
-                      padding: "12px 16px",
-                      backgroundColor: "#f8fafc",
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                    }}
-                  >
-                    {/* Breadcrumb path */}
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
-                    >
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<HardDrive size={15} color="#00897b" />}
-                        onClick={() => setCurrentFolder("/")}
-                        style={{ fontWeight: currentFolder === "/" ? 700 : 400, color: "#00897b" }}
-                      >
-                        Drive Root
-                      </Button>
-                      {currentFolder !== "/" &&
-                        (() => {
-                          const segments = currentFolder.split("/").filter(Boolean);
-                          let accumulated = "";
-                          return segments.map((seg, idx) => {
-                            accumulated += "/" + seg;
-                            const thisPath = accumulated;
-                            const isLast = idx === segments.length - 1;
-                            return (
-                              <React.Fragment key={thisPath}>
-                                <ChevronRight size={14} color="#94a3b8" />
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  onClick={() => setCurrentFolder(thisPath)}
-                                  style={{
-                                    fontWeight: isLast ? 700 : 400,
-                                    color: isLast ? "#1e293b" : "#64748b",
-                                    padding: "0 4px",
-                                  }}
-                                >
-                                  <Folder
-                                    size={14}
-                                    color="#f59e0b"
-                                    style={{
-                                      display: "inline-block",
-                                      verticalAlign: "middle",
-                                      marginRight: 4,
-                                    }}
-                                  />
-                                  {seg}
-                                </Button>
-                              </React.Fragment>
-                            );
-                          });
-                        })()}
-                    </div>
+              children: (() => {
+                const folders = attachments.filter((a: any) => a.isFolder);
+                const files = attachments.filter((a: any) => !a.isFolder);
 
-                    {/* Drive Action Buttons */}
-                    <Space size={8} wrap>
-                      {currentFolder !== "/" && (
+                return (
+                  <div style={{ padding: "12px 0" }}>
+                    {/* Drive Header Bar & Breadcrumbs */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        marginBottom: 16,
+                        padding: "12px 16px",
+                        backgroundColor: "#f8fafc",
+                        borderRadius: 10,
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      {/* Breadcrumb path */}
+                      <div
+                        style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+                      >
                         <Button
+                          type="text"
                           size="small"
-                          icon={<ArrowUp size={13} />}
-                          onClick={() => {
-                            const lastSlash = currentFolder.lastIndexOf("/");
-                            const parent =
-                              lastSlash <= 0 ? "/" : currentFolder.substring(0, lastSlash);
-                            setCurrentFolder(parent);
+                          icon={<HardDrive size={15} color="#00897b" />}
+                          onClick={() => setCurrentFolder("/")}
+                          style={{
+                            fontWeight: currentFolder === "/" ? 700 : 400,
+                            color: "#00897b",
                           }}
                         >
-                          Up One Level
+                          Drive Root
                         </Button>
-                      )}
-                      <Button
-                        size="small"
-                        icon={<FolderPlus size={14} />}
-                        onClick={() => setIsFolderModalOpen(true)}
-                      >
-                        New Folder
-                      </Button>
-                      <Upload
-                        customRequest={handleDriveFileUpload}
-                        showUploadList={false}
-                        disabled={driveUploading}
-                      >
-                        <Button
-                          type="primary"
-                          size="small"
-                          icon={<Plus size={14} />}
-                          loading={driveUploading}
-                          style={{ backgroundColor: "#00897b", border: "none" }}
-                        >
-                          Upload to this Folder
-                        </Button>
-                      </Upload>
-                    </Space>
-                  </div>
-
-                  {/* Folders Section */}
-                  {(() => {
-                    const folders = attachments.filter((a: any) => a.isFolder);
-                    const files = attachments.filter((a: any) => !a.isFolder);
-
-                    return (
-                      <div>
-                        {folders.length > 0 && (
-                          <div style={{ marginBottom: 20 }}>
-                            <Text
-                              type="secondary"
-                              style={{
-                                fontSize: 12,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                                fontWeight: 600,
-                                display: "block",
-                                marginBottom: 10,
-                              }}
-                            >
-                              Folders ({folders.length})
-                            </Text>
-                            <Row gutter={[12, 12]}>
-                              {folders.map((f: any) => (
-                                <Col xs={24} sm={12} md={8} lg={6} key={f._id}>
-                                  <div
+                        {currentFolder !== "/" &&
+                          (() => {
+                            const segments = currentFolder.split("/").filter(Boolean);
+                            let accumulated = "";
+                            return segments.map((seg, idx) => {
+                              accumulated += "/" + seg;
+                              const thisPath = accumulated;
+                              const isLast = idx === segments.length - 1;
+                              return (
+                                <React.Fragment key={thisPath}>
+                                  <ChevronRight size={14} color="#94a3b8" />
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    onClick={() => setCurrentFolder(thisPath)}
                                     style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "space-between",
-                                      padding: "10px 14px",
-                                      backgroundColor: "#fff",
-                                      border: "1px solid #e2e8f0",
-                                      borderRadius: 8,
-                                      cursor: "pointer",
-                                      transition: "all 0.2s ease",
-                                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                                    }}
-                                    onClick={() => {
-                                      const nextPath =
-                                        currentFolder === "/"
-                                          ? `/${f.originalName}`
-                                          : `${currentFolder}/${f.originalName}`;
-                                      setCurrentFolder(nextPath);
+                                      fontWeight: isLast ? 700 : 400,
+                                      color: isLast ? "#1e293b" : "#64748b",
+                                      padding: "0 4px",
                                     }}
                                   >
-                                    <Space size={10} style={{ minWidth: 0, flex: 1 }}>
-                                      <Folder
-                                        size={22}
-                                        color="#f59e0b"
-                                        fill="#fef3c7"
-                                        style={{ flexShrink: 0 }}
-                                      />
-                                      <Text
-                                        strong
-                                        ellipsis
-                                        style={{ fontSize: 13, color: "#1e293b" }}
-                                      >
-                                        {f.originalName}
-                                      </Text>
-                                    </Space>
-                                    <Popconfirm
-                                      title="Delete Folder"
-                                      description="Delete this folder and all contents inside?"
-                                      onConfirm={(e) => {
-                                        e?.stopPropagation();
-                                        handleDeleteAttachment(f._id);
+                                    <Folder
+                                      size={14}
+                                      color="#f59e0b"
+                                      style={{
+                                        display: "inline-block",
+                                        verticalAlign: "middle",
+                                        marginRight: 4,
                                       }}
-                                      onCancel={(e) => e?.stopPropagation()}
-                                      okText="Delete"
-                                      cancelText="Cancel"
-                                    >
-                                      <Button
-                                        type="text"
-                                        size="small"
-                                        danger
-                                        icon={<Trash2 size={13} />}
-                                        onClick={(e) => e.stopPropagation()}
-                                        style={{ padding: "0 4px" }}
-                                      />
-                                    </Popconfirm>
-                                  </div>
-                                </Col>
-                              ))}
-                            </Row>
-                          </div>
-                        )}
+                                    />
+                                    {seg}
+                                  </Button>
+                                </React.Fragment>
+                              );
+                            });
+                          })()}
+                      </div>
 
-                        {/* Files Table Section */}
-                        <div>
+                      {/* Drive Action Buttons */}
+                      <Space size={8} wrap>
+                        {currentFolder !== "/" && (
+                          <Button
+                            size="small"
+                            icon={<ArrowUp size={13} />}
+                            onClick={() => {
+                              const lastSlash = currentFolder.lastIndexOf("/");
+                              const parent =
+                                lastSlash <= 0 ? "/" : currentFolder.substring(0, lastSlash);
+                              setCurrentFolder(parent);
+                            }}
+                          >
+                            Up One Level
+                          </Button>
+                        )}
+                        {files.length > 0 && (
+                          <>
+                            <Button
+                              size="small"
+                              icon={<Download size={13} />}
+                              disabled={selectedDriveRowKeys.length === 0}
+                              onClick={() => handleBulkDownload(false)}
+                              style={{
+                                borderColor:
+                                  selectedDriveRowKeys.length > 0 ? "#00897b" : undefined,
+                                color: selectedDriveRowKeys.length > 0 ? "#00897b" : undefined,
+                                fontWeight: 500,
+                              }}
+                            >
+                              Download Selected ({selectedDriveRowKeys.length})
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<Download size={13} />}
+                              onClick={() => handleBulkDownload(true)}
+                            >
+                              Download All ({files.length})
+                            </Button>
+                          </>
+                        )}
+                        {isProjectEditor && (
+                          <>
+                            <Button
+                              size="small"
+                              icon={<FolderPlus size={14} />}
+                              onClick={() => setIsFolderModalOpen(true)}
+                            >
+                              New Folder
+                            </Button>
+                            <Upload
+                              customRequest={handleDriveFileUpload}
+                              showUploadList={false}
+                              disabled={driveUploading}
+                            >
+                              <Button
+                                type="primary"
+                                size="small"
+                                icon={<Plus size={14} />}
+                                loading={driveUploading}
+                                style={{ backgroundColor: "#00897b", border: "none" }}
+                              >
+                                Upload to this Folder
+                              </Button>
+                            </Upload>
+                          </>
+                        )}
+                      </Space>
+                    </div>
+
+                    {/* Folders Section */}
+                    <div>
+                      {folders.length > 0 && (
+                        <div style={{ marginBottom: 20 }}>
                           <Text
                             type="secondary"
                             style={{
@@ -4906,112 +4982,191 @@ function ProjectDetailsClient({ id }: { id: string }) {
                               marginBottom: 10,
                             }}
                           >
-                            Files in {currentFolder === "/" ? "Root" : currentFolder} (
-                            {files.length})
+                            Folders ({folders.length})
                           </Text>
-                          {files.length === 0 && folders.length === 0 ? (
-                            <div
-                              style={{
-                                textAlign: "center",
-                                padding: "40px 0",
-                                backgroundColor: "#fff",
-                                borderRadius: 8,
-                                border: "1px dashed #d9d9d9",
-                              }}
-                            >
-                              <HardDrive
-                                size={36}
-                                color="#cbd5e1"
-                                style={{ margin: "0 auto 8px" }}
-                              />
-                              <Paragraph style={{ color: "#64748b", margin: 0 }}>
-                                This folder is empty.
-                              </Paragraph>
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                Create a subfolder or upload documents above.
-                              </Text>
-                            </div>
-                          ) : (
-                            <Table
-                              dataSource={files}
-                              rowKey="_id"
-                              size="small"
-                              pagination={{ defaultPageSize: 10, showSizeChanger: true }}
-                              columns={[
-                                {
-                                  title: "File Name",
-                                  dataIndex: "originalName",
-                                  key: "originalName",
-                                  render: (name: string, record: any) => (
-                                    <Space size={8}>
-                                      {record.mimeType?.includes("pdf") ? (
-                                        <FilePdfOutlined
-                                          style={{ color: "#ef4444", fontSize: 16 }}
-                                        />
-                                      ) : (
-                                        <FileText size={16} color="#00897b" />
-                                      )}
-                                      <Text strong style={{ fontSize: 13 }}>
-                                        {name}
-                                      </Text>
-                                    </Space>
-                                  ),
+                          <Row gutter={[12, 12]}>
+                            {folders.map((f: any) => (
+                              <Col xs={24} sm={12} md={8} lg={6} key={f._id}>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "10px 14px",
+                                    backgroundColor: "#fff",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 8,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                                  }}
+                                  onClick={() => {
+                                    const nextPath =
+                                      currentFolder === "/"
+                                        ? `/${f.originalName}`
+                                        : `${currentFolder}/${f.originalName}`;
+                                    setCurrentFolder(nextPath);
+                                  }}
+                                >
+                                  <Space size={10} style={{ minWidth: 0, flex: 1 }}>
+                                    <Folder
+                                      size={22}
+                                      color="#f59e0b"
+                                      fill="#fef3c7"
+                                      style={{ flexShrink: 0 }}
+                                    />
+                                    <Text
+                                      strong
+                                      ellipsis
+                                      style={{ fontSize: 13, color: "#1e293b" }}
+                                    >
+                                      {f.originalName}
+                                    </Text>
+                                  </Space>
+                                  <Popconfirm
+                                    title="Delete Folder"
+                                    description="Delete this folder and all contents inside?"
+                                    onConfirm={(e) => {
+                                      e?.stopPropagation();
+                                      handleDeleteAttachment(f._id);
+                                    }}
+                                    onCancel={(e) => e?.stopPropagation()}
+                                    okText="Delete"
+                                    cancelText="Cancel"
+                                  >
+                                    <Button
+                                      type="text"
+                                      size="small"
+                                      danger
+                                      icon={<Trash2 size={13} />}
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{ padding: "0 4px" }}
+                                    />
+                                  </Popconfirm>
+                                </div>
+                              </Col>
+                            ))}
+                          </Row>
+                        </div>
+                      )}
+
+                      {/* Files Table Section */}
+                      <div>
+                        <Text
+                          type="secondary"
+                          style={{
+                            fontSize: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            fontWeight: 600,
+                            display: "block",
+                            marginBottom: 10,
+                          }}
+                        >
+                          Files in {currentFolder === "/" ? "Root" : currentFolder} ({files.length})
+                        </Text>
+                        {files.length === 0 && folders.length === 0 ? (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "40px 0",
+                              backgroundColor: "#fff",
+                              borderRadius: 8,
+                              border: "1px dashed #d9d9d9",
+                            }}
+                          >
+                            <HardDrive size={36} color="#cbd5e1" style={{ margin: "0 auto 8px" }} />
+                            <Paragraph style={{ color: "#64748b", margin: 0 }}>
+                              This folder is empty.
+                            </Paragraph>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Create a subfolder or upload documents above.
+                            </Text>
+                          </div>
+                        ) : (
+                          <Table
+                            rowSelection={{
+                              selectedRowKeys: selectedDriveRowKeys,
+                              onChange: (keys) => setSelectedDriveRowKeys(keys),
+                            }}
+                            dataSource={files}
+                            rowKey="_id"
+                            size="small"
+                            pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+                            columns={[
+                              {
+                                title: "File Name",
+                                dataIndex: "originalName",
+                                key: "originalName",
+                                render: (name: string, record: any) => (
+                                  <Space size={8}>
+                                    {record.mimeType?.includes("pdf") ? (
+                                      <FilePdfOutlined style={{ color: "#ef4444", fontSize: 16 }} />
+                                    ) : (
+                                      <FileText size={16} color="#00897b" />
+                                    )}
+                                    <Text strong style={{ fontSize: 13 }}>
+                                      {name}
+                                    </Text>
+                                  </Space>
+                                ),
+                              },
+                              {
+                                title: "Size",
+                                dataIndex: "size",
+                                key: "size",
+                                width: 110,
+                                render: (bytes: number) => {
+                                  if (!bytes) return "0 KB";
+                                  return bytes > 1024 * 1024
+                                    ? `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+                                    : `${(bytes / 1024).toFixed(1)} KB`;
                                 },
-                                {
-                                  title: "Size",
-                                  dataIndex: "size",
-                                  key: "size",
-                                  width: 110,
-                                  render: (bytes: number) => {
-                                    if (!bytes) return "0 KB";
-                                    return bytes > 1024 * 1024
-                                      ? `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-                                      : `${(bytes / 1024).toFixed(1)} KB`;
-                                  },
-                                },
-                                {
-                                  title: "Uploaded By",
-                                  dataIndex: ["uploadedBy", "name"],
-                                  key: "uploadedBy",
-                                  width: 160,
-                                  render: (name: string, record: any) => (
+                              },
+                              {
+                                title: "Uploaded By",
+                                dataIndex: ["uploadedBy", "name"],
+                                key: "uploadedBy",
+                                width: 160,
+                                render: (name: string, record: any) => (
+                                  <Space size={6}>
+                                    <Avatar size="small" icon={<UserIcon size={12} />} />
+                                    <Text style={{ fontSize: 12 }}>{name || "User"}</Text>
+                                  </Space>
+                                ),
+                              },
+                              {
+                                title: "Upload Date",
+                                dataIndex: "createdAt",
+                                key: "createdAt",
+                                width: 170,
+                                render: (d: string) => dayjs(d).format("DD MMM YYYY h:mm A"),
+                              },
+                              {
+                                title: "Actions",
+                                key: "actions",
+                                width: 150,
+                                render: (_: any, record: any) => {
+                                  const downloadUrl = `/api/projects/${id}/attachments/${record._id}`;
+                                  return (
                                     <Space size={6}>
-                                      <Avatar size="small" icon={<UserIcon size={12} />} />
-                                      <Text style={{ fontSize: 12 }}>{name || "User"}</Text>
-                                    </Space>
-                                  ),
-                                },
-                                {
-                                  title: "Upload Date",
-                                  dataIndex: "createdAt",
-                                  key: "createdAt",
-                                  width: 170,
-                                  render: (d: string) => dayjs(d).format("DD MMM YYYY h:mm A"),
-                                },
-                                {
-                                  title: "Actions",
-                                  key: "actions",
-                                  width: 150,
-                                  render: (_: any, record: any) => {
-                                    const downloadUrl = `/api/projects/${id}/attachments/${record._id}`;
-                                    return (
-                                      <Space size={6}>
-                                        <Button
-                                          size="small"
-                                          icon={<EyeOutlined />}
-                                          onClick={() => {
-                                            setPreviewUrl(`${downloadUrl}?inline=true`);
-                                            setPreviewFilename(record.originalName);
-                                            setPreviewOpen(true);
-                                          }}
-                                        />
-                                        <Button
-                                          size="small"
-                                          icon={<Download size={12} />}
-                                          onClick={() => window.open(downloadUrl, "_blank")}
-                                        >
-                                          Download
-                                        </Button>
+                                      <Button
+                                        size="small"
+                                        icon={<EyeOutlined />}
+                                        onClick={() => {
+                                          setPreviewUrl(`${downloadUrl}?inline=true`);
+                                          setPreviewFilename(record.originalName);
+                                          setPreviewOpen(true);
+                                        }}
+                                      />
+                                      <Button
+                                        size="small"
+                                        icon={<Download size={12} />}
+                                        onClick={() => window.open(downloadUrl, "_blank")}
+                                      >
+                                        Download
+                                      </Button>
+                                      {isProjectEditor && (
                                         <Popconfirm
                                           title="Delete File"
                                           description="Are you sure you want to delete this file?"
@@ -5021,19 +5176,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                         >
                                           <Button size="small" danger icon={<Trash2 size={12} />} />
                                         </Popconfirm>
-                                      </Space>
-                                    );
-                                  },
+                                      )}
+                                    </Space>
+                                  );
                                 },
-                              ]}
-                            />
-                          )}
-                        </div>
+                              },
+                            ]}
+                          />
+                        )}
                       </div>
-                    );
-                  })()}
-                </div>
-              ),
+                    </div>
+                  </div>
+                );
+              })(),
             },
             ...(isProjectLead
               ? [
@@ -6155,6 +6310,20 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
+              <Form.Item name="productOwner" label="Product Owner">
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Assign Product Owner"
+                  options={users.map((u: any) => ({
+                    label: `${u.name} (${u.role})`,
+                    value: String(u._id || u.id),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
               <Form.Item name="techTeamMembers" label="Assigned Members">
                 <Select
                   mode="multiple"
@@ -6649,7 +6818,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 <Form.Item name="type" label="Task Type" rules={[{ required: true }]}>
                   <Select
                     size="middle"
-                    options={["Task", "Feature", "Bug", "Chore"].map((t) => ({
+                    options={["Task", "Feature", "Chore"].map((t) => ({
                       label: t,
                       value: t,
                     }))}
@@ -6757,7 +6926,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 <Form.Item name="type" label="* Type" rules={[{ required: true }]}>
                   <Select
                     size="large"
-                    options={["Task", "Feature", "Bug", "Chore"].map((t) => ({
+                    options={["Task", "Feature", "Chore"].map((t) => ({
                       label: t,
                       value: t,
                     }))}
@@ -6888,7 +7057,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
               >
                 <Select
                   size="middle"
-                  options={["Task", "Feature", "Bug", "Chore"].map((t) => ({ label: t, value: t }))}
+                  options={["Task", "Feature", "Chore"].map((t) => ({ label: t, value: t }))}
                 />
               </Form.Item>
             </Col>

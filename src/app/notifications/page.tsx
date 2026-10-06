@@ -41,11 +41,9 @@ export default function NotificationsPage() {
         body: JSON.stringify({ notificationId: id }),
       });
       if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n._id === id ? { ...n, read: true } : n))
-        );
+        setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
         if (projectId) {
-          router.push(`/projects/${projectId}`);
+          router.push(`/projects/${projectId}?tab=chat`);
         }
       }
     } catch (err) {
@@ -92,14 +90,23 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", paddingBottom: 50 }}>
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          marginBottom: 24,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <div>
-          <Title level={3} style={{ margin: 0 }}>All Notifications</Title>
+          <Title level={3} style={{ margin: 0 }}>
+            All Notifications
+          </Title>
           <Text type="secondary">View and manage your alerts and timeline updates.</Text>
         </div>
-        <Button 
-          type="primary" 
-          onClick={handleMarkAllAsRead} 
+        <Button
+          type="primary"
+          onClick={handleMarkAllAsRead}
           disabled={unreadCount === 0}
           style={{ backgroundColor: "#00897b", border: "none" }}
         >
@@ -107,7 +114,10 @@ export default function NotificationsPage() {
         </Button>
       </div>
 
-      <Card variant="borderless" style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+      <Card
+        variant="borderless"
+        style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
+      >
         <List
           loading={loading}
           dataSource={notifications}
@@ -124,27 +134,29 @@ export default function NotificationsPage() {
                 marginBottom: 8,
               }}
               actions={[
-                <Button 
-                  type="text" 
-                  icon={<ArrowRight size={16} />} 
+                <Button
+                  type="text"
+                  icon={<ArrowRight size={16} />}
                   onClick={() => handleMarkAsRead(item._id, item.projectId)}
                 >
                   View Project
-                </Button>
+                </Button>,
               ]}
             >
               <List.Item.Meta
                 avatar={
                   <Badge dot={!item.read}>
-                    <div style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: "50%",
-                      backgroundColor: item.read ? "#f5f5f5" : "#e6f7ff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        backgroundColor: item.read ? "#f5f5f5" : "#e6f7ff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
                       <Bell size={18} color={item.read ? "#8c8c8c" : "#1890ff"} />
                     </div>
                   </Badge>

@@ -15,6 +15,7 @@ export interface IUser extends Document {
   location?: string;
   profilePhoto?: string;
   bio?: string;
+  pinnedProjects?: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,6 +96,12 @@ const UserSchema: Schema = new Schema(
       default: "",
       trim: true,
     },
+    pinnedProjects: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Project",
+      },
+    ],
   },
   {
     timestamps: true,

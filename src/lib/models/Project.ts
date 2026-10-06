@@ -23,7 +23,7 @@ export const FEATURE_KEYS = [
   "onPremise",
 ] as const;
 
-export interface IFeatures extends Record<typeof FEATURE_KEYS[number], boolean> {}
+export interface IFeatures extends Record<(typeof FEATURE_KEYS)[number], boolean> {}
 
 export interface ITimeline {
   startDate: Date;
@@ -46,10 +46,11 @@ export interface IProject extends Document {
   timeline: ITimeline;
   status: string;
   createdBy: mongoose.Types.ObjectId;
-  
+
   // Tech Review
   feasibilityStatus: "Pending" | "Feasible" | "Not Feasible" | "Need Clarification";
   techOwner?: mongoose.Types.ObjectId;
+  productOwner?: mongoose.Types.ObjectId;
   techTeamMembers: mongoose.Types.ObjectId[];
   complexity: "Low" | "Medium" | "High" | "Very High";
   estimatedEffort: string;
@@ -60,7 +61,8 @@ export interface IProject extends Document {
   recommendedTechStack: string;
 
   // UAT
-  uatStatus: "Not Started" | "In Progress" | "Issues Found" | "Passed" | "Client Accepted" | "Rejected";
+  uatStatus:
+    "Not Started" | "In Progress" | "Issues Found" | "Passed" | "Client Accepted" | "Rejected";
 
   // Delivery & Signoff
   deliveredModules: string;
@@ -204,10 +206,16 @@ const ProjectSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
-    techTeamMembers: [{
+    productOwner: {
       type: Schema.Types.ObjectId,
       ref: "User",
-    }],
+    },
+    techTeamMembers: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     complexity: {
       type: String,
       enum: ["Low", "Medium", "High", "Very High"],
@@ -311,5 +319,4 @@ const ProjectSchema: Schema = new Schema(
 );
 
 export const Project: Model<IProject> =
-  mongoose.models.Project ||
-  mongoose.model<IProject>("Project", ProjectSchema);
+  mongoose.models.Project || mongoose.model<IProject>("Project", ProjectSchema);
