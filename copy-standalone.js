@@ -13,6 +13,9 @@ function copyDir(src, dest) {
     if (entry.isDirectory()) {
       copyDir(srcPath, destPath);
     } else {
+      if (fs.existsSync(destPath)) {
+        fs.rmSync(destPath, { force: true });
+      }
       fs.copyFileSync(srcPath, destPath);
     }
   }
@@ -36,7 +39,11 @@ const filesToCopy = [
 for (const file of filesToCopy) {
   const src = path.join(__dirname, file);
   if (fs.existsSync(src)) {
-    fs.copyFileSync(src, path.join(__dirname, ".next/standalone", file));
+    const dest = path.join(__dirname, ".next/standalone", file);
+    if (fs.existsSync(dest)) {
+      fs.rmSync(dest, { force: true });
+    }
+    fs.copyFileSync(src, dest);
   }
 }
 
