@@ -81,9 +81,7 @@ function NotificationDropdown() {
         setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
         setUnreadCount((c) => Math.max(0, c - 1));
         if (projectId) {
-          const isChat =
-            title?.toLowerCase().includes("chat") || title?.toLowerCase().includes("message");
-          router.push(`/projects/${projectId}${isChat ? "?tab=chat" : ""}`);
+          router.push(`/projects/${projectId}?tab=chat`);
         }
       }
     } catch (err) {
@@ -255,6 +253,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Branding colors from logo
   const logoTeal = "#00897b";
 
+  const isSuperAdmin = user?.role === "SYSTEM_ADMIN" || user?.role === "ADMIN";
+
   // Menu items for the sidebar based on user requirements
   const menuItems = [
     {
@@ -277,25 +277,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       icon: <User size={18} />,
       label: <Link href="/profile">My Profile</Link>,
     },
-    {
-      key: "/admin",
-      icon: <ShieldCheck size={18} />,
-      label: <Link href="/admin">User Management</Link>,
-    },
-    {
-      key: "/users",
-      icon: <Users size={18} />,
-      label: <Link href="/users">User Management</Link>,
-    },
-  ].filter((item) => {
-    if (item.key === "/admin") {
-      return user?.role === Role.SYSTEM_ADMIN;
-    }
-    if (item.key === "/users") {
-      return user?.role === Role.ADMIN;
-    }
-    return true;
-  });
+    ...(isSuperAdmin
+      ? [
+          {
+            key: "/admin",
+            icon: <Users size={18} />,
+            label: <Link href="/admin">User Management</Link>,
+          },
+        ]
+      : []),
+  ];
 
   // Breadcrumb generator mapping URL tokens naturally
   const pathSnippets = pathname.split("/").filter((i) => i);

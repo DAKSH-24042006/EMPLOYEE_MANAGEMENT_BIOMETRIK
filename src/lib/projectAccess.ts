@@ -6,30 +6,52 @@ import { Task } from "@/lib/models/Task";
 
 /**
  * Determines whether a user has permission to view a given project.
- * Projects can only be seen by:
- * 1. System Administrator (SYSTEM_ADMIN or ADMIN)
- * 2. Project Manager (techOwner)
- * 3. Users assigned to the project (techTeamMembers or assigned tasks/work items)
+ * As per company requirements: All employees and Project Managers can view all projects.
  */
 export async function canUserViewProject(
+  _projectOrId: string | mongoose.Types.ObjectId | IProject | any,
+  userId: string,
+  _userRole?: string
+): Promise<boolean> {
+  // All authenticated employees have visibility to view projects
+  return Boolean(userId);
+}
+
+/**
+ * Constructs a MongoDB query filter to fetch projects visible to the user.
+ * As per company requirements: All authenticated users can see all projects in lists.
+ */
+export async function getProjectViewFilter(
+  _userId: string,
+  _userRole?: string
+): Promise<mongoose.FilterQuery<IProject>> {
+  // All authenticated users can view all projects
+  return {};
+}
+
+/**
+ * Determines whether a user has permission to EDIT a given project or its items.
+ * Edit access is granted strictly to:
+ * 1. Super Admin (SYSTEM_ADMIN or ADMIN)
+ * 2. Project Manager designated for that project (techOwner)
+ * 3. Product Owner designated for that project (productOwner)
+ * 4. The team members working on that project (techTeamMembers or assigned tasks/work items)
+ */
+export async function canUserEditProject(
   projectOrId: string | mongoose.Types.ObjectId | IProject | any,
   userId: string,
   userRole?: string
 ): Promise<boolean> {
   if (!userId) return false;
 
-  // 1. System Admins have unrestricted access
-  if (
-    userRole === Role.SYSTEM_ADMIN ||
-    userRole === "SYSTEM_ADMIN" ||
-    userRole === "ADMIN"
-  ) {
+  // 1. Super Admins have unrestricted edit access
+  if (userRole === Role.SYSTEM_ADMIN || userRole === "SYSTEM_ADMIN" || userRole === "ADMIN") {
     return true;
   }
 
   let project: any = projectOrId;
   if (!project || typeof project === "string" || project instanceof mongoose.Types.ObjectId) {
-    project = await Project.findById(projectOrId).select("techOwner techTeamMembers");
+    project = await Project.findById(projectOrId).select("techOwner productOwner techTeamMembers");
     if (!project) return false;
   }
 
@@ -39,14 +61,25 @@ export async function canUserViewProject(
   const leadId = project.techOwner?._id
     ? String(project.techOwner._id)
     : project.techOwner
-    ? String(project.techOwner)
-    : null;
+      ? String(project.techOwner)
+      : null;
 
   if (leadId && leadId === strUserId) {
     return true;
   }
 
-  // 3. Assigned Team Members (techTeamMembers)
+  // 3. Product Owner (productOwner)
+  const poId = project.productOwner?._id
+    ? String(project.productOwner._id)
+    : project.productOwner
+      ? String(project.productOwner)
+      : null;
+
+  if (poId && poId === strUserId) {
+    return true;
+  }
+
+  // 4. Assigned Team Members (techTeamMembers)
   if (Array.isArray(project.techTeamMembers)) {
     const isMember = project.techTeamMembers.some((m: any) => {
       const mId = m?._id ? String(m._id) : String(m);
@@ -55,7 +88,7 @@ export async function canUserViewProject(
     if (isMember) return true;
   }
 
-  // 4. Assigned to a Work Item or Task within the project
+  // 5. Assigned to a Work Item or Task within the project
   const projectId = project._id || projectOrId;
   const userObjectId = mongoose.Types.ObjectId.isValid(userId)
     ? new mongoose.Types.ObjectId(userId)
@@ -67,56 +100,4 @@ export async function canUserViewProject(
   ]);
 
   return Boolean(hasWorkItem || hasTask);
-}
-
-/**
- * Constructs a MongoDB query filter to fetch only projects visible to the user:
- * - System Administrators receive `{}` (all projects).
- * - Other users receive a filter that matches where they are:
- *     a) Project Manager (techOwner)
- *     b) In Assigned Members (techTeamMembers)
- *     c) Assigned to a Work Item or Task in the project
- */
-export async function getProjectViewFilter(
-  userId: string,
-  userRole?: string
-): Promise<mongoose.FilterQuery<IProject>> {
-  // System Admins can view all projects
-  if (
-    userRole === Role.SYSTEM_ADMIN ||
-    userRole === "SYSTEM_ADMIN" ||
-    userRole === "ADMIN"
-  ) {
-    return {};
-  }
-
-  if (!userId) {
-    return { _id: null }; // Match nothing if user is unknown
-  }
-
-  const userObjectId = mongoose.Types.ObjectId.isValid(userId)
-    ? new mongoose.Types.ObjectId(userId)
-    : userId;
-
-  // Find projects where the user is assigned work items or tasks
-  const [workItemProjects, taskProjects] = await Promise.all([
-    WorkItem.find({ assignee: userObjectId }).distinct("projectId"),
-    Task.find({ assignedTo: userObjectId }).distinct("projectId"),
-  ]);
-
-  const assignedProjectIds = Array.from(
-    new Set([...workItemProjects.map(String), ...taskProjects.map(String)])
-  )
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
-
-  return {
-    $or: [
-      { techOwner: userObjectId },
-      { techTeamMembers: userObjectId },
-      ...(assignedProjectIds.length > 0
-        ? [{ _id: { $in: assignedProjectIds } }]
-        : []),
-    ],
-  };
 }

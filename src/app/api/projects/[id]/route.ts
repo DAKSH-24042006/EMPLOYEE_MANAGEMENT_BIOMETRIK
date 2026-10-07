@@ -10,7 +10,7 @@ import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { Role } from "@/lib/constants";
-import { canUserViewProject } from "@/lib/projectAccess";
+import { canUserViewProject, canUserEditProject } from "@/lib/projectAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const project = await Project.findById(id)
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
+      .populate("productOwner", "name email role phoneNumber")
       .populate("techTeamMembers", "name email role")
       .populate("internalApproval.approvedBy", "name email role")
       .populate("salesApproval.approvedBy", "name email role")
@@ -49,8 +50,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!canView) {
       return NextResponse.json(
         {
-          error:
-            "Forbidden: You do not have permission to view this project. Only assigned members, the Project Manager, or system administrators can access it.",
+          error: "Forbidden: You do not have permission to view this project.",
         },
         { status: 403 }
       );
@@ -86,22 +86,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const canView = await canUserViewProject(existingProject, userId, userRole);
-    if (!canView) {
+    const canEdit = await canUserEditProject(existingProject, userId, userRole);
+    if (!canEdit) {
       return NextResponse.json(
-        { error: "Forbidden: You do not have permission to access or modify this project." },
+        {
+          error:
+            "Forbidden: You do not have permission to edit this project. Only Super Admin, the designated Project Manager, or assigned team members can modify it.",
+        },
         { status: 403 }
       );
     }
 
     // --- Role-Based Access Control Checks ---
-    // STRICT SECURITY: Only SYSTEM_ADMIN can decide project manager (techOwner) and manage members (techTeamMembers)
+    // STRICT SECURITY: Only SYSTEM_ADMIN can decide project manager (techOwner), product owner (productOwner), and manage members (techTeamMembers)
     if (userRole !== Role.SYSTEM_ADMIN) {
       if (body.techOwner !== undefined) {
         return NextResponse.json(
           {
             error:
               "Forbidden: Only System Administrator has access to decide or change the Project Manager.",
+          },
+          { status: 403 }
+        );
+      }
+      if (body.productOwner !== undefined) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: Only System Administrator has access to decide or change the Product Owner.",
           },
           { status: 403 }
         );

@@ -15,6 +15,9 @@ import {
   Badge,
   Space,
   Button,
+  Select,
+  Tooltip,
+  Empty,
 } from "antd";
 import {
   ProjectOutlined,
@@ -24,6 +27,11 @@ import {
   CalendarOutlined,
   RightOutlined,
   AlertOutlined,
+  PushpinOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  CheckOutlined,
+  StarOutlined,
 } from "@ant-design/icons";
 import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer } from "recharts";
 import Link from "next/link";
@@ -104,6 +112,10 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<TaskType[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [pinnedProjects, setPinnedProjects] = useState<any[]>([]);
+  const [pinningLoading, setPinningLoading] = useState(false);
+  const [selectedProjectToPin, setSelectedProjectToPin] = useState<string | null>(null);
 
   const screens = useBreakpoint();
   const { message } = App.useApp();
@@ -113,11 +125,38 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Fetch current user
+      let loggedInUser: any = null;
+      const userRes = await fetch("/api/user/me", { cache: "no-store" });
+      if (userRes.ok) {
+        const userJson = await userRes.json();
+        loggedInUser = userJson.user || null;
+        setCurrentUser(loggedInUser);
+      }
+
       // Fetch Projects with live progress and metrics
+      let projectList: any[] = [];
       const projRes = await fetch("/api/projects", { cache: "no-store" });
       const projJson = await projRes.json();
       if (projRes.ok) {
-        setData(projJson.data || []);
+        projectList = projJson.data || [];
+        setData(projectList);
+      }
+
+      // Check if user is Super Admin or assigned as Project Manager (techOwner) on any project
+      const isSuperAdmin = loggedInUser?.role === "SYSTEM_ADMIN" || loggedInUser?.role === "ADMIN";
+      const isPM = projectList.some(
+        (p: any) =>
+          String(p.techOwner?._id || p.techOwner) === String(loggedInUser?._id || loggedInUser?.id)
+      );
+
+      // Fetch pinned projects for super admin or project manager
+      if (isSuperAdmin || isPM) {
+        const pinnedRes = await fetch("/api/user/pinned-projects", { cache: "no-store" });
+        if (pinnedRes.ok) {
+          const pinnedJson = await pinnedRes.json();
+          setPinnedProjects(pinnedJson.data || []);
+        }
       }
 
       // Fetch Today's Tasks
@@ -140,6 +179,57 @@ export default function DashboardPage() {
     }
   };
 
+  const handleAddPinnedProject = async (projectId: string) => {
+    if (!projectId) return;
+    setPinningLoading(true);
+    try {
+      const res = await fetch("/api/user/pinned-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        message.success("Project added to your priority shortcuts!");
+        setSelectedProjectToPin(null);
+        const pinnedRes = await fetch("/api/user/pinned-projects", { cache: "no-store" });
+        if (pinnedRes.ok) {
+          const pinnedJson = await pinnedRes.json();
+          setPinnedProjects(pinnedJson.data || []);
+        }
+      } else {
+        message.error(json.error || "Failed to add project shortcut");
+      }
+    } catch {
+      message.error("Failed to add project shortcut");
+    } finally {
+      setPinningLoading(false);
+    }
+  };
+
+  const handleRemovePinnedProject = async (projectId: string, isDone: boolean = false) => {
+    setPinningLoading(true);
+    try {
+      const res = await fetch(`/api/user/pinned-projects?projectId=${projectId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        message.success(
+          isDone
+            ? "Project marked as done and removed from shortcuts!"
+            : "Project removed from shortcuts"
+        );
+        setPinnedProjects((prev) => prev.filter((p) => String(p._id || p) !== String(projectId)));
+      } else {
+        message.error("Failed to remove project from shortcuts");
+      }
+    } catch {
+      message.error("Failed to remove project from shortcuts");
+    } finally {
+      setPinningLoading(false);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     fetchData();
@@ -149,6 +239,18 @@ export default function DashboardPage() {
   const isPending = (status: string) =>
     ["Pending", "Requirement Created", "Clarification Required"].includes(status);
   const isActive = (status: string) => !isCompleted(status);
+
+  const isSuperAdmin = currentUser?.role === "SYSTEM_ADMIN" || currentUser?.role === "ADMIN";
+
+  const isProjectManager = data.some(
+    (p: any) =>
+      String(p.techOwner?._id || p.techOwner) === String(currentUser?._id || currentUser?.id)
+  );
+
+  const isSuperAdminOrPM = isSuperAdmin || isProjectManager;
+
+  const pinnedIds = new Set(pinnedProjects.map((p: any) => String(p._id || p)));
+  const availableProjectsToPin = data.filter((p) => !pinnedIds.has(String(p._id)));
 
   const totalProjects = data.length;
   const activeProjects = data.filter((p) => isActive(p.status)).length;
@@ -353,6 +455,268 @@ export default function DashboardPage() {
 
       <Skeleton loading={loading} active paragraph={{ rows: 6 }} style={{ flex: 1 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Personal Priority Project Shortcuts for Super Admin & Project Managers */}
+          {isSuperAdminOrPM && (
+            <Card
+              variant="borderless"
+              style={{
+                borderRadius: 14,
+                border: "1px solid #e2e8f0",
+                background: "linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)",
+                boxShadow: "0 2px 10px rgba(0, 137, 123, 0.05)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  marginBottom: pinnedProjects.length > 0 ? 16 : 6,
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <PushpinOutlined style={{ color: "#00897b", fontSize: 18 }} />
+                    <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+                      My Priority Project Shortcuts
+                    </Title>
+                    <Tag color="cyan" style={{ borderRadius: 10, fontWeight: 600 }}>
+                      Quick Access ({pinnedProjects.length})
+                    </Tag>
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Pin critical projects here for instant one-click access. Click &quot;Done&quot;
+                    to remove anytime.
+                  </Text>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Select
+                    showSearch
+                    placeholder="Search project to pin to shortcuts..."
+                    loading={pinningLoading}
+                    value={selectedProjectToPin}
+                    onChange={(val) => {
+                      setSelectedProjectToPin(val);
+                      if (val) handleAddPinnedProject(val);
+                    }}
+                    filterOption={(input, option) =>
+                      String(option?.label ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    options={availableProjectsToPin.map((p) => ({
+                      label: `${p.title || p.clientDetails?.companyName || "Project"} (${p.status})`,
+                      value: p._id,
+                    }))}
+                    style={{ width: 280 }}
+                    allowClear
+                  />
+                </div>
+              </div>
+
+              {pinnedProjects.length === 0 ? (
+                <div
+                  style={{
+                    padding: "16px 20px",
+                    background: "#ffffff",
+                    borderRadius: 10,
+                    border: "1px dashed #cbd5e1",
+                    textAlign: "center",
+                  }}
+                >
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    No priority projects pinned yet. Use the search bar above to pin the projects
+                    you are currently monitoring.
+                  </Text>
+                </div>
+              ) : (
+                <Row gutter={[14, 14]}>
+                  {pinnedProjects.map((pinned: any) => {
+                    const pid = pinned._id || pinned;
+                    const fullProj = data.find((p) => p._id === pid) || pinned;
+                    const title =
+                      fullProj.title || fullProj.clientDetails?.companyName || "Project";
+                    const company = fullProj.clientDetails?.companyName;
+                    const status = fullProj.status || "Active";
+                    const progress = fullProj.progressPercent || 0;
+                    const statusColor = STATUS_COLOR_MAP[status] || "default";
+
+                    return (
+                      <Col xs={24} sm={12} md={8} lg={6} key={pid}>
+                        <div
+                          style={{
+                            background: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 12,
+                            padding: "14px 16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between",
+                            height: "100%",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                            transition: "all 0.2s ease",
+                            position: "relative",
+                          }}
+                          className="hover:shadow-md hover:border-teal-500"
+                        >
+                          <div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: 8,
+                                marginBottom: 6,
+                              }}
+                            >
+                              <Link
+                                href={`/projects/${pid}`}
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  color: "#0f172a",
+                                  lineHeight: 1.3,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                                className="hover:text-teal-700"
+                              >
+                                {title}
+                              </Link>
+                              <Tooltip title="Remove shortcut">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  danger
+                                  icon={<DeleteOutlined style={{ fontSize: 12 }} />}
+                                  onClick={() => handleRemovePinnedProject(pid, false)}
+                                  style={{ padding: "0 4px", height: 22 }}
+                                />
+                              </Tooltip>
+                            </div>
+
+                            {company && company !== title && (
+                              <Text
+                                type="secondary"
+                                style={{
+                                  fontSize: 12,
+                                  display: "block",
+                                  marginBottom: 8,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {company}
+                              </Text>
+                            )}
+
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                marginBottom: 10,
+                              }}
+                            >
+                              <Tag
+                                color={statusColor}
+                                style={{ margin: 0, borderRadius: 10, fontSize: 11 }}
+                              >
+                                {status}
+                              </Tag>
+                              {fullProj.openBlockersCount && fullProj.openBlockersCount > 0 ? (
+                                <Tag
+                                  color="error"
+                                  style={{ margin: 0, borderRadius: 10, fontSize: 11 }}
+                                >
+                                  {fullProj.openBlockersCount} Blocked
+                                </Tag>
+                              ) : null}
+                            </div>
+
+                            <div style={{ marginBottom: 12 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  fontSize: 11,
+                                  color: "#64748b",
+                                  marginBottom: 3,
+                                }}
+                              >
+                                <span>Progress</span>
+                                <span style={{ fontWeight: 600, color: "#00897b" }}>
+                                  {progress}%
+                                </span>
+                              </div>
+                              <Progress
+                                percent={progress}
+                                size="small"
+                                showInfo={false}
+                                strokeColor={progress === 100 ? "#10b981" : "#00897b"}
+                                style={{ margin: 0 }}
+                              />
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                              paddingTop: 10,
+                              borderTop: "1px solid #f1f5f9",
+                            }}
+                          >
+                            <Link href={`/projects/${pid}`} style={{ flex: 1 }}>
+                              <Button
+                                size="small"
+                                type="primary"
+                                block
+                                style={{
+                                  backgroundColor: "#00897b",
+                                  borderColor: "#00897b",
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Open
+                              </Button>
+                            </Link>
+                            <Tooltip title="Mark task done and remove from shortcuts">
+                              <Button
+                                size="small"
+                                icon={<CheckOutlined style={{ fontSize: 12 }} />}
+                                onClick={() => handleRemovePinnedProject(pid, true)}
+                                style={{
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  borderColor: "#86efac",
+                                  color: "#16a34a",
+                                }}
+                              >
+                                Done
+                              </Button>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              )}
+            </Card>
+          )}
+
           {/* Top Metric Cards */}
           <Row gutter={[16, 16]}>
             {[

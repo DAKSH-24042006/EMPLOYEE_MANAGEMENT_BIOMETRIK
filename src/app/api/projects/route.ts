@@ -54,6 +54,7 @@ export async function GET() {
     const projects = await Project.find(filter)
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
+      .populate("productOwner", "name email role phoneNumber")
       .populate("techTeamMembers", "name email role")
       .sort({ createdAt: -1 })
       .exec();
@@ -111,9 +112,6 @@ export async function GET() {
     );
   } catch (error: any) {
     console.error("List Projects Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

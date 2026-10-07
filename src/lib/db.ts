@@ -1,11 +1,9 @@
 import mongoose from "mongoose";
 
-//const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/requirement_dashboard";
-const MONGODB_URI = process.env.MONGODB_URI as string;
-
-if (!MONGODB_URI) {
-  throw new Error("Please define the MONGODB_URI environment variable inside .env.local");
-}
+const rawUri = (
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/requirement_dashboard"
+).trim();
+const MONGODB_URI = rawUri.replace("//localhost:", "//127.0.0.1:");
 
 interface MongooseCache {
   conn: typeof mongoose | null;

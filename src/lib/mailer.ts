@@ -71,7 +71,7 @@ export function buildEmailHtml({
     { label: string; badgeBg: string; badgeColor: string; accentColor: string; iconChar: string }
   > = {
     task: {
-      label: "Task Assignment",
+      label: "kramik",
       badgeBg: "#0369a1",
       badgeColor: "#ffffff",
       accentColor: "#0284c7",
@@ -500,7 +500,7 @@ export async function sendTaskAssignmentEmail({
     }
 
     const baseUrl = getBaseAppUrl();
-    const taskUrl = `${baseUrl}/projects/${project._id}`;
+    const taskUrl = `${baseUrl}/auth/login`;
 
     const data = {
       taskTitle: task.title,
@@ -518,12 +518,12 @@ export async function sendTaskAssignmentEmail({
 
     const template = config.templates?.taskCreated || {};
     const subject = renderTemplate(
-      template.subject || "[Biometrik Systems] New Task Assigned: {{taskTitle}}",
+      template.subject || "[kramik] New Task Assigned: {{taskTitle}}",
       data
     );
     const bodyText = renderTemplate(
       template.body ||
-        'Hello {{assigneeName}},\n\nA new task has been assigned to you in project "{{projectName}}".\n\n- Project Name: {{projectName}}\n- Task Title: {{taskTitle}}\n- Task Description: {{description}}\n- Priority: {{priority}}\n- Due Date: {{dueDate}}\n- Assigned By: {{assignedBy}}\n\nReview the task details and update your progress directly in the workspace:\n{{taskUrl}}\n\nBest regards,',
+        'Hello {{assigneeName}},\n\nA new task has been assigned to you in project "{{projectName}}".\n\n- Project Name: {{projectName}}\n- Task Title: {{taskTitle}}\n- Task Description: {{description}}\n- Priority: {{priority}}\n- Due Date: {{dueDate}}\n- Assigned By: {{assignedBy}}\n\nReview the task details and update your progress directly in the workspace.\n\nBest regards,',
       data
     );
 
@@ -543,7 +543,7 @@ export async function sendTaskAssignmentEmail({
       subject,
       bodyText,
       taskUrl,
-      ctaText: "Open Task in Workspace",
+      ctaText: "Log in to Kramik Workspace",
       notificationType: "task",
     });
 

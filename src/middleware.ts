@@ -25,10 +25,18 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Enforce System Admin Route Protection — Strictly SYSTEM_ADMIN only
-  if (pathname.startsWith("/admin") || pathname.startsWith("/projects/new")) {
+  // Enforce System Admin Route Protection — Strictly SYSTEM_ADMIN only for new project creation
+  if (pathname.startsWith("/projects/new")) {
     if (payload.role !== "SYSTEM_ADMIN") {
       const redirectUrl = new URL("/projects", req.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // Enforce Super Admin only for /admin (User Management)
+  if (pathname.startsWith("/admin")) {
+    if (payload.role !== "SYSTEM_ADMIN" && payload.role !== "ADMIN") {
+      const redirectUrl = new URL("/dashboard", req.url);
       return NextResponse.redirect(redirectUrl);
     }
   }
@@ -37,7 +45,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|auth/login|\\.well-known).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|auth/login|\\.well-known).*)"],
 };
