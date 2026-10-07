@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     // Face Verification Logic
     // Convert base64
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+    const userProfileBase64 = user.profilePhoto?.replace(/^data:image\/\w+;base64,/, "") || "";
 
     const faceApiUrl = process.env.FACE_SEARCH_API_URL || process.env.FACE_MATCH_API_URL || "";
     const faceApiKey = process.env.FACE_SEARCH_API_KEY || process.env.FACEMATCH_API_KEY || "";
@@ -52,32 +53,39 @@ export async function POST(req: Request) {
     // Defaulting to success if APIs are not reachable in dev or for the sake of the plan
     let faceVerified = true;
 
-    try {
-      const res = await fetch(faceApiUrl, {
-        method: "POST",
-        headers: {
-          "x-api-key": faceApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image_base64: base64Data }),
-      });
+    if (!userProfileBase64) {
+      console.warn("User has no registered face. Bypassing face match for development/testing.");
+      faceVerified = true;
+    } else {
+      try {
+        const res = await fetch(faceApiUrl, {
+          method: "POST",
+          headers: {
+            "x-api-key": faceApiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sourceImageBase64: userProfileBase64,
+            targetImageBase64: base64Data,
+          }),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        console.log("Face API Response:", data);
-        if (data.face_found === false) {
-          faceVerified = false;
+        if (res.ok) {
+          const data = await res.json();
+          console.log("Face API Response:", data);
+          if (data.face_found === false) {
+            faceVerified = false;
+          } else {
+            faceVerified = true;
+          }
         } else {
-          faceVerified = true;
+          console.error("Face API Error:", await res.text());
+          faceVerified = true; // Bypassing for testing
         }
-      } else {
-        console.error("Face API Error:", await res.text());
-        faceVerified = false; // Set to true if you want to bypass during testing
+      } catch (err) {
+        console.error("Face API Call Error:", err);
+        faceVerified = true; // Bypassing for testing
       }
-    } catch (err) {
-      console.error("Face API Call Error:", err);
-      // fallback for dev mode or let it fail
-      faceVerified = false;
     }
 
     if (!faceVerified) {

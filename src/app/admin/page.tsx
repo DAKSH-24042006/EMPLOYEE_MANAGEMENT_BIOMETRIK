@@ -98,8 +98,8 @@ export default function SystemAdminPage() {
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
-        if (data.user?.role !== Role.SYSTEM_ADMIN) {
-          console.warn("[Admin Page] User is not SYSTEM_ADMIN:", data.user?.role);
+        if (data.user?.role !== Role.SYSTEM_ADMIN && data.user?.role !== Role.ADMIN) {
+          console.warn("[Admin Page] User is not SYSTEM_ADMIN or ADMIN:", data.user?.role);
         }
       } else {
         router.push("/auth/login");
@@ -147,7 +147,7 @@ export default function SystemAdminPage() {
   }, [checkAuth]);
 
   useEffect(() => {
-    if (currentUser?.role === Role.SYSTEM_ADMIN) {
+    if (currentUser?.role === Role.SYSTEM_ADMIN || currentUser?.role === Role.ADMIN) {
       fetchEmployees();
       fetchRoles();
     }
@@ -224,6 +224,7 @@ export default function SystemAdminPage() {
         name: emp.name,
         username: emp.username || "",
         email: emp.email,
+        phoneNumber: emp.phoneNumber || "",
         password: "",
         designation: emp.designation || "",
         role: emp.role,
@@ -361,7 +362,7 @@ export default function SystemAdminPage() {
     );
   }
 
-  const isSuperAdmin = currentUser?.role === Role.SYSTEM_ADMIN;
+  const isSuperAdmin = currentUser?.role === Role.SYSTEM_ADMIN || currentUser?.role === Role.ADMIN;
 
   const columns: TableProps<EmployeeRecord>["columns"] = [
     {
@@ -373,12 +374,12 @@ export default function SystemAdminPage() {
           <Text strong style={{ fontSize: 14 }}>
             {text}
           </Text>
-          {record.role === Role.SYSTEM_ADMIN && (
+          {(record.role === Role.SYSTEM_ADMIN || record.role === Role.ADMIN) && (
             <Tag
               color="purple"
               icon={<ShieldCheck size={12} style={{ verticalAlign: -1, marginRight: 3 }} />}
             >
-              System Admin
+              {record.role === Role.SYSTEM_ADMIN ? "System Admin" : "Admin"}
             </Tag>
           )}
         </Space>
@@ -412,7 +413,7 @@ export default function SystemAdminPage() {
       key: "role",
       render: (role: string) => {
         let color = "blue";
-        if (role === Role.SYSTEM_ADMIN) color = "purple";
+        if (role === Role.SYSTEM_ADMIN || role === Role.ADMIN) color = "purple";
         else if (role.startsWith("TECH")) color = "orange";
         else if (role.startsWith("SALES")) color = "green";
         else color = "cyan";
@@ -806,16 +807,34 @@ export default function SystemAdminPage() {
             </Col>
           </Row>
 
-          <Form.Item
-            name="email"
-            label="Company Email"
-            rules={[
-              { required: true, message: "Please enter the email address" },
-              { type: "email", message: "Please enter a valid email address" },
-            ]}
-          >
-            <Input placeholder="e.g. rahul.sharma@company.com" style={{ borderRadius: 6 }} />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="email"
+                label="Company Email"
+                rules={[
+                  { required: true, message: "Please enter the email address" },
+                  { type: "email", message: "Please enter a valid email address" },
+                ]}
+              >
+                <Input placeholder="e.g. rahul.sharma@company.com" style={{ borderRadius: 6 }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="phoneNumber"
+                label="Phone Number"
+                rules={[{ required: false, message: "Please enter a phone number" }]}
+                extra="Contact number"
+              >
+                <Input
+                  placeholder="e.g. +91 9876543210"
+                  style={{ borderRadius: 6 }}
+                  prefix={<Phone size={14} color="#8c8c8c" />}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="designation"

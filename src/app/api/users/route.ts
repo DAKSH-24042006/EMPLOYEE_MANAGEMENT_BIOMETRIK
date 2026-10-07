@@ -14,7 +14,7 @@ async function isSystemAdmin() {
   if (!token) return false;
 
   const decoded = await verifyJwt(token);
-  return !!(decoded && decoded.role === Role.SYSTEM_ADMIN);
+  return !!(decoded && (decoded.role === Role.SYSTEM_ADMIN || decoded.role === Role.ADMIN));
 }
 
 async function isAuthenticated() {
@@ -35,9 +35,7 @@ export async function GET() {
     }
 
     await dbConnect();
-    const users = await User.find({})
-      .select("-password")
-      .sort({ createdAt: -1 });
+    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
 
     return NextResponse.json(users);
   } catch (error: any) {
@@ -55,45 +53,31 @@ export async function POST(req: Request) {
       );
     }
 
-    const { name, username, password, email, designation, role, status } = await req.json();
+    const { name, username, password, phoneNumber, email, designation, role, status } =
+      await req.json();
 
     const normalizedEmail = (email || "").toLowerCase().trim();
     const normalizedUsername = (username || "").toLowerCase().trim();
 
     if (!name || !name.trim()) {
-      return NextResponse.json(
-        { error: "Full name is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Full name is required" }, { status: 400 });
     }
 
     if (!normalizedUsername) {
-      return NextResponse.json(
-        { error: "Username is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Username is required" }, { status: 400 });
     }
 
     if (!password || password.trim().length < 1) {
-      return NextResponse.json(
-        { error: "Password is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
     if (!normalizedEmail) {
-      return NextResponse.json(
-        { error: "Email address is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email address is required" }, { status: 400 });
     }
 
     // Email format check
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Please enter a valid email address" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
     }
 
     await dbConnect();
@@ -127,6 +111,7 @@ export async function POST(req: Request) {
       email: normalizedEmail,
       microsoftEmail: normalizedEmail,
       password: hashedPassword,
+      phoneNumber: (phoneNumber || "").trim(),
       designation: (designation || "").trim(),
       role: role || Role.EMPLOYEE,
       status: status || UserStatus.ACTIVE,
@@ -139,7 +124,11 @@ export async function POST(req: Request) {
     console.error("Create Employee Error:", error);
     if (error.name === "ValidationError") {
       return NextResponse.json(
-        { error: Object.values(error.errors).map((err: any) => err.message).join(", ") },
+        {
+          error: Object.values(error.errors)
+            .map((err: any) => err.message)
+            .join(", "),
+        },
         { status: 400 }
       );
     }

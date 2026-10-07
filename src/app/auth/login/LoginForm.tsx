@@ -65,9 +65,17 @@ export default function LoginForm() {
             objectFit: "contain",
           }}
         />
-        <Title level={4} style={{ margin: "0 0 6px 0", color: "#1f1f1f", fontWeight: 600 }}>
-          Access Granted.
-        </Title>
+        <Text
+          style={{
+            display: "block",
+            fontSize: "15px",
+            color: "#1f1f1f",
+            fontWeight: 500,
+            marginBottom: "8px",
+          }}
+        >
+          kramik-portal
+        </Text>
         <Text type="secondary" style={{ fontSize: 13 }}>
           {step === 1 ? "Enter your email to verify identity." : "Face Authentication"}
         </Text>

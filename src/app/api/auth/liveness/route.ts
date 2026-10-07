@@ -37,8 +37,8 @@ export async function POST(req: Request) {
 
     // API returns: {"faces_detected":0,"liveness_scores":[],"results":[]}
     if (data.faces_detected > 0) {
-      const score = data.liveness_scores[0] || 0;
-      const result = data.results[0] || ""; // e.g. "real" or "spoof"
+      const score = data.liveness_scores?.[0] || 0;
+      const result = data.results?.[0] || ""; // e.g. "real" or "spoof"
 
       const isLive = score >= threshold && result !== "spoof";
 
