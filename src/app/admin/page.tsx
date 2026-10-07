@@ -253,7 +253,9 @@ export default function SystemAdminPage() {
       if (editingEmployee) {
         // Clean out blank password on edit
         const payload = { ...values };
-        if (!payload.password || payload.password.trim() === "") {
+        if (typeof payload.password === "string" && payload.password.trim() === "") {
+          delete payload.password;
+        } else if (!payload.password) {
           delete payload.password;
         }
 
