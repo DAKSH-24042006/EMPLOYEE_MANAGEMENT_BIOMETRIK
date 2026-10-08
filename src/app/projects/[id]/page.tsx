@@ -5267,7 +5267,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   </div>
 
                   {/* SPRINT LAYOUT */}
-                  <Space direction="vertical" size={24} style={{ width: "100%" }}>
+                  <Space orientation="vertical" size={24} style={{ width: "100%" }}>
                     {/* 1. ACTIVE SPRINT SECTION */}
                     {(() => {
                       const activeSprint = sprints.find((s) => s.status === "Active");
@@ -5609,7 +5609,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         }
 
                         return (
-                          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                          <Space orientation="vertical" size={16} style={{ width: "100%" }}>
                             {plannedSprints.map((sprint) => {
                               const sprintTasks = workItems.filter(
                                 (w) => w.sprint?._id === sprint._id
@@ -5971,7 +5971,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         }
       >
         {selectedWorkItem && (
-          <Space direction="vertical" size={20} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={20} style={{ width: "100%" }}>
             <div>
               <Text type="secondary">Description:</Text>
               <Paragraph style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>

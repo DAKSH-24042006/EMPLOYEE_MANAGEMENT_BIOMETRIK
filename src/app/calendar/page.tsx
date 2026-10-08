@@ -827,7 +827,7 @@ export default function CalendarPage() {
                       Personal Tasks ({personalItems.length})
                     </Text>
                   </div>
-                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                  <Space orientation="vertical" style={{ width: "100%" }} size={10}>
                     {personalItems.map((task) => (
                       <Card
                         key={task._id}
@@ -942,7 +942,7 @@ export default function CalendarPage() {
                       Project Work Items ({workItems.length})
                     </Text>
                   </div>
-                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                  <Space orientation="vertical" style={{ width: "100%" }} size={10}>
                     {workItems.map((item) => (
                       <Card
                         key={item._id}
@@ -1030,7 +1030,7 @@ export default function CalendarPage() {
                       Sprint Deadlines ({sprintItems.length})
                     </Text>
                   </div>
-                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                  <Space orientation="vertical" style={{ width: "100%" }} size={10}>
                     {sprintItems.map((sprint) => (
                       <Card
                         key={sprint._id}
@@ -1095,7 +1095,7 @@ export default function CalendarPage() {
                       Project Duration ({projectItems.length})
                     </Text>
                   </div>
-                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                  <Space orientation="vertical" style={{ width: "100%" }} size={10}>
                     {projectItems.map((pItem) => (
                       <Card
                         key={pItem._id}

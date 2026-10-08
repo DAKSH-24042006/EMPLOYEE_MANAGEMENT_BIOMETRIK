@@ -172,7 +172,7 @@ export default function NotificationsPage() {
                   </Space>
                 }
                 description={
-                  <Space direction="vertical" size={4} style={{ width: "100%", marginTop: 4 }}>
+                  <Space orientation="vertical" size={4} style={{ width: "100%", marginTop: 4 }}>
                     <Text style={{ color: "#434343" }}>{item.message}</Text>
                     <Space size={4} style={{ fontSize: 11, color: "#bfbfbf" }}>
                       <Calendar size={12} />

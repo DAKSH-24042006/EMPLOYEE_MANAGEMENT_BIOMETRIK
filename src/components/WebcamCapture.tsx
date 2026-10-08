@@ -1,22 +1,34 @@
 "use client";
 
-import React, { useRef, useCallback, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Webcam from "react-webcam";
-import { Button, Spin, Alert } from "antd";
-import { CheckCircleOutlined, CameraOutlined } from "@ant-design/icons";
+import { Button, Spin, Alert, Typography } from "antd";
+import { CheckCircleOutlined, CameraOutlined, UserAddOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 interface WebcamCaptureProps {
   email: string;
+  isFaceRegistered?: boolean;
   onSuccess: (response: any) => void;
   onBack: () => void;
 }
 
-export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptureProps) {
+export default function WebcamCapture({
+  email,
+  isFaceRegistered = false,
+  onSuccess,
+  onBack,
+}: WebcamCaptureProps) {
   const webcamRef = useRef<Webcam>(null);
+  const [registeredMode, setRegisteredMode] = useState(isFaceRegistered);
   const [isLivenessVerified, setIsLivenessVerified] = useState(false);
-  const [isLivenessChecking, setIsLivenessChecking] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  useEffect(() => {
+    setRegisteredMode(isFaceRegistered);
+  }, [isFaceRegistered]);
 
   // Poll for liveness
   useEffect(() => {
@@ -41,17 +53,15 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
 
         if (response.ok && data.verified) {
           setIsLivenessVerified(true);
-          setIsLivenessChecking(false);
           setErrorMessage(null);
         }
       } catch (error) {
         console.error("Liveness check error", error);
-        // We do not show an error immediately on polling failure to avoid spamming the user
       }
     };
 
     if (!isLivenessVerified) {
-      intervalId = setInterval(checkLiveness, 2000); // Check every 2 seconds
+      intervalId = setInterval(checkLiveness, 2000);
     }
 
     return () => {
@@ -59,7 +69,7 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
     };
   }, [isLivenessVerified]);
 
-  const handleCaptureAndLogin = useCallback(async () => {
+  const handleAction = async () => {
     if (!webcamRef.current) return;
 
     setIsAuthenticating(true);
@@ -68,13 +78,36 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
     const imageSrc = webcamRef.current.getScreenshot();
 
     if (!imageSrc) {
-      setErrorMessage("Failed to capture image.");
+      setErrorMessage("Failed to capture image from camera.");
       setIsAuthenticating(false);
       return;
     }
 
     try {
-      const response = await fetch("/api/auth/verify-face", {
+      // Flow 1: If in registration mode (new user or user re-registering their face)
+      if (!registeredMode) {
+        const regRes = await fetch("/api/auth/register-face", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            image: imageSrc,
+          }),
+        });
+
+        const regData = await regRes.json();
+
+        if (!regRes.ok) {
+          setErrorMessage(regData.error || "Failed to register face.");
+          setIsAuthenticating(false);
+          return;
+        }
+      }
+
+      // Flow 2: Perform 1:1 Face Match Verification
+      const verifyRes = await fetch("/api/auth/verify-face", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -85,22 +118,34 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
         }),
       });
 
-      const data = await response.json();
+      const verifyData = await verifyRes.json();
 
-      if (response.ok) {
-        onSuccess(data);
+      if (verifyRes.ok) {
+        onSuccess(verifyData);
       } else {
-        setErrorMessage(data.error || "Authentication failed.");
+        setErrorMessage(verifyData.error || "Face authentication failed. Face does not match.");
       }
     } catch (error) {
       setErrorMessage("Failed to connect to authentication server.");
     } finally {
       setIsAuthenticating(false);
     }
-  }, [email, onSuccess]);
+  };
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{ textAlign: "center", marginBottom: "4px" }}>
+        <Text strong style={{ fontSize: 15, color: "#262626" }}>
+          {registeredMode ? "Face Authentication" : "Face Registration"}
+        </Text>
+        <br />
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          {registeredMode
+            ? `Logging in as ${email}`
+            : `Setup face biometric for ${email}. Look at camera to register.`}
+        </Text>
+      </div>
+
       <div
         style={{
           position: "relative",
@@ -146,7 +191,7 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
               fontSize: "14px",
             }}
           >
-            <CheckCircleOutlined /> Liveness verified! You may now authenticate.
+            <CheckCircleOutlined /> Liveness verified! You may now proceed.
           </span>
         ) : (
           <span
@@ -165,16 +210,17 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
       </div>
 
       {errorMessage && (
-        <Alert type="error" message={errorMessage} showIcon style={{ borderRadius: "8px" }} />
+        <Alert type="error" description={errorMessage} showIcon style={{ borderRadius: "8px" }} />
       )}
 
+      {/* SINGLE PRIMARY ACTION BUTTON */}
       <Button
         type="primary"
         size="large"
         disabled={!isLivenessVerified}
         loading={isAuthenticating}
-        onClick={handleCaptureAndLogin}
-        icon={<CameraOutlined />}
+        onClick={handleAction}
+        icon={registeredMode ? <CameraOutlined /> : <UserAddOutlined />}
         style={{
           height: 48,
           borderRadius: 8,
@@ -184,10 +230,10 @@ export default function WebcamCapture({ email, onSuccess, onBack }: WebcamCaptur
           borderColor: isLivenessVerified ? "#00897b" : undefined,
         }}
       >
-        Capture & Login
+        {registeredMode ? "Capture & Login" : "Capture & Register Face"}
       </Button>
 
-      <Button type="link" onClick={onBack} style={{ marginTop: "8px" }}>
+      <Button type="link" onClick={onBack} style={{ marginTop: "4px" }}>
         Back to Email
       </Button>
     </div>
