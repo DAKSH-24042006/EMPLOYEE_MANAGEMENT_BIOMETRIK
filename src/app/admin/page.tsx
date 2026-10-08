@@ -372,7 +372,7 @@ export default function SystemAdminPage() {
       dataIndex: "name",
       key: "name",
       render: (text: string, record: EmployeeRecord) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Text strong style={{ fontSize: 14 }}>
             {text}
           </Text>

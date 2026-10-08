@@ -14,18 +14,40 @@ export default function LoginForm() {
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isFaceRegistered, setIsFaceRegistered] = useState<boolean>(false);
+  const [isCheckingUser, setIsCheckingUser] = useState<boolean>(false);
   const [form] = Form.useForm();
   const searchParams = useSearchParams();
 
   const handleNext = async (values: { username: string }) => {
     const trimmedEmail = values.username.trim();
     if (!trimmedEmail) {
-      setErrorMessage("Please enter an email.");
+      setErrorMessage("Please enter an email or username.");
       return;
     }
-    setEmail(trimmedEmail);
+
+    setIsCheckingUser(true);
     setErrorMessage(null);
-    setStep(2);
+
+    try {
+      const res = await fetch(
+        `/api/auth/face-status?identifier=${encodeURIComponent(trimmedEmail)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrorMessage(data.error || "Account not found for this email.");
+        return;
+      }
+
+      setEmail(trimmedEmail);
+      setIsFaceRegistered(!!data.isFaceRegistered);
+      setStep(2);
+    } catch (err) {
+      setErrorMessage("Failed to check account. Please try again.");
+    } finally {
+      setIsCheckingUser(false);
+    }
   };
 
   const handleSuccess = (data: any) => {
@@ -122,6 +144,7 @@ export default function LoginForm() {
               htmlType="submit"
               block
               size="large"
+              loading={isCheckingUser}
               style={{
                 height: 48,
                 borderRadius: 8,
@@ -141,6 +164,7 @@ export default function LoginForm() {
       {step === 2 && (
         <WebcamCapture
           email={email}
+          isFaceRegistered={isFaceRegistered}
           onSuccess={handleSuccess}
           onBack={() => {
             setStep(1);

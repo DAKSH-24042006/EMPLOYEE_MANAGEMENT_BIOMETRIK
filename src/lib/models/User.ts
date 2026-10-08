@@ -14,6 +14,7 @@ export interface IUser extends Document {
   phoneNumber?: string;
   location?: string;
   profilePhoto?: string;
+  faceData?: string;
   bio?: string;
   pinnedProjects?: mongoose.Types.ObjectId[];
   createdAt: Date;
@@ -95,6 +96,10 @@ const UserSchema = new Schema<any>(
       type: String,
       default: "",
       trim: true,
+    },
+    faceData: {
+      type: String,
+      default: "",
     },
     pinnedProjects: [
       {

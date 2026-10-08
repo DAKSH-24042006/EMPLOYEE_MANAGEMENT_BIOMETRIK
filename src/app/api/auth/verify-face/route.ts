@@ -43,56 +43,140 @@ export async function POST(req: Request) {
     }
 
     // Face Verification Logic
-    // Convert base64
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const userProfileBase64 = user.profilePhoto?.replace(/^data:image\/\w+;base64,/, "") || "";
+    const cleanBase64 = (str: string) => {
+      if (!str) return "";
+      const commaIndex = str.indexOf(",");
+      return commaIndex !== -1 ? str.slice(commaIndex + 1).trim() : str.trim();
+    };
 
-    const faceApiUrl = process.env.FACE_SEARCH_API_URL || process.env.FACE_MATCH_API_URL || "";
-    const faceApiKey = process.env.FACE_SEARCH_API_KEY || process.env.FACEMATCH_API_KEY || "";
+    const isBase64 = (str: string) => {
+      const cleaned = cleanBase64(str);
+      // Valid camera base64 JPEG image has at least 500 characters
+      return cleaned.length > 500;
+    };
 
-    // Defaulting to success if APIs are not reachable in dev or for the sake of the plan
-    let faceVerified = true;
+    const userFaceRaw =
+      user.faceData && isBase64(user.faceData)
+        ? user.faceData
+        : user.profilePhoto && isBase64(user.profilePhoto)
+          ? user.profilePhoto
+          : "";
+    const isUserRegistered = isBase64(userFaceRaw);
 
-    if (!userProfileBase64) {
-      console.warn("User has no registered face. Bypassing face match for development/testing.");
-      faceVerified = true;
-    } else {
-      try {
-        const res = await fetch(faceApiUrl, {
-          method: "POST",
-          headers: {
-            "x-api-key": faceApiKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sourceImageBase64: userProfileBase64,
-            targetImageBase64: base64Data,
-          }),
-        });
+    if (!isUserRegistered) {
+      return NextResponse.json(
+        { requiresRegistration: true, error: "Face not registered for this email." },
+        { status: 403 }
+      );
+    }
 
-        if (res.ok) {
-          const data = await res.json();
-          console.log("Face API Response:", data);
-          if (data.face_found === false) {
-            faceVerified = false;
+    const base64Data = cleanBase64(image);
+    const userFaceBase64 = cleanBase64(userFaceRaw);
+
+    if (!isBase64(base64Data)) {
+      return NextResponse.json(
+        { error: "Invalid face image captured. Please look at the camera and try again." },
+        { status: 400 }
+      );
+    }
+
+    // Support all possible environment variable naming configurations from .env
+    const faceApiUrl =
+      process.env.FACE_MATCH_API_URL ||
+      process.env.FACE_SEARCH_API_URL ||
+      process.env.FACE_SERVER_URL ||
+      "http://3.7.8.49:8000/api/v1/verification/verify";
+
+    const faceApiKey =
+      process.env.FACE_MATCH_API_KEY ||
+      process.env.FACEMATCH_API_KEY ||
+      process.env.FACE_API_KEY ||
+      process.env.FACE_SEARCH_API_KEY ||
+      "00000000-0000-0000-0000-000000000004";
+
+    const rawThreshold = parseFloat(process.env.FACE_MATCH_THRESHOLD || "0.6");
+    const threshold = isNaN(rawThreshold) ? 0.6 : rawThreshold;
+
+    let faceVerified = false;
+    let failureReason = "Face authentication failed. Face does not match.";
+
+    try {
+      console.log(`[Verify-Face] Calling Face Match API: ${faceApiUrl}`);
+      const res = await fetch(faceApiUrl, {
+        method: "POST",
+        headers: {
+          "x-api-key": faceApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          // CompreFace expects snake_case:
+          source_image: userFaceBase64,
+          target_image: base64Data,
+          // Custom/microservice backends expect camelCase:
+          sourceImageBase64: userFaceBase64,
+          targetImageBase64: base64Data,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log("[Verify-Face] Response data:", JSON.stringify(data));
+
+        let similarity = 0;
+        let matchFound = false;
+
+        // CompreFace structure: { result: [ { face_matches: [ { similarity: 0.98 } ] } ] }
+        if (Array.isArray(data.result) && data.result.length > 0) {
+          const firstResult = data.result[0];
+          if (Array.isArray(firstResult.face_matches) && firstResult.face_matches.length > 0) {
+            similarity = firstResult.face_matches[0].similarity ?? 0;
+            matchFound = similarity >= threshold;
           } else {
-            faceVerified = true;
+            console.log("[Verify-Face] No matching faces found in CompreFace result array.");
+            matchFound = false;
           }
-        } else {
-          console.error("Face API Error:", await res.text());
-          faceVerified = true; // Bypassing for testing
+        } else if (typeof data.similarity === "number") {
+          similarity = data.similarity;
+          matchFound = similarity >= threshold;
+        } else if (typeof data.score === "number") {
+          similarity = data.score;
+          matchFound = similarity >= threshold;
+        } else if (data.match === true || data.is_match === true) {
+          matchFound = true;
+        } else if (data.match === false || data.is_match === false || data.face_found === false) {
+          matchFound = false;
         }
-      } catch (err) {
-        console.error("Face API Call Error:", err);
-        faceVerified = true; // Bypassing for testing
+
+        console.log(
+          `[Verify-Face] matchFound: ${matchFound}, similarity: ${similarity}, threshold: ${threshold}`
+        );
+        faceVerified = matchFound;
+      } else {
+        const errText = await res.text();
+        console.error(`[Verify-Face] API Error (${res.status}):`, errText);
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed.message) {
+            if (parsed.code === 28 || parsed.message.toLowerCase().includes("no face")) {
+              failureReason =
+                "No face detected in the captured camera frame. Please look directly at the camera.";
+            } else {
+              failureReason = parsed.message;
+            }
+          }
+        } catch {
+          // not JSON
+        }
+        faceVerified = false;
       }
+    } catch (err: any) {
+      console.error("[Verify-Face] Call Exception:", err);
+      failureReason = "Failed to communicate with Face Verification server.";
+      faceVerified = false;
     }
 
     if (!faceVerified) {
-      return NextResponse.json(
-        { error: "Face authentication failed. Face does not match." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: failureReason }, { status: 401 });
     }
 
     // Authentication Successful, Generate JWT Session Token
