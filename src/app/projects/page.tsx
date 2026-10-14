@@ -25,7 +25,6 @@ import {
   Progress,
   Avatar,
   Segmented,
-  Dropdown,
 } from "antd";
 import {
   EditOutlined,
@@ -43,7 +42,6 @@ import {
   UserOutlined,
   RightOutlined,
   SearchOutlined,
-  EllipsisOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -1032,43 +1030,6 @@ export default function ProjectsPage() {
                   ? "Due today"
                   : `${diffDays}d remaining`;
 
-              const safeClick = (cb: () => void) => {
-                if (document.activeElement instanceof HTMLElement) {
-                  document.activeElement.blur();
-                }
-                document.body.click();
-                cb();
-              };
-
-              const menuItems = [
-                {
-                  key: "view",
-                  label: "View Details",
-                  icon: <EyeOutlined />,
-                  onClick: () => safeClick(() => openDetails(project)),
-                },
-                ...(currentUserRole === Role.SYSTEM_ADMIN
-                  ? [
-                      {
-                        key: "edit",
-                        label: "Edit Project",
-                        icon: <EditOutlined />,
-                        onClick: () => safeClick(() => openEdit(project)),
-                      },
-                      {
-                        type: "divider" as const,
-                      },
-                      {
-                        key: "delete",
-                        label: "Delete Project",
-                        icon: <DeleteOutlined />,
-                        danger: true,
-                        onClick: () => safeClick(() => handleDelete(project)),
-                      },
-                    ]
-                  : []),
-              ];
-
               return (
                 <Col xs={24} sm={12} lg={8} key={project._id}>
                   <div
@@ -1087,19 +1048,15 @@ export default function ProjectsPage() {
                     }}
                   >
                     <div>
-                      {/* 1. Project Title & Context Menu */}
+                      {/* 1. Project Title */}
                       <div
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
                           marginBottom: 10,
-                          gap: 10,
                         }}
                       >
                         <Link
                           href={`/projects/${project._id}`}
-                          style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
+                          style={{ textDecoration: "none", display: "block" }}
                         >
                           <h2
                             style={{
@@ -1118,34 +1075,6 @@ export default function ProjectsPage() {
                             {project.title || "Unnamed Project"}
                           </h2>
                         </Link>
-
-                        <Dropdown
-                          menu={{ items: menuItems }}
-                          trigger={["click"]}
-                          placement="bottomRight"
-                        >
-                          <button
-                            type="button"
-                            aria-label="More actions"
-                            style={{
-                              width: 28,
-                              height: 28,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              borderRadius: 6,
-                              border: "1px solid #E2E8F0",
-                              background: "#F8FAFC",
-                              color: "#6B7280",
-                              cursor: "pointer",
-                              padding: 0,
-                              flexShrink: 0,
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            <EllipsisOutlined style={{ fontSize: 15 }} />
-                          </button>
-                        </Dropdown>
                       </div>
 
                       {/* 2. Status & Priority Badges */}
