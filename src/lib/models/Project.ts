@@ -51,6 +51,7 @@ export interface IProject extends Document {
   feasibilityStatus: "Pending" | "Feasible" | "Not Feasible" | "Need Clarification";
   techOwner?: mongoose.Types.ObjectId;
   productOwner?: mongoose.Types.ObjectId;
+  qaLead?: mongoose.Types.ObjectId;
   techTeamMembers: mongoose.Types.ObjectId[];
   complexity: "Low" | "Medium" | "High" | "Very High";
   estimatedEffort: string;
@@ -207,6 +208,10 @@ const ProjectSchema: Schema = new Schema(
       ref: "User",
     },
     productOwner: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    qaLead: {
       type: Schema.Types.ObjectId,
       ref: "User",
     },

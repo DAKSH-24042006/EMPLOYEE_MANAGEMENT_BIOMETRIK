@@ -25,6 +25,7 @@ import {
   Progress,
   Avatar,
   Segmented,
+  Dropdown,
 } from "antd";
 import {
   EditOutlined,
@@ -42,6 +43,7 @@ import {
   UserOutlined,
   RightOutlined,
   SearchOutlined,
+  EllipsisOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -149,58 +151,12 @@ function getProjectStatusStyle(status: string) {
   switch (status) {
     case "Requirement Created":
     case "Planning":
-      return {
-        bg: "#f0fdfa",
-        color: "#0f766e",
-        border: "#b2dfdb",
-        dot: "#00897b",
-      };
-    case "Submitted for Tech Review":
-    case "Signoff Pending":
-      return {
-        bg: "#f4f8f7",
-        color: "#00695c",
-        border: "#80cbc4",
-        dot: "#00897b",
-      };
-    case "Development":
-    case "Active":
-      return {
-        bg: "#e0f2f1",
-        color: "#004d40",
-        border: "#4db6ac",
-        dot: "#00897b",
-      };
-    case "Testing/UAT":
-      return {
-        bg: "#f0fdf4",
-        color: "#166534",
-        border: "#bbf7d0",
-        dot: "#22c55e",
-      };
-    case "Delivered":
-    case "Completed":
-    case "Technically Approved":
-      return {
-        bg: "#ecfdf5",
-        color: "#065f46",
-        border: "#a7f3d0",
-        dot: "#10b981",
-      };
-    case "Clarification Required":
-    case "Pending":
-      return {
-        bg: "#fffbeb",
-        color: "#92400e",
-        border: "#fde68a",
-        dot: "#f59e0b",
-      };
     default:
       return {
-        bg: "#f3f4f6",
-        color: "#374151",
-        border: "#e5e7eb",
-        dot: "#9ca3af",
+        bg: "#E6F7F5",
+        color: "#00796B",
+        border: "#B2DFDB",
+        dot: "#009587",
       };
   }
 }
@@ -209,27 +165,25 @@ function getProjectPriorityStyle(priority: string = "Medium") {
   switch (priority.toLowerCase()) {
     case "critical":
       return {
-        bg: "#fef2f2",
-        color: "#991b1b",
-        border: "#fecaca",
+        bg: "#FEF2F2",
+        color: "#DC2626",
+        border: "#FECACA",
+        dot: "#DC2626",
       };
     case "high":
       return {
-        bg: "#fff7ed",
-        color: "#9a3412",
-        border: "#fed7aa",
+        bg: "#FFF7ED",
+        color: "#EA580C",
+        border: "#FED7AA",
+        dot: "#EA580C",
       };
     case "medium":
-      return {
-        bg: "#f0fdfa",
-        color: "#0f766e",
-        border: "#ccfbf1",
-      };
     default:
       return {
-        bg: "#f8fafc",
-        color: "#475569",
-        border: "#e2e8f0",
+        bg: "#EFF6FF",
+        color: "#0284C7",
+        border: "#BFDBFE",
+        dot: "#0284C7",
       };
   }
 }
@@ -819,65 +773,77 @@ export default function ProjectsPage() {
   return (
     <div
       style={{
-        height: "100%",
+        minHeight: "100%",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
-        minWidth: 0,
-        maxWidth: "100%",
+        background: "transparent",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Page Header ── */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          marginBottom: 14,
           flexWrap: "wrap",
           gap: 12,
           flex: "0 0 auto",
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Title level={3} style={{ margin: 0, fontWeight: 700, color: "#111827" }}>
-              Projects
-            </Title>
-            <span
-              style={{
-                background: "#f0fdfa",
-                border: "1px solid #ccfbf1",
-                color: "#00796b",
-                fontWeight: 600,
-                borderRadius: 12,
-                padding: "2px 8px",
-                fontSize: 11,
-              }}
-            >
-              {totalCount} Total
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 12, color: "#6b7280" }}>
-            Manage client projects, specifications, and track execution progress.
-          </Text>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "26px",
+              fontWeight: 700,
+              color: "#111827",
+              letterSpacing: "-0.4px",
+              lineHeight: 1.2,
+            }}
+          >
+            Projects
+          </h1>
         </div>
 
-        <Space wrap size={10}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Input
-            placeholder="Search projects or clients..."
-            prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
+            placeholder="Search projects or client..."
+            prefix={<SearchOutlined style={{ color: "#6B7280", fontSize: 13, marginRight: 6 }} />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             allowClear
-            style={{ width: 220, borderRadius: 8 }}
+            style={{
+              width: 260,
+              height: 38,
+              borderRadius: 8,
+              border: "1px solid #E2E8F0",
+              background: "#FFFFFF",
+              fontSize: 13,
+              color: "#111827",
+              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.02)",
+            }}
           />
-          <Tooltip title="Refresh">
+          <Tooltip title="Refresh projects">
             <Button
-              icon={<ReloadOutlined spin={loading} />}
+              icon={<ReloadOutlined spin={loading} style={{ color: "#1E293B", fontSize: 13 }} />}
               onClick={fetchProjects}
               loading={loading}
-              style={{ borderRadius: 8 }}
+              style={{
+                height: 38,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: "1px solid #E2E8F0",
+                background: "#FFFFFF",
+                color: "#1E293B",
+                fontWeight: 500,
+                fontSize: 13,
+                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.02)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
             >
               Refresh
             </Button>
@@ -886,40 +852,89 @@ export default function ProjectsPage() {
             <Link href="/projects/new">
               <Button
                 type="primary"
-                icon={<PlusOutlined />}
+                icon={<PlusOutlined style={{ color: "#FFFFFF" }} />}
                 style={{
-                  background: "#00897b",
-                  borderColor: "#00897b",
+                  height: 38,
+                  padding: "0 16px",
+                  background: "#009587",
+                  borderColor: "#009587",
                   borderRadius: 8,
-                  fontWeight: 500,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  boxShadow: "0 2px 6px rgba(0, 149, 135, 0.2)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
                 New Project
               </Button>
             </Link>
           )}
-        </Space>
+        </div>
       </div>
 
-      {/* ── Quick Filter Tabs ── */}
+      {/* ── Status Tabs ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          gap: 8,
           marginBottom: 16,
           flex: "0 0 auto",
         }}
       >
-        <Segmented
-          value={statusFilter}
-          onChange={(val) => setStatusFilter(val as any)}
-          options={[
-            { label: `All Projects (${totalCount})`, value: "all" },
-            { label: `Active (${activeCount})`, value: "active" },
-            { label: `Delivered (${completedCount})`, value: "completed" },
-          ]}
-          style={{ background: "#f3f4f6", padding: 3, borderRadius: 8 }}
-        />
+        {[
+          { key: "all", label: "All Projects", count: totalCount },
+          { key: "active", label: "Active", count: activeCount },
+          { key: "completed", label: "Delivered", count: completedCount },
+        ].map((tab) => {
+          const isSelected = statusFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key as any)}
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: isSelected ? "1px solid #009587" : "1px solid #E2E8F0",
+                background: isSelected ? "#009587" : "#FFFFFF",
+                color: isSelected ? "#FFFFFF" : "#4B5563",
+                fontWeight: isSelected ? 600 : 500,
+                fontSize: 13,
+                cursor: "pointer",
+                boxShadow: isSelected
+                  ? "0 2px 8px rgba(0, 149, 135, 0.2)"
+                  : "0 1px 2px rgba(0, 0, 0, 0.02)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 5px",
+                  borderRadius: 9,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: isSelected ? "#FFFFFF" : "#F1F5F9",
+                  color: isSelected ? "#009587" : "#4B5563",
+                }}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Content View (Cards) ── */}
@@ -929,16 +944,22 @@ export default function ProjectsPage() {
           overflowY: "auto",
           overflowX: "hidden",
           paddingBottom: 24,
-          paddingRight: 4,
         }}
       >
         {loading ? (
-          <Row gutter={[16, 16]} style={{ marginLeft: 0, marginRight: 0 }}>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Row gutter={[22, 22]}>
+            {[1, 2, 3].map((i) => (
               <Col xs={24} sm={12} lg={8} key={i}>
-                <Card style={{ borderRadius: 14, border: "1px solid #e5e7eb" }}>
+                <div
+                  style={{
+                    borderRadius: 16,
+                    border: "1px solid #E3E8EE",
+                    background: "rgba(255, 255, 255, 0.85)",
+                    padding: "24px 26px",
+                  }}
+                >
                   <Skeleton active paragraph={{ rows: 5 }} />
-                </Card>
+                </div>
               </Col>
             ))}
           </Row>
@@ -947,12 +968,12 @@ export default function ProjectsPage() {
             style={{
               padding: "60px 0",
               textAlign: "center",
-              background: "#fff",
-              borderRadius: 14,
-              border: "1px dashed #d9d9d9",
+              background: "#FFFFFF",
+              borderRadius: 16,
+              border: "1px dashed #D9D9D9",
             }}
           >
-            <div style={{ fontSize: 42, marginBottom: 12, color: "#9ca3af" }}>
+            <div style={{ fontSize: 42, marginBottom: 12, color: "#9CA3AF" }}>
               <ProjectOutlined />
             </div>
             <Title level={4} style={{ color: "#374151", margin: 0 }}>
@@ -984,7 +1005,7 @@ export default function ProjectsPage() {
                     <Button
                       type="primary"
                       icon={<PlusOutlined />}
-                      style={{ background: "#00897b", borderColor: "#00897b", borderRadius: 8 }}
+                      style={{ background: "#009587", borderColor: "#009587", borderRadius: 8 }}
                     >
                       New Project
                     </Button>
@@ -994,7 +1015,7 @@ export default function ProjectsPage() {
             )}
           </div>
         ) : (
-          <Row gutter={[16, 16]} style={{ marginLeft: 0, marginRight: 0 }}>
+          <Row gutter={[16, 16]}>
             {filteredProjects.map((project) => {
               const statusStyle = getProjectStatusStyle(project.status);
               const pct = project.progressPercent || 0;
@@ -1019,63 +1040,125 @@ export default function ProjectsPage() {
                 cb();
               };
 
+              const menuItems = [
+                {
+                  key: "view",
+                  label: "View Details",
+                  icon: <EyeOutlined />,
+                  onClick: () => safeClick(() => openDetails(project)),
+                },
+                ...(currentUserRole === Role.SYSTEM_ADMIN
+                  ? [
+                      {
+                        key: "edit",
+                        label: "Edit Project",
+                        icon: <EditOutlined />,
+                        onClick: () => safeClick(() => openEdit(project)),
+                      },
+                      {
+                        type: "divider" as const,
+                      },
+                      {
+                        key: "delete",
+                        label: "Delete Project",
+                        icon: <DeleteOutlined />,
+                        danger: true,
+                        onClick: () => safeClick(() => handleDelete(project)),
+                      },
+                    ]
+                  : []),
+              ];
+
               return (
                 <Col xs={24} sm={12} lg={8} key={project._id}>
-                  <Card
-                    hoverable
-                    className="project-card-interactive"
+                  <div
+                    className="biometrik-project-card"
                     style={{
                       borderRadius: 14,
-                      border: "1px solid #e5e7eb",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-                      height: "100%",
+                      border: "1px solid #E2E8F0",
+                      background: "#FFFFFF",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.03)",
+                      padding: "16px 18px",
                       display: "flex",
                       flexDirection: "column",
-                      background: "#ffffff",
-                    }}
-                    styles={{
-                      body: {
-                        padding: "18px 20px",
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
-                        justifyContent: "space-between",
-                      },
+                      justifyContent: "space-between",
+                      height: "100%",
+                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                     }}
                   >
                     <div>
-                      {/* 1. Project Title & Company Name */}
-                      <div style={{ marginBottom: 10 }}>
-                        <Link href={`/projects/${project._id}`}>
-                          <div
+                      {/* 1. Project Title & Context Menu */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 10,
+                          gap: 10,
+                        }}
+                      >
+                        <Link
+                          href={`/projects/${project._id}`}
+                          style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
+                        >
+                          <h2
                             style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: "#00897b",
-                              lineHeight: 1.35,
+                              margin: 0,
+                              fontSize: "18px",
+                              fontWeight: 650,
+                              color: "#111827",
+                              lineHeight: 1.25,
                               cursor: "pointer",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                             }}
-                            title={
-                              project.title ||
-                              project.clientDetails?.companyName ||
-                              "Unnamed Project"
-                            }
+                            title={project.title || "Unnamed Project"}
                           >
-                            {project.title ||
-                              project.clientDetails?.companyName ||
-                              "Unnamed Project"}
-                          </div>
+                            {project.title || "Unnamed Project"}
+                          </h2>
                         </Link>
-                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                          {project.clientDetails?.companyName || "Client Project"}
-                        </div>
+
+                        <Dropdown
+                          menu={{ items: menuItems }}
+                          trigger={["click"]}
+                          placement="bottomRight"
+                        >
+                          <button
+                            type="button"
+                            aria-label="More actions"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 6,
+                              border: "1px solid #E2E8F0",
+                              background: "#F8FAFC",
+                              color: "#6B7280",
+                              cursor: "pointer",
+                              padding: 0,
+                              flexShrink: 0,
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <EllipsisOutlined style={{ fontSize: 15 }} />
+                          </button>
+                        </Dropdown>
                       </div>
 
-                      {/* 2. Professional Status and Priority Badges (Biometrik Palette) */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                      {/* 2. Status & Priority Badges */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 7,
+                          marginBottom: 12,
+                        }}
+                      >
+                        {/* Status Badge */}
                         <div
                           style={{
                             display: "inline-flex",
@@ -1084,221 +1167,215 @@ export default function ProjectsPage() {
                             background: statusStyle.bg,
                             color: statusStyle.color,
                             border: `1px solid ${statusStyle.border}`,
-                            borderRadius: 14,
-                            padding: "2px 9px",
-                            fontSize: 11,
-                            fontWeight: 600,
+                            borderRadius: 12,
+                            padding: "3px 9px",
+                            fontSize: 11.5,
+                            fontWeight: 500,
                           }}
                         >
                           <span
                             style={{
-                              width: 6,
-                              height: 6,
+                              width: 5,
+                              height: 5,
                               borderRadius: "50%",
                               background: statusStyle.dot,
                               display: "inline-block",
                             }}
                           />
-                          {project.status || "Active"}
+                          <span>{project.status || "Requirement Created"}</span>
                         </div>
 
+                        {/* Priority Badge */}
                         <div
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
+                            gap: 5,
                             background: priorityStyle.bg,
                             color: priorityStyle.color,
                             border: `1px solid ${priorityStyle.border}`,
-                            borderRadius: 14,
-                            padding: "2px 9px",
-                            fontSize: 11,
-                            fontWeight: 600,
+                            borderRadius: 12,
+                            padding: "3px 9px",
+                            fontSize: 11.5,
+                            fontWeight: 500,
                           }}
                         >
-                          {priority} Priority
+                          <span
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: "50%",
+                              background: priorityStyle.dot,
+                              display: "inline-block",
+                            }}
+                          />
+                          <span>{priority} Priority</span>
                         </div>
                       </div>
 
-                      {/* 3. Project Description */}
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#4b5563",
-                          lineHeight: "19px",
-                          marginBottom: 14,
-                          minHeight: 38,
-                          maxHeight: 57,
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          background: "#f9fafb",
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #f3f4f6",
-                        }}
-                        title={project.description || "No description provided"}
-                      >
-                        {project.description ? (
-                          project.description
-                        ) : (
-                          <span style={{ fontStyle: "italic", color: "#9ca3af" }}>
-                            Enterprise software development and digital transformation platform.
-                          </span>
-                        )}
-                      </div>
-
-                      {/* 4. Overall Progress */}
-                      <div style={{ marginBottom: 14 }}>
+                      {/* 3. Overall Progress */}
+                      <div style={{ marginBottom: 12 }}>
                         <div
                           style={{
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            fontSize: 12,
+                            fontSize: 11.5,
                             marginBottom: 5,
                           }}
                         >
-                          <span style={{ color: "#6b7280", fontWeight: 500 }}>
+                          <span style={{ color: "#6B7280", fontWeight: 500 }}>
                             Overall Progress
                           </span>
-                          <span
-                            style={{ fontWeight: 700, color: pct === 100 ? "#047857" : "#00897b" }}
-                          >
+                          <span style={{ color: "#111827", fontWeight: 700, fontSize: 12 }}>
                             {pct}%
                           </span>
                         </div>
                         <Progress
                           percent={pct}
                           showInfo={false}
-                          strokeColor={pct === 100 ? "#10b981" : "#00897b"}
-                          railColor="#f3f4f6"
-                          size={["100%", 6]}
+                          strokeColor="#009587"
+                          railColor="#EEF2F6"
+                          size={["100%", 5]}
+                          style={{ margin: 0 }}
                         />
                       </div>
 
-                      {/* 5. Metadata: Due Date & Timeline (Sprint & Blockers removed) */}
+                      {/* 4. Due Date and Remaining Days */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
+                          fontSize: 12,
+                          color: "#4B5563",
+                          fontWeight: 500,
                           marginBottom: 14,
+                        }}
+                      >
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <CalendarOutlined style={{ color: "#4B5563", fontSize: 13 }} />
+                          <span>Due: {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}</span>
+                        </div>
+
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <ClockCircleOutlined style={{ color: "#4B5563", fontSize: 13 }} />
+                          <span>{daysRemainingText}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 5. Footer: Project Manager & Workspace CTA */}
+                    <div style={{ marginTop: "auto" }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#6B7280",
+                          fontWeight: 500,
+                          marginBottom: 5,
+                        }}
+                      >
+                        Project Manager
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 12,
                         }}
                       >
                         <div
                           style={{
-                            display: "inline-flex",
+                            display: "flex",
                             alignItems: "center",
-                            gap: 5,
-                            fontSize: 11,
-                            color: "#4b5563",
-                            background: "#f9fafb",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 6,
-                            padding: "3px 8px",
+                            gap: 8,
+                            minWidth: 0,
+                            flex: 1,
                           }}
                         >
-                          <CalendarOutlined style={{ color: "#00897b" }} />
-                          <span>Due: {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}</span>
-                        </div>
-
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: isOverdue ? "#b91c1c" : "#6b7280",
-                          }}
-                        >
-                          {daysRemainingText}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 6. Footer: Project Lead and Workspace Action */}
-                    <div
-                      style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12, marginTop: "auto" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>
-                          <div
+                          <Avatar
+                            size={32}
                             style={{
-                              fontSize: 10,
-                              color: "#9ca3af",
-                              textTransform: "uppercase",
+                              backgroundColor: "#009587",
+                              fontSize: 13,
                               fontWeight: 600,
-                              letterSpacing: "0.5px",
+                              color: "#FFFFFF",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
                             }}
                           >
-                            Project Manager
-                          </div>
-                          <div
-                            style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}
+                            {(project.techOwner?.name || project.createdBy?.name || "U")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </Avatar>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: "#111827",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={
+                              project.techOwner?.name || project.createdBy?.name || "Unassigned"
+                            }
                           >
-                            <Avatar
-                              size={22}
-                              style={{ backgroundColor: "#00897b", fontSize: 11, fontWeight: 600 }}
-                            >
-                              {(project.techOwner?.name || "Daksh Sheregar")
-                                .charAt(0)
-                                .toUpperCase()}
-                            </Avatar>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
-                              {project.techOwner?.name ? project.techOwner.name : "Daksh Sheregar"}
-                            </span>
-                          </div>
+                            {project.techOwner?.name || project.createdBy?.name || "Unassigned"}
+                          </span>
                         </div>
 
-                        <Space size={6}>
-                          <Link href={`/projects/${project._id}`}>
-                            <Button
-                              type="primary"
-                              className="workspace-btn"
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                borderRadius: 6,
-                                height: 32,
-                                padding: "0 12px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              <span>Workspace</span>
-                              <RightOutlined style={{ fontSize: 10 }} />
-                            </Button>
-                          </Link>
-
-                          {currentUserRole === Role.SYSTEM_ADMIN && (
-                            <>
-                              <Tooltip title="Delete Project">
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => safeClick(() => handleDelete(project))}
-                                />
-                              </Tooltip>
-                            </>
-                          )}
-                        </Space>
+                        <Link
+                          href={`/projects/${project._id}`}
+                          style={{ textDecoration: "none", flexShrink: 0 }}
+                        >
+                          <button
+                            type="button"
+                            className="biometrik-workspace-btn"
+                            style={{
+                              height: 34,
+                              padding: "0 14px",
+                              backgroundColor: "#009587",
+                              border: "none",
+                              borderRadius: 8,
+                              color: "#FFFFFF",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              cursor: "pointer",
+                              boxShadow: "0 2px 6px rgba(0, 149, 135, 0.22)",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <span>Workspace</span>
+                            <RightOutlined style={{ fontSize: 11, color: "#FFFFFF" }} />
+                          </button>
+                        </Link>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </Col>
               );
             })}
           </Row>
         )}
       </div>
+
+      <style jsx>{`
+        .biometrik-project-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 24px -4px rgba(0, 149, 135, 0.12) !important;
+          border-color: #b2dfdb !important;
+        }
+        .biometrik-workspace-btn:hover {
+          background-color: #007f73 !important;
+        }
+      `}</style>
 
       {/* ── Edit Modal ── */}
       <EditModal

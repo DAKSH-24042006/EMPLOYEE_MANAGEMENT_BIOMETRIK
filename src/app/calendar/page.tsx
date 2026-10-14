@@ -21,6 +21,7 @@ import {
   Grid,
   Segmented,
   Tooltip,
+  Popover,
 } from "antd";
 import {
   LeftOutlined,
@@ -68,6 +69,135 @@ const PRIORITIES = [
 ];
 
 const STATUSES = ["Todo", "In Progress", "Done", "Cancelled"];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Biometrik Brand-Themed Jira Icons (Scoped to this Calendar Dashboard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const JiraProjectMilestoneIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect width="16" height="16" rx="3.5" fill="#00897b" />
+    <path
+      d="M3.5 5a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293L8.5 5h3a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5Z"
+      stroke="#ffffff"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const JiraSprintIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect width="16" height="16" rx="3.5" fill="#059669" />
+    <path d="M9 2.5L5 8.5h4.5l-1.5 5 5-7H8.5l1.5-4z" fill="#ffffff" />
+  </svg>
+);
+
+const JiraTaskIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect width="16" height="16" rx="3.5" fill="#00897b" />
+    <path
+      d="M4.5 8.5L7 11L12 5"
+      stroke="#ffffff"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const JiraStoryIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect width="16" height="16" rx="3.5" fill="#16a34a" />
+    <path d="M5 3.5h6v9l-3-2-3 2v-9z" fill="#ffffff" />
+  </svg>
+);
+
+const JiraBugIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <circle cx="8" cy="8" r="7.5" fill="#e11d48" />
+    <circle cx="8" cy="8" r="3" fill="#ffffff" />
+  </svg>
+);
+
+const JiraPersonalIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect width="16" height="16" rx="3.5" fill="#6366f1" />
+    <circle cx="8" cy="8" r="4" stroke="#ffffff" strokeWidth="1.3" />
+    <path
+      d="M6.5 8l1 1 2-2"
+      stroke="#ffffff"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+function getCalendarEventBadge(task: CalendarEventItem) {
+  const isPersonal = task.itemType === "personal";
+  const isSprint = task.itemType === "sprint";
+  const isProject = task.itemType === "project";
+  const titleLower = (task.title || "").toLowerCase();
+  const typeLower = (task.type || "").toLowerCase();
+  const isBug = typeLower.includes("bug") || titleLower.includes("bug");
+  const isStory = typeLower.includes("story") || titleLower.includes("story");
+
+  if (isProject) {
+    return {
+      icon: <JiraProjectMilestoneIcon size={12} />,
+      bg: "#f0fdfa",
+      borderColor: "#b2dfdb",
+      textColor: "#00796b",
+      leftBorder: "#00897b",
+    };
+  }
+  if (isSprint) {
+    return {
+      icon: <JiraSprintIcon size={12} />,
+      bg: "#ecfdf5",
+      borderColor: "#a7f3d0",
+      textColor: "#065f46",
+      leftBorder: "#059669",
+    };
+  }
+  if (isBug) {
+    return {
+      icon: <JiraBugIcon size={12} />,
+      bg: "#fff1f2",
+      borderColor: "#fecdd3",
+      textColor: "#9f1239",
+      leftBorder: "#e11d48",
+    };
+  }
+  if (isStory) {
+    return {
+      icon: <JiraStoryIcon size={12} />,
+      bg: "#f0fdf4",
+      borderColor: "#bbf7d0",
+      textColor: "#166534",
+      leftBorder: "#16a34a",
+    };
+  }
+  if (isPersonal) {
+    return {
+      icon: <JiraPersonalIcon size={12} />,
+      bg: "#f8fafc",
+      borderColor: "#e2e8f0",
+      textColor: "#334155",
+      leftBorder: "#6366f1",
+    };
+  }
+  // Default Work Item / Task
+  return {
+    icon: <JiraTaskIcon size={12} />,
+    bg: "#f0fdfa",
+    borderColor: "#ccfbf1",
+    textColor: "#0f766e",
+    leftBorder: "#00897b",
+  };
+}
 
 export default function CalendarPage() {
   const [messageApi, contextHolder] = message.useMessage();
@@ -265,15 +395,111 @@ export default function CalendarPage() {
   const gridDays = generateGrid();
 
   const getTasksForDate = (date: Dayjs) => {
-    return filteredTasks.filter((t) => {
+    return filteredTasks.reduce<CalendarEventItem[]>((acc, t) => {
       if (t.itemType === "project" && t.startDate && t.endDate) {
-        const d = date.startOf("day").valueOf();
-        const start = dayjs(t.startDate).startOf("day").valueOf();
-        const end = dayjs(t.endDate).startOf("day").valueOf();
-        return d >= start && d <= end;
+        const isStart = dayjs(t.startDate).isSame(date, "day");
+        const isEnd = dayjs(t.endDate).isSame(date, "day");
+        const cleanName = t.projectName || t.title.replace(/^Project:\s*/i, "");
+        if (isStart && isEnd) {
+          acc.push({
+            ...t,
+            title: `🎯 Milestone: ${cleanName}`,
+          });
+        } else if (isStart) {
+          acc.push({
+            ...t,
+            title: `🚀 Start: ${cleanName}`,
+          });
+        } else if (isEnd) {
+          acc.push({
+            ...t,
+            title: `🏁 Due: ${cleanName}`,
+          });
+        }
+        return acc;
       }
-      return dayjs(t.date).isSame(date, "day");
-    });
+      if (dayjs(t.date).isSame(date, "day")) {
+        acc.push(t);
+      }
+      return acc;
+    }, []);
+  };
+
+  const renderCalendarChip = (task: CalendarEventItem, date: Dayjs) => {
+    const isPersonal = task.itemType === "personal";
+    const isDone = task.status === "Done";
+    const badge = getCalendarEventBadge(task);
+
+    return (
+      <Tooltip
+        key={task._id}
+        title={
+          <div>
+            <div style={{ fontWeight: 600 }}>{task.title}</div>
+            <div style={{ fontSize: 11 }}>
+              Type:{" "}
+              {task.itemType === "personal"
+                ? "Personal Task"
+                : task.itemType === "sprint"
+                  ? "Sprint Deadline"
+                  : task.itemType === "project"
+                    ? "Project Milestone"
+                    : `Work Item (${task.projectName || "Project"})`}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              Status: {task.status} | Priority: {task.priority}
+            </div>
+            {task.assigneeName && <div style={{ fontSize: 11 }}>Assignee: {task.assigneeName}</div>}
+          </div>
+        }
+      >
+        <div
+          className="calendar-event-chip"
+          style={{
+            backgroundColor: badge.bg,
+            borderLeft: `3px solid ${badge.leftBorder}`,
+            borderTop: `1px solid ${badge.borderColor}`,
+            borderRight: `1px solid ${badge.borderColor}`,
+            borderBottom: `1px solid ${badge.borderColor}`,
+            color: badge.textColor,
+            padding: "2.5px 6px",
+            borderRadius: 4,
+            fontSize: 11,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            textDecoration: isDone ? "line-through" : "none",
+            opacity: isDone ? 0.65 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            cursor: "pointer",
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isPersonal) {
+              onEditTask(task);
+            } else {
+              setSelectedDate(date);
+              setDrawerVisible(true);
+            }
+          }}
+        >
+          {badge.icon}
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+          >
+            {task.title}
+          </span>
+        </div>
+      </Tooltip>
+    );
   };
 
   return (
@@ -288,6 +514,32 @@ export default function CalendarPage() {
         maxWidth: "100%",
       }}
     >
+      <style>{`
+        .calendar-task-list::-webkit-scrollbar {
+          width: 3px;
+          height: 3px;
+        }
+        .calendar-task-list::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .calendar-task-list::-webkit-scrollbar-thumb:hover {
+          background: #00897b;
+        }
+        .calendar-event-chip {
+          transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .calendar-event-chip:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 5px rgba(0, 137, 123, 0.15);
+        }
+        .more-tasks-btn:hover {
+          background: #00897b !important;
+          color: #ffffff !important;
+          border-color: #00897b !important;
+        }
+      `}</style>
+
       {contextHolder}
 
       {/* Header */}
@@ -543,109 +795,98 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      {/* Event Chips */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {dayTasks.slice(0, isMobile ? 2 : 3).map((task) => {
-                          const isPersonal = task.itemType === "personal";
-                          const isSprint = task.itemType === "sprint";
-                          const isProject = task.itemType === "project";
-                          const isDone = task.status === "Done";
-
-                          const bg = isProject
-                            ? "#f5f3ff"
-                            : isPersonal
-                              ? "#eef2ff"
-                              : isSprint
-                                ? "#ecfdf5"
-                                : "#f0fdfa";
-                          const borderColor = isProject
-                            ? "#ddd6fe"
-                            : isPersonal
-                              ? "#c7d2fe"
-                              : isSprint
-                                ? "#a7f3d0"
-                                : "#99f6e4";
-                          const textColor = isProject
-                            ? "#6d28d9"
-                            : isPersonal
-                              ? "#3730a3"
-                              : isSprint
-                                ? "#065f46"
-                                : "#115e59";
-
-                          return (
-                            <Tooltip
-                              key={task._id}
-                              title={
-                                <div>
-                                  <div style={{ fontWeight: 600 }}>{task.title}</div>
-                                  <div style={{ fontSize: 11 }}>
-                                    Type:{" "}
-                                    {task.itemType === "personal"
-                                      ? "Personal Task"
-                                      : task.itemType === "sprint"
-                                        ? "Sprint Deadline"
-                                        : task.itemType === "project"
-                                          ? "Project Timeline"
-                                          : `Work Item (${task.projectName || "Project"})`}
+                      {/* Event Chips Container with Micro-Scroll & Floating Popover */}
+                      <div
+                        className="calendar-task-list"
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 3,
+                          maxHeight: isMobile ? 65 : 86,
+                          overflowY: "auto",
+                          paddingRight: 2,
+                        }}
+                      >
+                        {dayTasks.length <= 3 ? (
+                          dayTasks.map((task) => renderCalendarChip(task, date))
+                        ) : (
+                          <>
+                            {dayTasks.slice(0, 2).map((task) => renderCalendarChip(task, date))}
+                            <Popover
+                              trigger="click"
+                              placement="bottom"
+                              overlayInnerStyle={{ padding: 12, borderRadius: 8 }}
+                              content={
+                                <div
+                                  style={{
+                                    width: 280,
+                                    maxHeight: 300,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      marginBottom: 8,
+                                      paddingBottom: 6,
+                                      borderBottom: "1px solid #f0f0f0",
+                                    }}
+                                  >
+                                    <Text strong style={{ fontSize: 13, color: "#1e293b" }}>
+                                      {date.format("dddd, D MMMM")}
+                                    </Text>
+                                    <Tag
+                                      color="#00897b"
+                                      style={{
+                                        margin: 0,
+                                        borderRadius: 10,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {dayTasks.length} items
+                                    </Tag>
                                   </div>
-                                  <div style={{ fontSize: 11 }}>
-                                    Status: {task.status} | Priority: {task.priority}
+                                  <div
+                                    className="calendar-task-list"
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 5,
+                                      overflowY: "auto",
+                                      maxHeight: 230,
+                                      paddingRight: 4,
+                                    }}
+                                  >
+                                    {dayTasks.map((task) => renderCalendarChip(task, date))}
                                   </div>
-                                  {task.assigneeName && (
-                                    <div style={{ fontSize: 11 }}>
-                                      Assignee: {task.assigneeName}
-                                    </div>
-                                  )}
                                 </div>
                               }
                             >
                               <div
+                                className="more-tasks-btn"
+                                onClick={(e) => e.stopPropagation()}
                                 style={{
-                                  backgroundColor: bg,
-                                  borderLeft: `3px solid ${task.color || "#00897b"}`,
-                                  borderTop: `1px solid ${borderColor}`,
-                                  borderRight: `1px solid ${borderColor}`,
-                                  borderBottom: `1px solid ${borderColor}`,
-                                  color: textColor,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  textAlign: "center",
                                   padding: "2px 6px",
                                   borderRadius: 4,
-                                  fontSize: 11,
-                                  fontWeight: 500,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  textDecoration: isDone ? "line-through" : "none",
-                                  opacity: isDone ? 0.65 : 1,
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isPersonal) {
-                                    onEditTask(task);
-                                  } else {
-                                    setSelectedDate(date);
-                                    setDrawerVisible(true);
-                                  }
+                                  background: "#e6f7f5",
+                                  color: "#00796b",
+                                  border: "1px solid #b2dfdb",
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
                                 }}
                               >
-                                {task.title}
+                                + {dayTasks.length - 2} more (view all)
                               </div>
-                            </Tooltip>
-                          );
-                        })}
-
-                        {dayTasks.length > (isMobile ? 2 : 3) && (
-                          <Text
-                            type="secondary"
-                            style={{
-                              fontSize: 10,
-                              textAlign: "center",
-                              display: "block",
-                              marginTop: 1,
-                            }}
-                          >
-                            + {dayTasks.length - (isMobile ? 2 : 3)} more
-                          </Text>
+                            </Popover>
+                          </>
                         )}
                       </div>
                     </div>
@@ -657,16 +898,47 @@ export default function CalendarPage() {
         </Card>
       </Spin>
 
-      {/* Legend */}
+      {/* Legend with Biometrik-themed Jira Icons */}
       <div
         style={{
           display: "flex",
-          gap: 20,
+          gap: 18,
           marginTop: 12,
           justifyContent: "center",
           flexWrap: "wrap",
+          alignItems: "center",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <JiraProjectMilestoneIcon size={14} />
+          <Text type="secondary" style={{ fontSize: 12, fontWeight: 500, color: "#00796b" }}>
+            Project Milestones (Start / Due)
+          </Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <JiraSprintIcon size={14} />
+          <Text type="secondary" style={{ fontSize: 12, fontWeight: 500, color: "#059669" }}>
+            Sprint Deadlines
+          </Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <JiraTaskIcon size={14} />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Work Items & Tasks
+          </Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <JiraBugIcon size={14} />
+          <Text type="secondary" style={{ fontSize: 12, color: "#e11d48" }}>
+            Bugs & Defects
+          </Text>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <JiraPersonalIcon size={14} />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Personal Tasks
+          </Text>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span
             style={{
@@ -678,63 +950,7 @@ export default function CalendarPage() {
             }}
           />
           <Text type="secondary" style={{ fontSize: 12, fontWeight: 500, color: "#dc2626" }}>
-            Official Holiday (All Sundays, 2nd & 4th Saturdays)
-          </Text>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "#00897b",
-              display: "inline-block",
-            }}
-          />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Project Work Items (Due Dates)
-          </Text>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "#059669",
-              display: "inline-block",
-            }}
-          />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Sprint Deadlines
-          </Text>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "#6366f1",
-              display: "inline-block",
-            }}
-          />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Personal Tasks
-          </Text>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "#8b5cf6",
-              display: "inline-block",
-            }}
-          />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Projects
+            Official Holiday (All Sundays, 2nd & 4th Sat)
           </Text>
         </div>
         {PRIORITIES.map((p) => (
@@ -1084,76 +1300,111 @@ export default function CalendarPage() {
 
             {/* 4. Projects Section */}
             {(() => {
-              const dateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
-              const projectItems = dateTasks.filter((t) => t.itemType === "project");
+              if (!selectedDate) return null;
+              const projectItems = filteredTasks.filter((t) => {
+                if (t.itemType === "project" && t.startDate && t.endDate) {
+                  const d = selectedDate.startOf("day").valueOf();
+                  const start = dayjs(t.startDate).startOf("day").valueOf();
+                  const end = dayjs(t.endDate).startOf("day").valueOf();
+                  return d >= start && d <= end;
+                }
+                return false;
+              });
               if (projectItems.length === 0) return null;
 
               return (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Text strong style={{ fontSize: 13, color: "#7c3aed" }}>
-                      Project Duration ({projectItems.length})
+                    <JiraProjectMilestoneIcon size={14} />
+                    <Text strong style={{ fontSize: 13, color: "#00897b" }}>
+                      Active Projects Timeline ({projectItems.length})
                     </Text>
                   </div>
                   <Space orientation="vertical" style={{ width: "100%" }} size={10}>
-                    {projectItems.map((pItem) => (
-                      <Card
-                        key={pItem._id}
-                        size="small"
-                        styles={{ body: { padding: 12 } }}
-                        style={{
-                          borderLeft: "4px solid #8b5cf6",
-                          borderRadius: 8,
-                          backgroundColor: "#f5f3ff",
-                        }}
-                      >
-                        <div
+                    {projectItems.map((pItem) => {
+                      const isStart = dayjs(pItem.startDate).isSame(selectedDate, "day");
+                      const isEnd = dayjs(pItem.endDate).isSame(selectedDate, "day");
+                      const cleanName =
+                        pItem.projectName || pItem.title.replace(/^Project:\s*/i, "");
+                      return (
+                        <Card
+                          key={pItem._id}
+                          size="small"
+                          styles={{ body: { padding: 12 } }}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
+                            borderLeft: "4px solid #00897b",
+                            borderRadius: 8,
+                            backgroundColor: "#f0fdfa",
                           }}
                         >
-                          <div>
-                            <Text strong style={{ fontSize: 14, color: "#4c1d95" }}>
-                              {pItem.projectName}
-                            </Text>
-                            <div style={{ fontSize: 11, color: "#7c3aed", marginTop: 2 }}>
-                              Timeline: {dayjs(pItem.startDate).format("MMM D")} -{" "}
-                              {dayjs(pItem.endDate).format("MMM D, YYYY")}
-                            </div>
-                            {pItem.description && (
-                              <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
-                                {pItem.description}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <Text strong style={{ fontSize: 14, color: "#00796b" }}>
+                                  {cleanName}
+                                </Text>
+                                {isStart && (
+                                  <Tag color="#00897b" style={{ fontSize: 10, borderRadius: 4 }}>
+                                    🚀 Kickoff
+                                  </Tag>
+                                )}
+                                {isEnd && (
+                                  <Tag color="#059669" style={{ fontSize: 10, borderRadius: 4 }}>
+                                    🏁 Delivery Deadline
+                                  </Tag>
+                                )}
                               </div>
+                              <div style={{ fontSize: 11, color: "#00796b", marginTop: 2 }}>
+                                Timeline: {dayjs(pItem.startDate).format("MMM D")} -{" "}
+                                {dayjs(pItem.endDate).format("MMM D, YYYY")}
+                              </div>
+                              {pItem.description && (
+                                <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
+                                  {pItem.description}
+                                </div>
+                              )}
+                            </div>
+                            {pItem.projectId && (
+                              <Space>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  onClick={() => {
+                                    setDrawerVisible(false);
+                                    router.push(`/projects/${pItem.projectId}`);
+                                  }}
+                                  style={{ color: "#00897b" }}
+                                >
+                                  View Project
+                                </Button>
+                                <Popconfirm
+                                  title="Delete project"
+                                  description="Are you sure you want to delete this project? This will also remove all associated tasks."
+                                  onConfirm={() =>
+                                    pItem.projectId && handleDeleteProject(pItem.projectId)
+                                  }
+                                  okText="Yes"
+                                  cancelText="No"
+                                >
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                  />
+                                </Popconfirm>
+                              </Space>
                             )}
                           </div>
-                          {pItem.projectId && (
-                            <Space>
-                              <Button
-                                type="link"
-                                size="small"
-                                onClick={() => {
-                                  setDrawerVisible(false);
-                                  router.push(`/projects/${pItem.projectId}`);
-                                }}
-                              >
-                                View Project
-                              </Button>
-                              <Popconfirm
-                                title="Delete project"
-                                description="Are you sure you want to delete this project? This will also remove all associated tasks."
-                                onConfirm={() => handleDeleteProject(pItem.projectId)}
-                                okText="Yes"
-                                cancelText="No"
-                              >
-                                <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                              </Popconfirm>
-                            </Space>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </Space>
                 </div>
               );

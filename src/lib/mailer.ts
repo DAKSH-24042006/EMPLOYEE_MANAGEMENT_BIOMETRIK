@@ -52,8 +52,8 @@ export function buildEmailHtml({
   bodyText: string;
   taskUrl?: string;
   ctaText?: string;
-  /** "task" | "reminder" | "overdue" | "test" */
-  notificationType?: "task" | "reminder" | "overdue" | "test";
+  /** "task" | "reminder" | "overdue" | "test" | "bug" */
+  notificationType?: "task" | "reminder" | "overdue" | "test" | "bug";
   /** Optional structured metadata shown as a detail card: { label: value } */
   meta?: Record<string, string>;
 }): string {
@@ -90,6 +90,13 @@ export function buildEmailHtml({
       badgeColor: "#ffffff",
       accentColor: "#dc2626",
       iconChar: "🚨",
+    },
+    bug: {
+      label: "Bug Defect Alert",
+      badgeBg: "#be123c",
+      badgeColor: "#ffffff",
+      accentColor: "#e11d48",
+      iconChar: "🐛",
     },
     test: {
       label: "Test Notification",
@@ -733,6 +740,340 @@ export async function sendTestEmail({
     return { success: true };
   } catch (err: unknown) {
     console.error("[Mailer] Test email failed:", err);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * 4. Bug Tracking: Send Bug Reported Email to PM
+ */
+export async function sendBugReportedEmail({
+  toEmail,
+  recipientName,
+  bugId,
+  title,
+  severity,
+  description,
+  remarks,
+  reportedByName,
+  projectName,
+  bugUrl,
+}: {
+  toEmail: string;
+  recipientName: string;
+  bugId: string;
+  title: string;
+  severity: string;
+  description: string;
+  remarks: string;
+  reportedByName: string;
+  projectName: string;
+  bugUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const config = await getEmailConfig();
+    const transporter = await createTransporter(config);
+    if (!transporter) return { success: false, error: "SMTP not configured" };
+
+    const subject = `[Biometrik Defect ${bugId}] [${severity}] New Bug Reported in ${projectName}`;
+    const bodyText = `Hello ${recipientName},\n\nA new defect ${bugId} has been reported in project "${projectName}" and assigned to you for triage.\n\nTitle: ${title}\nSeverity: ${severity}\nReported By: ${reportedByName}\n\nDescription:\n${description}\n\nReporter Remarks:\n${remarks}\n\nPlease review and assign a developer in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
+
+    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
+    const attachments = getLogoAttachment();
+    const html = buildEmailHtml({
+      subject,
+      bodyText,
+      taskUrl: bugUrl,
+      ctaText: "Review Bug in Workspace",
+      notificationType: "bug",
+      meta: {
+        "Defect ID": bugId,
+        Project: projectName,
+        Severity: severity,
+        "Reported By": reportedByName,
+        "Initial Status": "OPEN",
+      },
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      subject,
+      text: bodyText,
+      html,
+      attachments,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[Mailer] Bug reported email failed:", err);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * 5. Bug Tracking: Send Bug Assigned Email to Developer
+ */
+export async function sendBugAssignedEmail({
+  toEmail,
+  recipientName,
+  bugId,
+  title,
+  severity,
+  remarks,
+  assignedByName,
+  projectName,
+  bugUrl,
+}: {
+  toEmail: string;
+  recipientName: string;
+  bugId: string;
+  title: string;
+  severity: string;
+  remarks: string;
+  assignedByName: string;
+  projectName: string;
+  bugUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const config = await getEmailConfig();
+    const transporter = await createTransporter(config);
+    if (!transporter) return { success: false, error: "SMTP not configured" };
+
+    const subject = `[Biometrik Defect ${bugId}] [${severity}] Bug Assigned to You: ${title}`;
+    const bodyText = `Hello ${recipientName},\n\nYou have been assigned defect ${bugId} in project "${projectName}".\n\nTitle: ${title}\nSeverity: ${severity}\nAssigned By: ${assignedByName}\n\nAssignment Remarks:\n${remarks}\n\nPlease begin investigation and submit your fix in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
+
+    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
+    const attachments = getLogoAttachment();
+    const html = buildEmailHtml({
+      subject,
+      bodyText,
+      taskUrl: bugUrl,
+      ctaText: "Open Defect & Submit Fix",
+      notificationType: "bug",
+      meta: {
+        "Defect ID": bugId,
+        Project: projectName,
+        Severity: severity,
+        "Assigned By": assignedByName,
+        Status: "ASSIGNED",
+      },
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      subject,
+      text: bodyText,
+      html,
+      attachments,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[Mailer] Bug assigned email failed:", err);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * 6. Bug Tracking: Send Bug Reassigned Email to New Developer
+ */
+export async function sendBugReassignedEmail({
+  toEmail,
+  recipientName,
+  bugId,
+  title,
+  severity,
+  remarks,
+  previousAssigneeName,
+  reassignedByName,
+  projectName,
+  bugUrl,
+}: {
+  toEmail: string;
+  recipientName: string;
+  bugId: string;
+  title: string;
+  severity: string;
+  remarks: string;
+  previousAssigneeName?: string;
+  reassignedByName: string;
+  projectName: string;
+  bugUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const config = await getEmailConfig();
+    const transporter = await createTransporter(config);
+    if (!transporter) return { success: false, error: "SMTP not configured" };
+
+    const subject = `[Biometrik Defect ${bugId}] [${severity}] Defect Reassigned to You: ${title}`;
+    const bodyText = `Hello ${recipientName},\n\nDefect ${bugId} in project "${projectName}" has been reassigned to you.\n\nTitle: ${title}\nSeverity: ${severity}\nPrevious Assignee: ${previousAssigneeName || "None"}\nReassigned By: ${reassignedByName}\n\nReassignment Reason / Remarks:\n${remarks}\n\nPlease inspect the issue in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
+
+    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
+    const attachments = getLogoAttachment();
+    const html = buildEmailHtml({
+      subject,
+      bodyText,
+      taskUrl: bugUrl,
+      ctaText: "Review Reassigned Defect",
+      notificationType: "bug",
+      meta: {
+        "Defect ID": bugId,
+        Project: projectName,
+        Severity: severity,
+        "Reassigned By": reassignedByName,
+        Status: "ASSIGNED",
+      },
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      subject,
+      text: bodyText,
+      html,
+      attachments,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[Mailer] Bug reassigned email failed:", err);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * 7. Bug Tracking: Send Bug Fixed Email to PM and QA
+ */
+export async function sendBugFixedEmail({
+  toEmails,
+  bugId,
+  title,
+  severity,
+  remarks,
+  developerName,
+  projectName,
+  bugUrl,
+}: {
+  toEmails: string[];
+  bugId: string;
+  title: string;
+  severity: string;
+  remarks: string;
+  developerName: string;
+  projectName: string;
+  bugUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const validEmails = toEmails.filter(Boolean);
+    if (validEmails.length === 0) return { success: true };
+
+    const config = await getEmailConfig();
+    const transporter = await createTransporter(config);
+    if (!transporter) return { success: false, error: "SMTP not configured" };
+
+    const subject = `[Biometrik Defect ${bugId}] Fix Submitted by ${developerName}: ${title}`;
+    const bodyText = `Hello Team,\n\nA fix has been submitted for defect ${bugId} in project "${projectName}" and is awaiting QA verification.\n\nTitle: ${title}\nSeverity: ${severity}\nDeveloper: ${developerName}\n\nResolution Remarks:\n${remarks}\n\nPlease test and verify the fix in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
+
+    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
+    const attachments = getLogoAttachment();
+    const html = buildEmailHtml({
+      subject,
+      bodyText,
+      taskUrl: bugUrl,
+      ctaText: "Verify Fix in Workspace",
+      notificationType: "bug",
+      meta: {
+        "Defect ID": bugId,
+        Project: projectName,
+        Severity: severity,
+        Developer: developerName,
+        Status: "FIXED (Awaiting QA)",
+      },
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: validEmails.join(", "),
+      subject,
+      text: bodyText,
+      html,
+      attachments,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[Mailer] Bug fixed email failed:", err);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * 8. Bug Tracking: Send Bug QA Verified Email (PASS or FAIL)
+ */
+export async function sendBugQAVerifiedEmail({
+  toEmails,
+  bugId,
+  title,
+  severity,
+  outcome,
+  remarks,
+  qaName,
+  projectName,
+  bugUrl,
+}: {
+  toEmails: string[];
+  bugId: string;
+  title: string;
+  severity: string;
+  outcome: "PASS" | "FAIL";
+  remarks: string;
+  qaName: string;
+  projectName: string;
+  bugUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const validEmails = toEmails.filter(Boolean);
+    if (validEmails.length === 0) return { success: true };
+
+    const config = await getEmailConfig();
+    const transporter = await createTransporter(config);
+    if (!transporter) return { success: false, error: "SMTP not configured" };
+
+    const isPass = outcome === "PASS";
+    const subject = isPass
+      ? `[Biometrik QA PASSED] Defect ${bugId} Verified: ${title}`
+      : `[Biometrik QA FAILED] Defect ${bugId} Returned to Developer: ${title}`;
+
+    const bodyText = isPass
+      ? `Hello Team,\n\nDefect ${bugId} in project "${projectName}" has PASSED QA verification and is now marked complete.\n\nTitle: ${title}\nVerified By: ${qaName}\n\nQA Sign-off Remarks:\n${remarks}\n\nView details in workspace:\n${bugUrl || ""}\n\nBest regards,`
+      : `Hello Team,\n\nDefect ${bugId} in project "${projectName}" has FAILED QA verification and has been automatically re-assigned to the developer.\n\nTitle: ${title}\nTested By: ${qaName}\n\nDefect Persistence / Failure Remarks:\n${remarks}\n\nPlease inspect and address the defects:\n${bugUrl || ""}\n\nBest regards,`;
+
+    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
+    const attachments = getLogoAttachment();
+    const html = buildEmailHtml({
+      subject,
+      bodyText,
+      taskUrl: bugUrl,
+      ctaText: "Open Defect in Workspace",
+      notificationType: isPass ? "task" : "overdue",
+      meta: {
+        "Defect ID": bugId,
+        Project: projectName,
+        "QA Outcome": outcome,
+        "Tested By": qaName,
+        Status: isPass ? "PASS (Resolved)" : "FAIL (Auto-Returned)",
+      },
+    });
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: validEmails.join(", "),
+      subject,
+      text: bodyText,
+      html,
+      attachments,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[Mailer] Bug QA verified email failed:", err);
     return { success: false, error: (err as Error).message };
   }
 }

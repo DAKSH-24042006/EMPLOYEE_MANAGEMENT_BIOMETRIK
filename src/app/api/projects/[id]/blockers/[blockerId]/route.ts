@@ -39,6 +39,21 @@ export async function PATCH(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    const isSuperAdmin = payload.role === "SYSTEM_ADMIN" || payload.role === "ADMIN";
+    const isPM = project.techOwner && project.techOwner.toString() === payload.userId;
+    const isOwner = blocker.ownerId && blocker.ownerId.toString() === payload.userId;
+    const isCreator = blocker.createdBy && blocker.createdBy.toString() === payload.userId;
+
+    if (!isSuperAdmin && !isPM && !isOwner && !isCreator) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Only the blocker owner, creator, Project Manager, or Admin can update this blocker.",
+        },
+        { status: 403 }
+      );
+    }
+
     const prevStatus = blocker.status;
 
     // Apply updates
@@ -48,7 +63,7 @@ export async function PATCH(
     if (priority !== undefined) blocker.priority = priority;
     if (ownerId !== undefined) blocker.ownerId = ownerId;
     if (dueDate !== undefined) blocker.dueDate = dueDate ? new Date(dueDate) : undefined;
-    
+
     if (status !== undefined) {
       blocker.status = status;
       if (status === "Resolved" && prevStatus !== "Resolved") {
@@ -89,6 +104,60 @@ export async function PATCH(
     return NextResponse.json({ data: populatedBlocker }, { status: 200 });
   } catch (error: any) {
     console.error("Blocker update error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string; blockerId: string }> }
+) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const payload = await verifyJwt(token);
+    if (!payload?.userId) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    }
+
+    const { id, blockerId } = await params;
+    await dbConnect();
+
+    const blocker = await ProjectBlocker.findById(blockerId);
+    if (!blocker) {
+      return NextResponse.json({ error: "Blocker not found" }, { status: 404 });
+    }
+
+    const project = await Project.findById(id);
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isSuperAdmin = payload.role === "SYSTEM_ADMIN" || payload.role === "ADMIN";
+    const isPM = project.techOwner && project.techOwner.toString() === payload.userId;
+    const isOwner = blocker.ownerId && blocker.ownerId.toString() === payload.userId;
+    const isCreator = blocker.createdBy && blocker.createdBy.toString() === payload.userId;
+
+    if (!isSuperAdmin && !isPM && !isOwner && !isCreator) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Only the blocker owner, creator, Project Manager, or Admin can delete this blocker.",
+        },
+        { status: 403 }
+      );
+    }
+
+    await ProjectBlocker.findByIdAndDelete(blockerId);
+
+    return NextResponse.json({ message: "Blocker deleted successfully" }, { status: 200 });
+  } catch (error: any) {
+    console.error("Blocker delete error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

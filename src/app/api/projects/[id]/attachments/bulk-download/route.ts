@@ -86,7 +86,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     const safeProjectName = (project?.title || "project_files").replace(/[^a-zA-Z0-9_\-]/g, "_");
 
-    return new Response(zipBuffer, {
+    return new Response(new Uint8Array(zipBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",

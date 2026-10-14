@@ -34,6 +34,7 @@ import {
   Result,
   Spin,
   App,
+  Tooltip,
 } from "antd";
 import {
   ArrowLeft,
@@ -72,12 +73,14 @@ import {
   Search,
   Building2,
   Shield,
+  Bug as BugIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { FilePdfOutlined, EyeOutlined } from "@ant-design/icons";
 import { generateProjectPDF } from "@/lib/reportUtils";
+import ProjectBugTrackingTab from "@/components/project/ProjectBugTrackingTab";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -231,6 +234,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const currentUserId = currentUser?._id || currentUser?.id;
   const techOwnerId = project?.techOwner?._id || project?.techOwner;
   const productOwnerId = project?.productOwner?._id || project?.productOwner;
+  const qaLeadId = project?.qaLead?._id || project?.qaLead;
   const isSuperAdmin = Boolean(
     currentUser && (currentUser.role === "SYSTEM_ADMIN" || currentUser.role === "ADMIN")
   );
@@ -240,6 +244,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const isProductOwner = Boolean(
     currentUser && productOwnerId && String(currentUserId) === String(productOwnerId)
   );
+  const isQALead = Boolean(currentUser && qaLeadId && String(currentUserId) === String(qaLeadId));
   const isAssignedMember = Boolean(
     currentUser &&
     ((Array.isArray(project?.techTeamMembers) &&
@@ -250,7 +255,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
           : String(w.assignee?._id || w.assignee) === String(currentUserId)
       ))
   );
-  const isProjectEditor = isSuperAdmin || isProjectLead || isProductOwner || isAssignedMember;
+  const isProjectEditor =
+    isSuperAdmin || isProjectLead || isProductOwner || isQALead || isAssignedMember;
 
   useEffect(() => {
     if (tabQuery) {
@@ -287,6 +293,20 @@ function ProjectDetailsClient({ id }: { id: string }) {
         if (!addedIds.has(poid)) {
           list.push(poObj);
           addedIds.add(poid);
+        }
+      }
+    }
+
+    if (project?.qaLead) {
+      const qaObj =
+        typeof project.qaLead === "object"
+          ? project.qaLead
+          : users.find((u: any) => u._id === project.qaLead);
+      if (qaObj) {
+        const qaid = String(qaObj._id || qaObj.id);
+        if (!addedIds.has(qaid)) {
+          list.push(qaObj);
+          addedIds.add(qaid);
         }
       }
     }
@@ -708,15 +728,19 @@ function ProjectDetailsClient({ id }: { id: string }) {
         description: values.description,
         priority: values.priority,
         status: values.status,
-        techOwner: values.techOwner,
-        productOwner: values.productOwner,
-        techTeamMembers: values.techTeamMembers,
+        qaLead: values.qaLead,
         sprintId: values.sprintId,
         timeline: values.timeline
           ? [values.timeline[0].toISOString(), values.timeline[1].toISOString()]
           : undefined,
         changeReason: values.changeReason || "Update specifications",
       };
+
+      if (isSuperAdmin) {
+        payload.techOwner = values.techOwner;
+        payload.productOwner = values.productOwner;
+        payload.techTeamMembers = values.techTeamMembers;
+      }
 
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
@@ -1086,10 +1110,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
     }
     setSubmittingWorkItem(true);
     try {
+      const payload = {
+        ...values,
+        status: values.status || "To Do",
+      };
       const res = await fetch(`/api/projects/${id}/work-items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         message.success("Work item created successfully!");
@@ -1637,8 +1665,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
       (item.assignee?._id || item.assignee) !== workFilterAssignee
     )
       return false;
-    if (workFilterSprint !== "All" && (item.sprint?._id || item.sprint) !== workFilterSprint)
-      return false;
+    if (workFilterSprint !== "All") {
+      if (workFilterSprint === "None") {
+        if (item.sprint?._id || item.sprint) return false;
+      } else if ((item.sprint?._id || item.sprint) !== workFilterSprint) {
+        return false;
+      }
+    }
     if (workFilterPriority !== "All" && item.priority !== workFilterPriority) return false;
     if (workFilterOverdue) {
       const now = new Date();
@@ -1806,6 +1839,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       status: project.status,
                       techOwner: project.techOwner?._id || project.techOwner,
                       productOwner: project.productOwner?._id || project.productOwner,
+                      qaLead: project.qaLead?._id || project.qaLead,
+                      techTeamMembers: project.techTeamMembers?.map((m: any) => m?._id || m) || [],
                       timeline:
                         project.timeline?.startDate && project.timeline?.endDate
                           ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
@@ -1828,138 +1863,239 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </Space>
         </div>
 
-        {/* 4 Executive Metadata Cards */}
-        <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
+        {/* 5 Executive Metadata Cards */}
+        <div className="project-metadata-grid">
           {/* Card 1: Project Manager */}
-          <Col xs={24} sm={12} lg={6}>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                height: "100%",
-              }}
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              height: "100%",
+            }}
+          >
+            <Avatar
+              size={34}
+              style={{ backgroundColor: "#00897b", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
             >
-              <Avatar
-                size={34}
-                style={{ backgroundColor: "#00897b", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+              {(project.techOwner?.name || "Daksh Sheregar").charAt(0).toUpperCase()}
+            </Avatar>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                  letterSpacing: "0.5px",
+                }}
               >
-                {(project.techOwner?.name || "Daksh Sheregar").charAt(0).toUpperCase()}
-              </Avatar>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                    color: "#94a3b8",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Project Manager
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {project.techOwner?.name || "Daksh Sheregar"}
-                </div>
+                Project Manager
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {project.techOwner?.name || "Daksh Sheregar"}
               </div>
             </div>
-          </Col>
+          </div>
 
           {/* Card 2: Product Owner */}
-          <Col xs={24} sm={12} lg={6}>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                height: "100%",
-              }}
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              height: "100%",
+            }}
+          >
+            <Avatar
+              size={34}
+              style={{ backgroundColor: "#3b82f6", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
             >
-              <Avatar
-                size={34}
-                style={{ backgroundColor: "#3b82f6", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+              {(project.productOwner?.name || "Unassigned").charAt(0).toUpperCase()}
+            </Avatar>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                  letterSpacing: "0.5px",
+                }}
               >
-                {(project.productOwner?.name || "Unassigned").charAt(0).toUpperCase()}
-              </Avatar>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                    color: "#94a3b8",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Product Owner
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {project.productOwner?.name || "Unassigned"}
-                </div>
+                Product Owner
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {project.productOwner?.name || "Unassigned"}
               </div>
             </div>
-          </Col>
+          </div>
+
+          {/* Card: Designated QA Lead */}
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              height: "100%",
+            }}
+          >
+            <Avatar
+              size={34}
+              style={{ backgroundColor: "#8b5cf6", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+            >
+              {(project.qaLead?.name || "Unassigned").charAt(0).toUpperCase()}
+            </Avatar>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Designated QA Lead
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {project.qaLead?.name || "Unassigned"}
+              </div>
+            </div>
+          </div>
 
           {/* Card 3: Creator / Admin */}
-          <Col xs={24} sm={12} lg={6}>
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              height: "100%",
+            }}
+          >
             <div
               style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: "12px 14px",
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: "#f1f5f9",
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                height: "100%",
+                justifyContent: "center",
+                color: "#475569",
+                flexShrink: 0,
               }}
             >
+              <Shield size={16} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: "#f1f5f9",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#475569",
-                  flexShrink: 0,
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                  letterSpacing: "0.5px",
                 }}
               >
-                <Shield size={16} />
+                Created By
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {project.createdBy?.name || "System Administrator"}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Timeline */}
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              height: "100%",
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: "#f0fdfa",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#00897b",
+                flexShrink: 0,
+              }}
+            >
+              <CalendarIcon size={16} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
+                <span
                   style={{
                     fontSize: 10,
                     textTransform: "uppercase",
@@ -1968,96 +2104,34 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     letterSpacing: "0.5px",
                   }}
                 >
-                  Created By
-                </div>
-                <div
+                  Timeline
+                </span>
+                <span
                   style={{
-                    fontSize: 13,
+                    fontSize: 10,
                     fontWeight: 600,
-                    color: "#1e293b",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    color: projIsOverdue ? "#b91c1c" : "#00796b",
                   }}
                 >
-                  {project.createdBy?.name || "System Administrator"}
-                </div>
+                  {projTimelineRemaining}
+                </span>
               </div>
-            </div>
-          </Col>
-
-          {/* Card 4: Timeline */}
-          <Col xs={24} sm={12} lg={6}>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                height: "100%",
-              }}
-            >
               <div
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: "#f0fdfa",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#00897b",
-                  flexShrink: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <CalendarIcon size={16} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      textTransform: "uppercase",
-                      fontWeight: 600,
-                      color: "#94a3b8",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Timeline
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: projIsOverdue ? "#b91c1c" : "#00796b",
-                    }}
-                  >
-                    {projTimelineRemaining}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {dayjs(project.timeline?.startDate).format("DD MMM")} –{" "}
-                  {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
-                </div>
+                {dayjs(project.timeline?.startDate).format("DD MMM")} –{" "}
+                {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
               </div>
             </div>
-          </Col>
-        </Row>
+          </div>
+        </div>
 
         {/* Executive Overview Container */}
         {project.description && (
@@ -2298,6 +2372,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         placeholder="Sprint"
                       >
                         <Select.Option value="All">All Sprints</Select.Option>
+                        <Select.Option value="None">None (No Sprint)</Select.Option>
                         {sprints.map((s) => (
                           <Select.Option key={s._id} value={s._id}>
                             {s.name}
@@ -2471,12 +2546,32 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         },
                       },
                       {
+                        title: "Assigned Date",
+                        dataIndex: "assignedDate",
+                        key: "assignedDate",
+                        width: 130,
+                        render: (d) => {
+                          if (!d)
+                            return (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                —
+                              </Text>
+                            );
+                          return (
+                            <span style={{ fontSize: 12, color: "#475569" }}>
+                              {dayjs(d).format("DD MMM YYYY")}
+                            </span>
+                          );
+                        },
+                      },
+                      {
                         title: "Sprint",
                         dataIndex: ["sprint", "name"],
                         key: "sprint",
                         render: (name) => {
-                          const sprintName = name || "Backlog";
-                          const isBacklog = sprintName.toLowerCase() === "backlog";
+                          const sprintName =
+                            name && name.toLowerCase() !== "backlog" ? name : "None";
+                          const isNone = sprintName === "None";
                           return (
                             <Tag
                               style={{
@@ -2484,9 +2579,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                 borderRadius: 12,
                                 fontSize: 11,
                                 fontWeight: 500,
-                                background: isBacklog ? "#f1f5f9" : "#eff6ff",
-                                color: isBacklog ? "#475569" : "#1d4ed8",
-                                border: `1px solid ${isBacklog ? "#cbd5e1" : "#bfdbfe"}`,
+                                background: isNone ? "#f1f5f9" : "#eff6ff",
+                                color: isNone ? "#64748b" : "#1d4ed8",
+                                border: `1px solid ${isNone ? "#e2e8f0" : "#bfdbfe"}`,
                               }}
                             >
                               {sprintName}
@@ -2522,7 +2617,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         title: "Status",
                         dataIndex: "status",
                         key: "status",
-                        render: (s: string = "Backlog") => {
+                        render: (s: string = "To Do") => {
                           const sStyle = getWorkItemStatusStyle(s);
                           return (
                             <span
@@ -2551,34 +2646,6 @@ function ProjectDetailsClient({ id }: { id: string }) {
                             </span>
                           );
                         },
-                      },
-                      {
-                        title: "Progress",
-                        dataIndex: "progress",
-                        key: "progress",
-                        width: 130,
-                        render: (p) => (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Progress
-                              percent={p || 0}
-                              showInfo={false}
-                              strokeColor={p === 100 ? "#10b981" : "#00897b"}
-                              size="small"
-                              style={{ flex: 1, margin: 0 }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: p === 100 ? "#16a34a" : "#00897b",
-                                minWidth: 26,
-                                textAlign: "right",
-                              }}
-                            >
-                              {p || 0}%
-                            </span>
-                          </div>
-                        ),
                       },
                       {
                         title: "Due Date",
@@ -2725,27 +2792,36 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           </Text>
                         </div>
                         <Space wrap>
-                          <Button
-                            type="primary"
-                            icon={<Plus size={14} />}
-                            onClick={() => {
-                              selfTaskForm.resetFields();
-                              selfTaskForm.setFieldsValue({
-                                priority: "Medium",
-                                status: "To Do",
-                                type: "Task",
-                              });
-                              setIsSelfTaskModalOpen(true);
-                            }}
-                            style={{
-                              backgroundColor: "#00897b",
-                              borderColor: "#00897b",
-                              borderRadius: 8,
-                              fontWeight: 600,
-                            }}
+                          <Tooltip
+                            title={
+                              !isProjectEditor
+                                ? "Only assigned project members can create tasks"
+                                : ""
+                            }
                           >
-                            Create Task for Myself
-                          </Button>
+                            <Button
+                              type="primary"
+                              icon={<Plus size={14} />}
+                              disabled={!isProjectEditor}
+                              onClick={() => {
+                                selfTaskForm.resetFields();
+                                selfTaskForm.setFieldsValue({
+                                  priority: "Medium",
+                                  status: "To Do",
+                                  type: "Task",
+                                });
+                                setIsSelfTaskModalOpen(true);
+                              }}
+                              style={{
+                                backgroundColor: isProjectEditor ? "#00897b" : undefined,
+                                borderColor: isProjectEditor ? "#00897b" : undefined,
+                                borderRadius: 8,
+                                fontWeight: 600,
+                              }}
+                            >
+                              Create Task for Myself
+                            </Button>
+                          </Tooltip>
                           <Tag
                             color="cyan"
                             style={{ borderRadius: 12, padding: "3px 10px", fontSize: 12 }}
@@ -3671,6 +3747,25 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     </Card>
                   )}
                 </div>
+              ),
+            },
+            {
+              key: "bugs",
+              label: (
+                <Space size={6}>
+                  <BugIcon size={14} />
+                  <span>Bug Tracking</span>
+                </Space>
+              ),
+              children: (
+                <ProjectBugTrackingTab
+                  projectId={id}
+                  project={project}
+                  currentUser={currentUser}
+                  isProjectLead={isProjectLead}
+                  teamMembers={projectTeamMembers}
+                  initialBugId={tabQuery === "bugs" ? searchParams.get("bugId") : null}
+                />
               ),
             },
             ...(isProjectEditor
@@ -5023,26 +5118,28 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                       {f.originalName}
                                     </Text>
                                   </Space>
-                                  <Popconfirm
-                                    title="Delete Folder"
-                                    description="Delete this folder and all contents inside?"
-                                    onConfirm={(e) => {
-                                      e?.stopPropagation();
-                                      handleDeleteAttachment(f._id);
-                                    }}
-                                    onCancel={(e) => e?.stopPropagation()}
-                                    okText="Delete"
-                                    cancelText="Cancel"
-                                  >
-                                    <Button
-                                      type="text"
-                                      size="small"
-                                      danger
-                                      icon={<Trash2 size={13} />}
-                                      onClick={(e) => e.stopPropagation()}
-                                      style={{ padding: "0 4px" }}
-                                    />
-                                  </Popconfirm>
+                                  {isProjectEditor && (
+                                    <Popconfirm
+                                      title="Delete Folder"
+                                      description="Delete this folder and all contents inside?"
+                                      onConfirm={(e) => {
+                                        e?.stopPropagation();
+                                        handleDeleteAttachment(f._id);
+                                      }}
+                                      onCancel={(e) => e?.stopPropagation()}
+                                      okText="Delete"
+                                      cancelText="Cancel"
+                                    >
+                                      <Button
+                                        type="text"
+                                        size="small"
+                                        danger
+                                        icon={<Trash2 size={13} />}
+                                        onClick={(e) => e.stopPropagation()}
+                                        style={{ padding: "0 4px" }}
+                                      />
+                                    </Popconfirm>
+                                  )}
                                 </div>
                               </Col>
                             ))}
@@ -6038,6 +6135,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     }
                     options={users.map((u) => ({ label: u.name, value: u._id }))}
                   />
+                  <div style={{ marginTop: 4, fontSize: 11, color: "#64748b" }}>
+                    Assigned On:{" "}
+                    {selectedWorkItem.assignedDate
+                      ? dayjs(selectedWorkItem.assignedDate).format("DD MMM YYYY")
+                      : "—"}
+                  </div>
                 </div>
               </Col>
               <Col xs={24} sm={12}>
@@ -6047,57 +6150,17 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   </Text>
                   <Select
                     style={{ width: "100%", marginTop: 4 }}
-                    value={selectedWorkItem.sprint?._id}
-                    onChange={(val) => handleUpdateWorkItem(selectedWorkItem._id, { sprint: val })}
-                    options={[
-                      { label: "Backlog / No Sprint", value: "" },
-                      ...sprints.map((s) => ({ label: s.name, value: s._id })),
-                    ]}
-                  />
-                </div>
-              </Col>
-            </Row>
-
-            <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    EST. HOURS
-                  </Text>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    style={{ width: "100%", marginTop: 4 }}
-                    value={selectedWorkItem.estimatedHours}
-                    onChange={(e) =>
-                      handleUpdateWorkItem(selectedWorkItem._id, {
-                        estimatedHours: Math.max(0, Number(e.target.value)),
-                      })
+                    value={selectedWorkItem.sprint?._id || ""}
+                    onChange={(val) =>
+                      handleUpdateWorkItem(selectedWorkItem._id, { sprint: val || undefined })
                     }
-                  />
-                </div>
-              </Col>
-              <Col xs={24} sm={12}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    PROGRESS (% SLIDER)
-                  </Text>
-                  <Progress percent={selectedWorkItem.progress} style={{ marginTop: 8 }} />
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    style={{ width: "100%", marginTop: 4 }}
-                    value={selectedWorkItem.progress}
-                    onChange={(e) => {
-                      let val = Number(e.target.value);
-                      if (val < 0) val = 0;
-                      if (val > 100) val = 100;
-                      handleUpdateWorkItem(selectedWorkItem._id, {
-                        progress: val,
-                      });
-                    }}
+                    options={[
+                      { label: "None", value: "" },
+                      ...sprints.map((s) => ({
+                        label: `${s.name}${s.status === "Active" ? " (Active Sprint)" : ""}`,
+                        value: s._id,
+                      })),
+                    ]}
                   />
                 </div>
               </Col>
@@ -6296,8 +6359,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
-              <Form.Item name="techOwner" label="Project Manager">
+              <Form.Item
+                name="techOwner"
+                label={isSuperAdmin ? "Project Manager" : "Project Manager (Admin Only)"}
+              >
                 <Select
+                  disabled={!isSuperAdmin}
                   allowClear
                   showSearch
                   optionFilterProp="label"
@@ -6310,8 +6377,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="productOwner" label="Product Owner">
+              <Form.Item
+                name="productOwner"
+                label={isSuperAdmin ? "Product Owner" : "Product Owner (Admin Only)"}
+              >
                 <Select
+                  disabled={!isSuperAdmin}
                   allowClear
                   showSearch
                   optionFilterProp="label"
@@ -6324,8 +6395,26 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="techTeamMembers" label="Assigned Members">
+              <Form.Item name="qaLead" label="Designated QA / QA Lead">
                 <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Assign QA Lead"
+                  options={users.map((u: any) => ({
+                    label: `${u.name} (${u.role || "Employee"})`,
+                    value: String(u._id || u.id),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="techTeamMembers"
+                label={isSuperAdmin ? "Assigned Members" : "Assigned Members (Admin Only)"}
+              >
+                <Select
+                  disabled={!isSuperAdmin}
                   mode="multiple"
                   allowClear
                   showSearch
@@ -6898,7 +6987,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             form={workItemForm}
             layout="vertical"
             onFinish={handleCreateWorkItem}
-            initialValues={{ type: "Task", priority: "High" }}
+            initialValues={{ type: "Task", priority: "High", status: "To Do" }}
           >
             <Form.Item
               name="title"
@@ -6922,7 +7011,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </Form.Item>
 
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12}>
+              <Col xs={24} sm={8}>
                 <Form.Item name="type" label="* Type" rules={[{ required: true }]}>
                   <Select
                     size="large"
@@ -6934,7 +7023,25 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={12}>
+              <Col xs={24} sm={8}>
+                <Form.Item name="status" label="* Status" rules={[{ required: true }]}>
+                  <Select
+                    size="large"
+                    options={[
+                      "To Do",
+                      "In Progress",
+                      "Blocked",
+                      "In Review",
+                      "Testing",
+                      "Done",
+                      "Backlog",
+                      "Cancelled",
+                    ].map((s) => ({ label: s, value: s }))}
+                    disabled={submittingWorkItem}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={8}>
                 <Form.Item name="priority" label="* Priority" rules={[{ required: true }]}>
                   <Select
                     size="large"
@@ -6979,16 +7086,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Col>
             </Row>
 
-            <Form.Item name="sprintId" label="Sprint" style={{ marginBottom: 24 }}>
+            <Form.Item name="sprintId" label="Sprint" initialValue="" style={{ marginBottom: 24 }}>
               <Select
                 size="large"
                 placeholder="Select Sprint (Optional)"
-                allowClear
                 disabled={submittingWorkItem}
-                options={sprints.map((s: any) => ({
-                  label: s.title || `Sprint ${s.sprintNumber}`,
-                  value: s._id,
-                }))}
+                options={[
+                  { label: "None", value: "" },
+                  ...sprints.map((s: any) => ({
+                    label: `${s.name || `Sprint ${s.sprintNumber}`}${s.status === "Active" ? " (Active Sprint)" : ""}`,
+                    value: s._id,
+                  })),
+                ]}
               />
             </Form.Item>
 
@@ -7121,19 +7230,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
           )}
 
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={24}>
               <Form.Item name="dueDate" label="Target Due Date" style={{ marginBottom: 14 }}>
                 <DatePicker size="middle" style={{ width: "100%" }} placeholder="Select date" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="estimatedHours" label="Est. Hours" style={{ marginBottom: 14 }}>
-                <Input type="number" step="0.5" min={0} placeholder="e.g. 8" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="progress" label="Progress (%)" style={{ marginBottom: 14 }}>
-                <Input type="number" min={0} max={100} placeholder="0 - 100" />
               </Form.Item>
             </Col>
           </Row>

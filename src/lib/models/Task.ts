@@ -6,6 +6,7 @@ export interface ITask extends Document {
   description?: string;
   dueDate: Date;
   assignedTo: mongoose.Types.ObjectId;
+  assignedDate?: Date;
   syncToGoogleCalendar: boolean;
   googleCalendarEventId?: string;
   syncStatus: "Synced" | "Not synced" | "Sync failed" | "Re-sync";
@@ -37,6 +38,10 @@ const TaskSchema: Schema = new Schema(
       ref: "User",
       required: true,
     },
+    assignedDate: {
+      type: Date,
+      default: Date.now,
+    },
     syncToGoogleCalendar: {
       type: Boolean,
       default: false,
@@ -64,5 +69,4 @@ const TaskSchema: Schema = new Schema(
   }
 );
 
-export const Task: Model<ITask> =
-  mongoose.models.Task || mongoose.model<ITask>("Task", TaskSchema);
+export const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>("Task", TaskSchema);

@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       createdBy: payload.userId,
       techOwner: data.techOwner || undefined,
       productOwner: data.productOwner || undefined,
+      qaLead: data.qaLead || undefined,
       techTeamMembers: Array.isArray(data.techTeamMembers) ? data.techTeamMembers : [],
     };
 

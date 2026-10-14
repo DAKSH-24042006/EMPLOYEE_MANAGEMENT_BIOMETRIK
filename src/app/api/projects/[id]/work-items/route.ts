@@ -104,15 +104,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       );
     }
 
-    const project = await Project.findById(id).select("title clientDetails techOwner");
+    const project = await Project.findById(id).select(
+      "title clientDetails techOwner productOwner qaLead techTeamMembers"
+    );
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const isProjectLead =
-      payload.role === Role.SYSTEM_ADMIN ||
-      payload.role === "ADMIN" ||
-      (project.techOwner && project.techOwner.toString() === payload.userId);
+    const isSuperAdmin = payload.role === Role.SYSTEM_ADMIN || payload.role === "ADMIN";
+    const isPM = project.techOwner && project.techOwner.toString() === payload.userId;
+    const isPO = project.productOwner && project.productOwner.toString() === payload.userId;
+    const isQA = project.qaLead && project.qaLead.toString() === payload.userId;
+    const isAssignedMember =
+      Array.isArray(project.techTeamMembers) &&
+      project.techTeamMembers.some((m: any) => m.toString() === payload.userId);
+
+    const isProjectParticipant = isSuperAdmin || isPM || isPO || isQA || isAssignedMember;
+    if (!isProjectParticipant) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not a member of this project and cannot create tasks." },
+        { status: 403 }
+      );
+    }
+
+    const isProjectLead = isSuperAdmin || isPM;
 
     const body = await req.json();
 
@@ -142,10 +157,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       type: body.type || "Feature",
       module: body.module || "",
       priority: body.priority || "Medium",
-      status: body.status || "Backlog",
+      status: body.status || "To Do",
       assignee: targetAssignee,
       assignees: body.assignees || (targetAssignee ? [targetAssignee] : []),
-      sprint: body.sprint || undefined,
+      assignedDate: targetAssignee ? new Date() : undefined,
+      sprint:
+        body.sprintId && body.sprintId !== "none" && body.sprintId !== ""
+          ? body.sprintId
+          : body.sprint && body.sprint !== "none" && body.sprint !== ""
+            ? body.sprint
+            : undefined,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
       estimatedHours: body.estimatedHours || 0,
       createdBy: payload.userId,

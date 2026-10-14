@@ -9,10 +9,8 @@ import {
   Avatar,
   Dropdown,
   Breadcrumb,
-  Space,
   Grid,
   Drawer,
-  ConfigProvider,
   Badge,
   List,
   message,
@@ -21,24 +19,22 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu as MenuIcon, LogOut } from "lucide-react";
 import {
-  LayoutDashboard,
-  Calendar,
-  User,
-  Users,
-  Plus,
-  ChevronDown,
-  Briefcase,
-  Menu as MenuIcon,
-  LogOut,
-  Check,
-  Bell,
-  ShieldCheck,
-} from "lucide-react";
+  JiraAppSwitcherIcon,
+  JiraDashboardIcon,
+  JiraProjectsIcon,
+  JiraCalendarIcon,
+  JiraBugIcon,
+  JiraPeopleIcon,
+  JiraBellIcon,
+  JiraChevronDownIcon,
+} from "@/components/ui/JiraIcons";
 import { Role } from "@/lib/constants";
 import logo from "../../public/Biometrik_New_Logo.png";
+import { HomeOutlined } from "@ant-design/icons";
 
-// Notification Dropdown Component
+// Notification Dropdown Component using Jira Bell Icon
 function NotificationDropdown() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -70,7 +66,7 @@ function NotificationDropdown() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMarkAsRead = async (id: string, projectId?: string, title?: string) => {
+  const handleMarkAsRead = async (id: string, projectId?: string) => {
     try {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
@@ -130,7 +126,7 @@ function NotificationDropdown() {
         locale={{ emptyText: "No notifications" }}
         renderItem={(item) => (
           <List.Item
-            onClick={() => handleMarkAsRead(item._id, item.projectId, item.title)}
+            onClick={() => handleMarkAsRead(item._id, item.projectId)}
             style={{
               padding: "12px 16px",
               cursor: "pointer",
@@ -164,34 +160,43 @@ function NotificationDropdown() {
   return (
     <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="bottomRight">
       <Badge count={unreadCount} size="small" offset={[-2, 4]} style={{ cursor: "pointer" }}>
-        <Button type="text" shape="circle" icon={<Bell size={18} color="#676879" />} />
+        <div
+          role="button"
+          tabIndex={0}
+          className="jira-icon-btn"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            cursor: "pointer",
+            color: "#44546F",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <JiraBellIcon size={19} />
+        </div>
       </Badge>
     </Dropdown>
   );
 }
 
-const { Header, Sider, Content } = Layout;
+const { Header, Content } = Layout;
 const { useBreakpoint } = Grid;
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(
     null
   );
   const pathname = usePathname() || "";
-  const router = useRouter();
-
-  useEffect(() => {
-    if (pathname === "/projects/new") {
-      setCollapsed(true);
-    }
-  }, [pathname]);
+  const screens = useBreakpoint();
 
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
-  const screens = useBreakpoint();
 
   // Avoid hydration mismatch by waiting for mount
   const [mounted, setMounted] = useState(false);
@@ -248,40 +253,41 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, [user]);
 
-  const isMobile = mounted && !screens.md;
-
-  // Branding colors from logo
-  const logoTeal = "#00897b";
-
+  const isMobile = mounted && !screens.lg;
   const isSuperAdmin = user?.role === "SYSTEM_ADMIN" || user?.role === "ADMIN";
 
-  // Menu items for the sidebar based on user requirements
-  const menuItems = [
+  // Navigation Items using official Jira icons
+  const navItems = [
     {
       key: "/dashboard",
-      icon: <LayoutDashboard size={18} />,
+      icon: <JiraDashboardIcon size={17} />,
       label: <Link href="/dashboard">Dashboard</Link>,
     },
     {
       key: "/projects",
-      icon: <Briefcase size={18} />,
-      label: <Link href="/projects">Projects</Link>,
+      icon: <JiraProjectsIcon size={17} />,
+      label: (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Link href="/projects">Projects</Link>
+          <JiraChevronDownIcon size={11} color="#626F86" />
+        </span>
+      ),
     },
     {
       key: "/calendar",
-      icon: <Calendar size={18} />,
+      icon: <JiraCalendarIcon size={17} />,
       label: <Link href="/calendar">Calendar</Link>,
     },
     {
-      key: "/profile",
-      icon: <User size={18} />,
-      label: <Link href="/profile">My Profile</Link>,
+      key: "/bug-history",
+      icon: <JiraBugIcon size={17} />,
+      label: <Link href="/bug-history">Bug History</Link>,
     },
     ...(isSuperAdmin
       ? [
           {
             key: "/admin",
-            icon: <Users size={18} />,
+            icon: <JiraPeopleIcon size={17} />,
             label: <Link href="/admin">User Management</Link>,
           },
         ]
@@ -292,7 +298,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pathSnippets = pathname.split("/").filter((i) => i);
   const breadcrumbItems = [
     {
-      title: <Link href="/dashboard">Home</Link>,
+      title: (
+        <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <HomeOutlined style={{ fontSize: 13 }} />
+          <span>Home</span>
+        </Link>
+      ),
     },
     ...pathSnippets.map((snippet, index) => {
       const url = `/${pathSnippets.slice(0, index + 1).join("/")}`;
@@ -301,7 +312,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         ? "Workspace"
         : snippet === "admin" || snippet === "users"
           ? "User Management"
-          : snippet.replace("-", " ");
+          : snippet === "bug-history"
+            ? "Bug History"
+            : snippet.replace("-", " ");
       return {
         title: (
           <Link href={url} style={{ textTransform: "capitalize" }}>
@@ -321,94 +334,217 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const renderSidebarContent = (isDrawer = false) => {
-    const isActuallyCollapsed = isDrawer ? false : collapsed;
-    return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 16 }}>
-          <div
+  // Determine current active key for top nav
+  const activeKey =
+    navItems.find((item) => pathname.startsWith(item.key) && item.key !== "/")?.key ||
+    (pathname === "/" ? "/dashboard" : "");
+
+  return (
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(circle at 100% 0%, rgba(0, 149, 135, 0.08) 0%, rgba(245, 248, 250, 0.5) 35%, #F5F8FA 100%)",
+      }}
+    >
+      {/* Top Navigation Bar - Jira Style */}
+      <Header
+        style={{
+          height: 56,
+          lineHeight: "56px",
+          padding: "0 20px",
+          background: "#ffffff",
+          borderBottom: "1px solid #DFE1E6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          boxShadow: "0 1px 2px rgba(9, 30, 66, 0.08)",
+        }}
+      >
+        {/* Left Section: App Switcher + Logo + Navigation Links */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, height: "100%", flex: 1 }}>
+          {/* Mobile hamburger menu toggle */}
+          {isMobile ? (
+            <Button
+              type="text"
+              icon={<MenuIcon size={20} color="#44546F" />}
+              onClick={() => setDrawerVisible(true)}
+              style={{ width: 36, height: 36, padding: 0 }}
+            />
+          ) : (
+            /* Desktop Jira 9-Dot App Switcher Icon */
+            <div
+              className="jira-icon-btn"
+              title="Atlassian Switcher"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 34,
+                height: 34,
+                borderRadius: 4,
+                cursor: "pointer",
+                color: "#44546F",
+                transition: "background 0.2s ease, color 0.2s ease",
+              }}
+            >
+              <JiraAppSwitcherIcon size={18} />
+            </div>
+          )}
+
+          {/* Biometrik Brand Logo */}
+          <Link
+            href="/dashboard"
             style={{
-              height: 72,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              padding: isActuallyCollapsed ? "0 8px" : "0 24px",
-              overflow: "hidden",
-              transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
-              marginBottom: 16,
+              marginRight: 12,
+              flexShrink: 0,
             }}
           >
+            <Image
+              src={logo}
+              alt="Biometrik"
+              height={32}
+              priority
+              style={{ height: 32, width: "auto", objectFit: "contain" }}
+            />
+          </Link>
+
+          {/* Desktop Top Horizontal Navigation Menu */}
+          {!isMobile && (
+            <nav style={{ display: "flex", alignItems: "center", height: "100%", gap: 2 }}>
+              {navItems.map((item) => {
+                const isActive = activeKey === item.key;
+                return (
+                  <div
+                    key={item.key}
+                    className={`jira-nav-item ${isActive ? "active" : ""}`}
+                    style={{
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0 12px",
+                      position: "relative",
+                      fontSize: 14,
+                      fontWeight: isActive ? 600 : 500,
+                      color: "#535353",
+                      cursor: "pointer",
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                      borderBottom: isActive ? "3px solid #009587" : "3px solid transparent",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        color: "#535353",
+                      }}
+                    >
+                      <span
+                        className={`jira-nav-icon ${isActive ? "active-glow" : ""}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          color: "#535353",
+                          transition: "all 0.25s ease",
+                          filter: isActive
+                            ? "drop-shadow(0 0 6px rgba(0, 149, 135, 0.65))"
+                            : "none",
+                        }}
+                      >
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </nav>
+          )}
+        </div>
+
+        {/* Right Section: Notifications + User Profile */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          {/* Jira-style Notification Bell Dropdown */}
+          <NotificationDropdown />
+
+          {/* User Profile Avatar with dropdown */}
+          <Dropdown
+            menu={{
+              items: [
+                { key: "1", label: <Link href="/profile">Profile</Link> },
+                { type: "divider" },
+                {
+                  key: "2",
+                  label: "Logout",
+                  icon: <LogOut size={15} />,
+                  danger: true,
+                  onClick: handleLogout,
+                },
+              ],
+            }}
+            placement="bottomRight"
+            trigger={["click"]}
+          >
             <div
+              className="jira-profile-pill"
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: "100%",
-                position: "relative",
+                gap: 10,
+                cursor: "pointer",
+                padding: "3px 8px 3px 4px",
+                borderRadius: 6,
+                transition: "background 0.2s ease",
               }}
             >
-              <Image
-                src={logo}
-                alt="Logo"
-                width={isActuallyCollapsed ? 48 : 180}
-                height={40}
-                priority
+              <Avatar
                 style={{
-                  width: isActuallyCollapsed ? "48px" : "180px",
-                  height: "auto",
-                  objectFit: "contain",
-                  transition: "width 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
+                  backgroundColor: "#00897b",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  width: 32,
+                  height: 32,
+                  fontSize: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
                 }}
-              />
+              >
+                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+              </Avatar>
+              {!isMobile && (
+                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+                  <span style={{ fontWeight: 600, color: "#172B4D", fontSize: 13 }}>
+                    {user?.name || "Loading..."}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#626F86",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {user?.role === Role.SYSTEM_ADMIN
+                      ? "System Admin"
+                      : user?.designation ||
+                        user?.role?.toLowerCase().replace("_", " ") ||
+                        "Employee"}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-
-          <Menu
-            theme="light"
-            mode="inline"
-            inlineCollapsed={isActuallyCollapsed}
-            selectedKeys={[pathname]}
-            items={menuItems}
-            onClick={() => {
-              if (isDrawer) setDrawerVisible(false);
-            }}
-            style={{
-              background: "transparent",
-              borderRight: 0,
-              marginTop: 8,
-            }}
-          />
+          </Dropdown>
         </div>
-      </div>
-    );
-  };
+      </Header>
 
-  return (
-    <Layout style={{ height: "100vh", overflow: "hidden" }}>
-      {mounted && !isMobile && (
-        <Sider
-          theme="light"
-          collapsible
-          trigger={null}
-          collapsed={collapsed}
-          collapsedWidth={80}
-          width={260}
-          style={{
-            position: "sticky",
-            top: 0,
-            height: "100vh",
-            borderRight: "1px solid #f0f0f0",
-            background: "#ffffff",
-            display: "flex",
-            flexDirection: "column",
-            transition: "width 0.2s",
-          }}
-        >
-          {renderSidebarContent(false)}
-        </Sider>
-      )}
-
+      {/* Mobile Drawer Navigation */}
       {mounted && isMobile && (
         <Drawer
           placement="left"
@@ -418,187 +554,111 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           size={260}
           closable={false}
         >
-          {renderSidebarContent(true)}
+          <div style={{ padding: "20px 16px", borderBottom: "1px solid #f0f0f0" }}>
+            <Image
+              src={logo}
+              alt="Biometrik"
+              height={32}
+              style={{ height: 32, width: "auto", objectFit: "contain" }}
+            />
+          </div>
+          <Menu
+            theme="light"
+            mode="inline"
+            selectedKeys={[activeKey]}
+            items={navItems}
+            onClick={() => setDrawerVisible(false)}
+            style={{ borderRight: 0, marginTop: 8 }}
+          />
         </Drawer>
       )}
 
-      <Layout
+      {/* Main Full-Width Content Canvas */}
+      <Content
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100vh",
-          overflow: "hidden",
+          flex: 1,
+          width: "100%",
+          padding: isMobile ? "10px 12px" : "14px 24px",
           minWidth: 0,
-          maxWidth: "100%",
         }}
       >
-        <Header
+        <Breadcrumb
+          separator=">"
+          items={breadcrumbItems}
           style={{
-            padding: "0 16px",
-            background: colorBgContainer,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: "1px solid #f0f0f0",
-            position: "sticky",
-            top: 0,
-            zIndex: 1,
-            width: "100%",
+            marginBottom: 10,
+            fontSize: 12.5,
+            color: "#6B7280",
           }}
-        >
-          <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
-            <Button
-              type="text"
-              icon={<MenuIcon size={20} />}
-              onClick={() => {
-                if (isMobile) {
-                  setDrawerVisible(true);
-                } else {
-                  setCollapsed(!collapsed);
-                }
-              }}
-              style={{
-                fontSize: "16px",
-                width: 40,
-                height: 40,
-                marginRight: 8,
-              }}
-            />
-          </div>
+        />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginLeft: 16 }}>
-            {/* Notification Bell Dropdown */}
-            <NotificationDropdown />
-
-            <Dropdown
-              menu={{
-                items: [
-                  { key: "1", label: <Link href="/profile">Profile</Link> },
-                  { type: "divider" },
-                  {
-                    key: "2",
-                    label: "Logout",
-                    icon: <LogOut size={16} />,
-                    danger: true,
-                    onClick: handleLogout,
-                  },
-                ],
-              }}
-              placement="bottomRight"
-              trigger={["click"]}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  cursor: "pointer",
-                  padding: "4px 8px",
-                  borderRadius: "8px",
-                  transition: "background 0.3s",
-                }}
-                className="profile-trigger"
-              >
-                <Avatar
-                  style={{
-                    backgroundColor: "#00897b",
-                    color: "#fff",
-                    fontWeight: 600,
-                    width: 36,
-                    height: 36,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "16px",
-                  }}
-                >
-                  {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-                </Avatar>
-                {!isMobile && (
-                  <div style={{ display: "flex", flexDirection: "column", lineHeight: "1.2" }}>
-                    <span
-                      style={{ fontWeight: 600, color: "rgba(0, 0, 0, 0.85)", fontSize: "14px" }}
-                    >
-                      {user?.name || "Loading..."}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        color: "rgba(0, 0, 0, 0.45)",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {user?.role === Role.SYSTEM_ADMIN
-                        ? "System Admin"
-                        : user?.designation ||
-                          user?.role?.toLowerCase().replace("_", " ") ||
-                          "Employee"}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </Dropdown>
-            <style jsx>{`
-              .profile-trigger:hover {
-                background: rgba(0, 0, 0, 0.025);
-              }
-            `}</style>
-          </div>
-        </Header>
-
-        <Content
+        <div
           style={{
-            margin: mounted && isMobile ? "0 8px 8px 8px" : "0 16px 16px 16px",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
             flex: 1,
-            minWidth: 0,
-            maxWidth: "100%",
+            background: pathname === "/projects" ? "transparent" : colorBgContainer,
+            borderRadius: pathname === "/projects" ? 0 : borderRadiusLG,
+            padding: pathname === "/projects" ? 0 : isMobile ? 14 : 24,
+            boxShadow: pathname === "/projects" ? "none" : "0 1px 3px rgba(9, 30, 66, 0.06)",
+            overflowY: "auto",
+            minHeight: 0,
           }}
         >
-          <Breadcrumb
-            items={breadcrumbItems}
-            style={{
-              margin: mounted && isMobile ? "8px 0" : "12px 0",
-              padding: "0 8px",
-              flex: "0 0 auto",
-            }}
-          />
-          <div
-            style={{
-              padding: mounted && isMobile ? 12 : 20,
-              flex: 1,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-              display: "flex",
-              flexDirection: "column",
-              overflowY: "auto",
-              overflowX: "hidden",
-              minHeight: 0,
-              minWidth: 0,
-              maxWidth: "100%",
-            }}
-          >
-            {children}
-          </div>
-        </Content>
-        <Layout.Footer
-          style={{
-            textAlign: "center",
-            padding: "12px 20px",
-            background: "#fff",
-            borderTop: "1px solid #f0f0f0",
-            fontSize: "13px",
-            color: "#8c8c8c",
-            flexShrink: 0,
-            zIndex: 1,
-          }}
-        >
-          © {new Date().getFullYear()}{" "}
-          <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
-        </Layout.Footer>
-      </Layout>
+          {children}
+        </div>
+      </Content>
+
+      {/* Footer */}
+      <Layout.Footer
+        style={{
+          textAlign: "center",
+          padding: "12px 20px",
+          background: "#ffffff",
+          borderTop: "1px solid #DFE1E6",
+          fontSize: 12,
+          color: "#626F86",
+          flexShrink: 0,
+        }}
+      >
+        © {new Date().getFullYear()}{" "}
+        <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
+      </Layout.Footer>
+
+      {/* Jira Top Bar Styles */}
+      <style jsx global>{`
+        .jira-icon-btn:hover {
+          background-color: #091e420f;
+          color: #262626 !important;
+        }
+        .jira-nav-item a {
+          color: #535353 !important;
+        }
+        .jira-nav-item:hover {
+          background-color: #091e420f;
+        }
+        .jira-nav-item:hover a,
+        .jira-nav-item:hover span {
+          color: #262626 !important;
+        }
+        .jira-nav-item:hover .jira-nav-icon {
+          filter: drop-shadow(0 0 4px rgba(0, 149, 135, 0.4)) !important;
+        }
+        .jira-nav-item:active .jira-nav-icon,
+        .jira-nav-icon.active-glow {
+          filter: drop-shadow(0 0 8px rgba(0, 149, 135, 0.75)) drop-shadow(0 0 2px #009587) !important;
+        }
+        .jira-nav-item.active {
+          box-shadow: inset 0 -2px 8px -2px rgba(0, 149, 135, 0.35);
+        }
+        .jira-nav-item.active a {
+          color: #535353 !important;
+          font-weight: 600;
+        }
+        .jira-profile-pill:hover {
+          background-color: #091e420f;
+        }
+      `}</style>
     </Layout>
   );
 }

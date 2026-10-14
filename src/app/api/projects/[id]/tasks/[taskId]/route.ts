@@ -4,7 +4,11 @@ import { Project } from "@/lib/models/Project";
 import { Task } from "@/lib/models/Task";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
-import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/googleCalendar";
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from "@/lib/googleCalendar";
 import { GoogleToken } from "@/lib/models/GoogleToken";
 import { logActivity } from "@/lib/activity";
 import { canUserViewProject } from "@/lib/projectAccess";
@@ -36,7 +40,10 @@ export async function PATCH(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const task = await Task.findById(taskId);
@@ -49,6 +56,41 @@ export async function PATCH(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    const isProjectLead =
+      payload.role === "SYSTEM_ADMIN" ||
+      payload.role === "ADMIN" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    const isAssignee = task.assignedTo && task.assignedTo.toString() === payload.userId;
+
+    if (!isProjectLead && !isAssignee) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Only the Project Manager, Admin, or the task assignee can update this task.",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Assignees who are not leads can only update status
+    if (!isProjectLead) {
+      if (
+        title !== undefined ||
+        description !== undefined ||
+        dueDate !== undefined ||
+        assignedTo !== undefined
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: Only the Project Manager or Admin can modify task details or reassign tasks.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const prevStatus = task.status;
     const prevSync = task.syncToGoogleCalendar;
     const prevAssignee = task.assignedTo.toString();
@@ -58,7 +100,12 @@ export async function PATCH(
     if (title !== undefined) task.title = title;
     if (description !== undefined) task.description = description;
     if (dueDate !== undefined) task.dueDate = new Date(dueDate);
-    if (assignedTo !== undefined) task.assignedTo = assignedTo;
+    if (assignedTo !== undefined) {
+      if (task.assignedTo?.toString() !== assignedTo?.toString()) {
+        task.assignedDate = new Date();
+      }
+      task.assignedTo = assignedTo;
+    }
     if (body.status !== undefined) task.status = body.status;
 
     const currentAssignee = task.assignedTo.toString();
@@ -70,7 +117,12 @@ export async function PATCH(
 
     const origin = req.headers.get("origin") || "http://localhost:3000";
     const dashboardUrl = `${origin}/projects/${id}`;
-    const statusPrefix = task.status === "Completed" ? "[COMPLETED] " : task.status === "Cancelled" ? "[CANCELLED] " : "";
+    const statusPrefix =
+      task.status === "Completed"
+        ? "[COMPLETED] "
+        : task.status === "Cancelled"
+          ? "[CANCELLED] "
+          : "";
     const summary = `${statusPrefix}[${project.clientDetails.companyName}] Task: ${task.title}`;
     const desc = task.description || "No description provided.";
 
@@ -85,7 +137,7 @@ export async function PATCH(
           } catch (delErr) {
             console.error("Failed to delete previous assignee event:", delErr);
           }
-          
+
           // Create event in new assignee's calendar
           const newEventId = await createCalendarEvent(currentAssignee, {
             summary,
@@ -167,12 +219,7 @@ export async function PATCH(
         payload.userId
       );
     } else {
-      await logActivity(
-        id,
-        "task",
-        `Updated task "${task.title}" details`,
-        payload.userId
-      );
+      await logActivity(id, "task", `Updated task "${task.title}" details`, payload.userId);
     }
 
     const populatedTask = await Task.findById(task._id)
@@ -214,12 +261,32 @@ export async function DELETE(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const task = await Task.findById(taskId);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    const project = await Project.findById(id);
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isProjectLead =
+      payload.role === "SYSTEM_ADMIN" ||
+      payload.role === "ADMIN" ||
+      (project.techOwner && project.techOwner.toString() === payload.userId);
+
+    if (!isProjectLead) {
+      return NextResponse.json(
+        { error: "Forbidden: Only the Project Manager or Admin can delete tasks." },
+        { status: 403 }
+      );
     }
 
     // Delete calendar event if it was synced
@@ -229,12 +296,7 @@ export async function DELETE(
 
     await Task.findByIdAndDelete(taskId);
 
-    await logActivity(
-      id,
-      "task",
-      `Deleted task "${task.title}"`,
-      payload.userId
-    );
+    await logActivity(id, "task", `Deleted task "${task.title}"`, payload.userId);
 
     return NextResponse.json(
       { message: "Task successfully deleted" },

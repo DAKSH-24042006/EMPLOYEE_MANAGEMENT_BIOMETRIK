@@ -51,7 +51,9 @@ export async function canUserEditProject(
 
   let project: any = projectOrId;
   if (!project || typeof project === "string" || project instanceof mongoose.Types.ObjectId) {
-    project = await Project.findById(projectOrId).select("techOwner productOwner techTeamMembers");
+    project = await Project.findById(projectOrId).select(
+      "techOwner productOwner qaLead techTeamMembers"
+    );
     if (!project) return false;
   }
 
@@ -76,6 +78,17 @@ export async function canUserEditProject(
       : null;
 
   if (poId && poId === strUserId) {
+    return true;
+  }
+
+  // 4. Designated QA Lead (qaLead)
+  const qaId = project.qaLead?._id
+    ? String(project.qaLead._id)
+    : project.qaLead
+      ? String(project.qaLead)
+      : null;
+
+  if (qaId && qaId === strUserId) {
     return true;
   }
 

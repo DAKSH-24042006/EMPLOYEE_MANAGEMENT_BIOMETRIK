@@ -4,8 +4,13 @@ import dbConnect from "@/lib/db";
 import { Project } from "@/lib/models/Project";
 import { ProjectVersion } from "@/lib/models/ProjectVersion";
 import { WorkItem } from "@/lib/models/WorkItem";
+import { Task } from "@/lib/models/Task";
+import { Sprint } from "@/lib/models/Sprint";
 import { ProjectBlocker } from "@/lib/models/ProjectBlocker";
 import { TestCase } from "@/lib/models/TestCase";
+import { ProjectAttachment } from "@/lib/models/ProjectAttachment";
+import { ChatMessage } from "@/lib/models/ChatMessage";
+import { Bug } from "@/lib/models/Bug";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
@@ -37,6 +42,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
       .populate("productOwner", "name email role phoneNumber")
+      .populate("qaLead", "name email role")
       .populate("techTeamMembers", "name email role")
       .populate("internalApproval.approvedBy", "name email role")
       .populate("salesApproval.approvedBy", "name email role")
@@ -368,6 +374,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.feasibilityStatus !== undefined)
       existingProject.feasibilityStatus = body.feasibilityStatus;
     if (body.techOwner !== undefined) existingProject.techOwner = body.techOwner || undefined;
+    if (body.productOwner !== undefined)
+      existingProject.productOwner = body.productOwner || undefined;
+    if (body.qaLead !== undefined) existingProject.qaLead = body.qaLead || undefined;
     if (body.techTeamMembers !== undefined) existingProject.techTeamMembers = body.techTeamMembers;
     if (body.complexity !== undefined) existingProject.complexity = body.complexity;
     if (body.estimatedEffort !== undefined) existingProject.estimatedEffort = body.estimatedEffort;
@@ -520,10 +529,23 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const deleted = await Project.findByIdAndDelete(id);
     if (!deleted) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-    // Automatically remove all tasks associated with the deleted project
-    await WorkItem.deleteMany({ projectId: id });
+    // Cascade delete all records associated with the deleted project
+    await Promise.all([
+      WorkItem.deleteMany({ projectId: id }),
+      Task.deleteMany({ projectId: id }),
+      Sprint.deleteMany({ projectId: id }),
+      ProjectBlocker.deleteMany({ projectId: id }),
+      TestCase.deleteMany({ projectId: id }),
+      ProjectAttachment.deleteMany({ projectId: id }),
+      ChatMessage.deleteMany({ projectId: id }),
+      ProjectVersion.deleteMany({ projectId: id }),
+      Bug.deleteMany({ projectId: id }),
+    ]);
 
-    return NextResponse.json({ message: "Project deleted successfully" }, { status: 200 });
+    return NextResponse.json(
+      { message: "Project and all associated records deleted successfully" },
+      { status: 200 }
+    );
   } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

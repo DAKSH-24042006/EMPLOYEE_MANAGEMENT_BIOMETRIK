@@ -6,14 +6,11 @@ import { verifyJwt } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { canUserViewProject } from "@/lib/projectAccess";
+import { canUserViewProject, canUserEditProject } from "@/lib/projectAccess";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
@@ -30,9 +27,15 @@ export async function POST(
     const { id } = await params;
     await dbConnect();
 
-    const canView = await canUserViewProject(id, payload.userId, payload.role);
-    if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+    const canEdit = await canUserEditProject(id, payload.userId, payload.role);
+    if (!canEdit) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Only project team members and administrators can upload attachments or create folders.",
+        },
+        { status: 403 }
+      );
     }
 
     const contentType = req.headers.get("content-type") || "";
@@ -57,7 +60,10 @@ export async function POST(
         });
 
         if (existingFolder) {
-          return NextResponse.json({ error: `Folder '${folderName}' already exists here.` }, { status: 400 });
+          return NextResponse.json(
+            { error: `Folder '${folderName}' already exists here.` },
+            { status: 400 }
+          );
         }
 
         const newFolder = await ProjectAttachment.create({
@@ -71,8 +77,10 @@ export async function POST(
           uploadedBy: payload.userId,
         });
 
-        const populatedFolder = await ProjectAttachment.findById(newFolder._id)
-          .populate("uploadedBy", "name email role");
+        const populatedFolder = await ProjectAttachment.findById(newFolder._id).populate(
+          "uploadedBy",
+          "name email role"
+        );
 
         return NextResponse.json(
           { data: populatedFolder },
@@ -114,17 +122,40 @@ export async function POST(
     ];
 
     const allowedExtensions = [
-      ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
-      ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-      ".txt", ".csv", ".zip", ".json", ".md"
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+      ".svg",
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".ppt",
+      ".pptx",
+      ".txt",
+      ".csv",
+      ".zip",
+      ".json",
+      ".md",
     ];
     const fileExt = path.extname(file.name || "").toLowerCase();
 
-    const isMimeAllowed = allowedMimeTypes.includes(file.type) || file.type.startsWith("image/") || file.type.startsWith("text/");
+    const isMimeAllowed =
+      allowedMimeTypes.includes(file.type) ||
+      file.type.startsWith("image/") ||
+      file.type.startsWith("text/");
     const isExtAllowed = allowedExtensions.includes(fileExt);
 
     if (!isMimeAllowed && !isExtAllowed) {
-      return NextResponse.json({ error: "Unsupported file format. Please upload documents, images, spreadsheets, or PDFs." }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Unsupported file format. Please upload documents, images, spreadsheets, or PDFs.",
+        },
+        { status: 400 }
+      );
     }
 
     // 25MB max size
@@ -160,8 +191,10 @@ export async function POST(
       uploadedBy: payload.userId,
     });
 
-    const populatedAttachment = await ProjectAttachment.findById(attachment._id)
-      .populate("uploadedBy", "name email role");
+    const populatedAttachment = await ProjectAttachment.findById(attachment._id).populate(
+      "uploadedBy",
+      "name email role"
+    );
 
     return NextResponse.json({ data: populatedAttachment }, { status: 201 });
   } catch (error: any) {
@@ -170,10 +203,7 @@ export async function POST(
   }
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
@@ -192,12 +222,15 @@ export async function GET(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(req.url);
     const folderParam = searchParams.get("folder");
-    const folderFilter = (folderParam && folderParam.trim()) ? folderParam.trim() : "/";
+    const folderFilter = folderParam && folderParam.trim() ? folderParam.trim() : "/";
 
     const query: any = { projectId: id, folder: folderFilter };
 

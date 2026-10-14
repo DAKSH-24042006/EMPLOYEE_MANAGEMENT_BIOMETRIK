@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { WorkItem } from "@/lib/models/WorkItem";
+import { Project } from "@/lib/models/Project";
+import { Role } from "@/lib/constants";
 import { verifyJwt } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { canUserViewProject } from "@/lib/projectAccess";
@@ -94,6 +96,32 @@ export async function PUT(
       return NextResponse.json({ error: "Work item not found" }, { status: 404 });
     }
 
+    const project = await Project.findById(id).select("techOwner");
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isSuperAdmin =
+      payload.role === Role.SYSTEM_ADMIN ||
+      payload.role === "SYSTEM_ADMIN" ||
+      payload.role === "ADMIN";
+
+    const isPM = project.techOwner && project.techOwner.toString() === payload.userId;
+
+    const isAssignee =
+      (workItem.assignee && workItem.assignee.toString() === payload.userId) ||
+      (Array.isArray(workItem.assignees) &&
+        workItem.assignees.some((a: any) => String(a?._id || a) === payload.userId));
+
+    const isCreator = workItem.createdBy && workItem.createdBy.toString() === payload.userId;
+
+    if (!isSuperAdmin && !isPM && !isAssignee && !isCreator) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not authorized to edit this work item." },
+        { status: 403 }
+      );
+    }
+
     const prevStatus = workItem.status;
 
     // Basic updates
@@ -103,9 +131,28 @@ export async function PUT(
     if (body.module !== undefined) workItem.module = body.module;
     if (body.priority !== undefined) workItem.priority = body.priority;
     if (body.status !== undefined) workItem.status = body.status;
-    if (body.assignee !== undefined) workItem.assignee = body.assignee || undefined;
-    if (body.assignees !== undefined) workItem.assignees = body.assignees || [];
-    if (body.sprint !== undefined) workItem.sprint = body.sprint || undefined;
+    if (body.assignee !== undefined) {
+      const prevAssigneeStr = workItem.assignee?.toString() || "";
+      const newAssigneeStr = body.assignee ? String(body.assignee) : "";
+      if (prevAssigneeStr !== newAssigneeStr) {
+        workItem.assignedDate = body.assignee ? new Date() : undefined;
+      }
+      workItem.assignee = body.assignee || undefined;
+    }
+    if (body.assignees !== undefined) {
+      workItem.assignees = body.assignees || [];
+      if (!workItem.assignee && workItem.assignees && workItem.assignees.length > 0) {
+        workItem.assignee = workItem.assignees[0];
+        workItem.assignedDate = new Date();
+      }
+    }
+    const incomingSprint = body.sprintId !== undefined ? body.sprintId : body.sprint;
+    if (incomingSprint !== undefined) {
+      workItem.sprint =
+        incomingSprint && incomingSprint !== "none" && incomingSprint !== ""
+          ? incomingSprint
+          : undefined;
+    }
     if (body.dueDate !== undefined)
       workItem.dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
     if (body.estimatedHours !== undefined) workItem.estimatedHours = body.estimatedHours;

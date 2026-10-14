@@ -3,7 +3,7 @@ import dbConnect from "@/lib/db";
 import { ProjectAttachment } from "@/lib/models/ProjectAttachment";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
-import { canUserViewProject } from "@/lib/projectAccess";
+import { canUserViewProject, canUserEditProject } from "@/lib/projectAccess";
 import fs from "fs";
 import path from "path";
 
@@ -92,10 +92,12 @@ export async function DELETE(
     const { id, attachmentId } = await params;
     await dbConnect();
 
-    const canView = await canUserViewProject(id, payload.userId, payload.role);
-    if (!canView) {
+    const canEdit = await canUserEditProject(id, payload.userId, payload.role);
+    if (!canEdit) {
       return NextResponse.json(
-        { error: "Forbidden: Access restricted to project members" },
+        {
+          error: "Forbidden: Only project team members and administrators can delete attachments.",
+        },
         { status: 403 }
       );
     }

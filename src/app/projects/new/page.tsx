@@ -395,7 +395,7 @@ export default function NewProjectPage() {
               </div>
 
               <Row gutter={24}>
-                <Col xs={24} md={12}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="techOwner"
                     label={<span style={{ fontWeight: 500 }}>Project Manager</span>}
@@ -415,7 +415,7 @@ export default function NewProjectPage() {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={12}>
+                <Col xs={24} md={8}>
                   <Form.Item
                     name="productOwner"
                     label={<span style={{ fontWeight: 500 }}>Product Owner</span>}
@@ -424,6 +424,26 @@ export default function NewProjectPage() {
                     <Select
                       size="large"
                       placeholder="Select Product Owner (Optional)"
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      options={users.map((u) => ({
+                        label: `${u.name} (${u.role || "Employee"})`,
+                        value: u._id,
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    name="qaLead"
+                    label={<span style={{ fontWeight: 500 }}>Designated QA / QA Lead</span>}
+                    extra="Designate the primary QA Lead responsible for quality assurance and defect signoff."
+                  >
+                    <Select
+                      size="large"
+                      placeholder="Select QA Lead (Optional)"
                       allowClear
                       showSearch
                       optionFilterProp="label"

@@ -36,6 +36,7 @@ export interface IWorkItem extends Document {
     | "Cancelled";
   assignee?: mongoose.Types.ObjectId;
   assignees?: mongoose.Types.ObjectId[];
+  assignedDate?: Date;
   sprint?: mongoose.Types.ObjectId;
   dueDate?: Date;
   lastReminderSentAt?: Date;
@@ -94,7 +95,7 @@ const WorkItemSchema: Schema = new Schema(
         "Done",
         "Cancelled",
       ],
-      default: "Backlog",
+      default: "To Do",
     },
     assignee: {
       type: Schema.Types.ObjectId,
@@ -106,6 +107,9 @@ const WorkItemSchema: Schema = new Schema(
         ref: "User",
       },
     ],
+    assignedDate: {
+      type: Date,
+    },
     sprint: {
       type: Schema.Types.ObjectId,
       ref: "Sprint",
