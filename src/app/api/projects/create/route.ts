@@ -69,7 +69,15 @@ export async function POST(req: Request) {
       status: data.status ? normalizeProjectStatus(data.status) : "In Progress",
       createdBy: payload.userId,
       techOwner: data.techOwner || undefined,
-      productOwner: data.productOwner || undefined,
+      productOwner:
+        Array.isArray(data.productOwners) && data.productOwners.length > 0
+          ? data.productOwners[0]
+          : data.productOwner || undefined,
+      productOwners: Array.isArray(data.productOwners)
+        ? data.productOwners.filter(Boolean)
+        : data.productOwner
+          ? [data.productOwner]
+          : [],
       qaLead: data.qaLead || undefined,
       techTeamMembers: Array.isArray(data.techTeamMembers) ? data.techTeamMembers : [],
     };

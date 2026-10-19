@@ -450,13 +450,14 @@ export default function NewProjectPage() {
 
                 <Col xs={24} md={8}>
                   <Form.Item
-                    name="productOwner"
-                    label={<span style={{ fontWeight: 500 }}>Product Owner</span>}
-                    extra="Designate the Product Owner chosen from all employees listed in User Management."
+                    name="productOwners"
+                    label={<span style={{ fontWeight: 500 }}>Product Owner(s)</span>}
+                    extra="Designate one or more Product Owners from all employees listed in User Management."
                   >
                     <Select
+                      mode="multiple"
                       size="large"
-                      placeholder="Select Product Owner (Optional)"
+                      placeholder="Select Product Owner(s) (Optional)"
                       allowClear
                       showSearch
                       optionFilterProp="label"

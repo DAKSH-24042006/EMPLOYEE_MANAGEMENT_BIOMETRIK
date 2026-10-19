@@ -25,6 +25,12 @@ export function isUserAuthorizedProjectMember(project: any, userId: string): boo
 
   if (toIdString(project.techOwner) === uId) return true;
   if (toIdString(project.productOwner) === uId) return true;
+  if (
+    Array.isArray(project.productOwners) &&
+    project.productOwners.some((po: any) => toIdString(po) === uId)
+  ) {
+    return true;
+  }
   if (toIdString(project.qaLead) === uId) return true;
 
   if (Array.isArray(project.techTeamMembers)) {

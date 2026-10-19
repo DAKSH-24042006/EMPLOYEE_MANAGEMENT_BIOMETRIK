@@ -45,6 +45,7 @@ export async function GET() {
         $or: [
           { techOwner: user._id },
           { productOwner: user._id },
+          { productOwners: user._id },
           { qaLead: user._id },
           { techTeamMembers: user._id },
         ],

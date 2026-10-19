@@ -117,6 +117,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (project.createdBy) memberSet.add(project.createdBy.toString());
     if (project.techOwner) memberSet.add(project.techOwner.toString());
     if (project.productOwner) memberSet.add(project.productOwner.toString());
+    if (Array.isArray(project.productOwners)) {
+      project.productOwners.forEach((po: any) => {
+        if (po) memberSet.add(po.toString());
+      });
+    }
 
     if (Array.isArray(project.techTeamMembers)) {
       project.techTeamMembers.forEach((m: any) => {

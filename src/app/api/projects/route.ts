@@ -55,6 +55,7 @@ export async function GET() {
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
       .populate("productOwner", "name email role phoneNumber")
+      .populate("productOwners", "name email role phoneNumber")
       .populate("techTeamMembers", "name email role")
       .sort({ createdAt: -1 })
       .exec();

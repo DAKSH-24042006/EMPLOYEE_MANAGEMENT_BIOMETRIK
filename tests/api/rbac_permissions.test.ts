@@ -151,5 +151,21 @@ describe("Phase 4: Permission Matrix Testing (7 User Personas)", () => {
       const allowed = await canUserEditProject(mockProject, unrelatedId, "SALES");
       expect(allowed).toBe(false);
     });
+
+    it("Multiple Product Owners: All designated owners in productOwners have edit permissions", async () => {
+      const po2Id = "66f123456789abcdef123477";
+      const multiPoProject = {
+        ...mockProject,
+        productOwners: [poId, po2Id],
+      };
+
+      const po1Allowed = await canUserEditProject(multiPoProject, poId, "EMPLOYEE");
+      const po2Allowed = await canUserEditProject(multiPoProject, po2Id, "EMPLOYEE");
+      const unrelatedAllowed = await canUserEditProject(multiPoProject, unrelatedId, "EMPLOYEE");
+
+      expect(po1Allowed).toBe(true);
+      expect(po2Allowed).toBe(true);
+      expect(unrelatedAllowed).toBe(false);
+    });
   });
 });

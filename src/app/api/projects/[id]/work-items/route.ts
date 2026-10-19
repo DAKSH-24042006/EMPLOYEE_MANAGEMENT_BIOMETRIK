@@ -105,7 +105,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const project = await Project.findById(id).select(
-      "title clientDetails techOwner productOwner qaLead techTeamMembers"
+      "title clientDetails techOwner productOwner productOwners qaLead techTeamMembers"
     );
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -113,7 +113,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const isSuperAdmin = payload.role === Role.SYSTEM_ADMIN || payload.role === "ADMIN";
     const isPM = project.techOwner && project.techOwner.toString() === payload.userId;
-    const isPO = project.productOwner && project.productOwner.toString() === payload.userId;
+    const isPO =
+      (project.productOwner && project.productOwner.toString() === payload.userId) ||
+      (Array.isArray(project.productOwners) &&
+        project.productOwners.some((po: any) => po.toString() === payload.userId));
     const isQA = project.qaLead && project.qaLead.toString() === payload.userId;
     const isAssignedMember =
       Array.isArray(project.techTeamMembers) &&

@@ -44,6 +44,7 @@ export async function GET(req: Request) {
         query.$or = [
           { techOwner: user._id },
           { productOwner: user._id },
+          { productOwners: user._id },
           { qaLead: user._id },
           { techTeamMembers: user._id },
         ];
@@ -70,6 +71,7 @@ export async function GET(req: Request) {
       populate: [
         { path: "techOwner", select: "name email role" },
         { path: "productOwner", select: "name email role" },
+        { path: "productOwners", select: "name email role" },
       ],
     });
 

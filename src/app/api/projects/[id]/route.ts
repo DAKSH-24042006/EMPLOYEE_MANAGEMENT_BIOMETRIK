@@ -42,6 +42,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .populate("createdBy", "name email role")
       .populate("techOwner", "name email role")
       .populate("productOwner", "name email role phoneNumber")
+      .populate("productOwners", "name email role phoneNumber")
       .populate("qaLead", "name email role")
       .populate("techTeamMembers", "name email role")
       .populate("internalApproval.approvedBy", "name email role")
@@ -115,11 +116,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           { status: 403 }
         );
       }
-      if (body.productOwner !== undefined) {
+      if (body.productOwner !== undefined || body.productOwners !== undefined) {
         return NextResponse.json(
           {
             error:
-              "Forbidden: Only System Administrator has access to decide or change the Product Owner.",
+              "Forbidden: Only System Administrator has access to decide or change the Product Owner(s).",
           },
           { status: 403 }
         );
@@ -487,8 +488,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.feasibilityStatus !== undefined)
       existingProject.feasibilityStatus = body.feasibilityStatus;
     if (body.techOwner !== undefined) existingProject.techOwner = body.techOwner || undefined;
-    if (body.productOwner !== undefined)
+    if (body.productOwners !== undefined) {
+      const pos = Array.isArray(body.productOwners)
+        ? body.productOwners.filter(Boolean)
+        : body.productOwners
+          ? [body.productOwners]
+          : [];
+      existingProject.productOwners = pos;
+      existingProject.productOwner = pos[0] || undefined;
+    } else if (body.productOwner !== undefined) {
       existingProject.productOwner = body.productOwner || undefined;
+      existingProject.productOwners = body.productOwner ? [body.productOwner] : [];
+    }
     if (body.qaLead !== undefined) existingProject.qaLead = body.qaLead || undefined;
     if (body.techTeamMembers !== undefined) existingProject.techTeamMembers = body.techTeamMembers;
     if (body.complexity !== undefined) existingProject.complexity = body.complexity;

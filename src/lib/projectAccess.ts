@@ -52,7 +52,7 @@ export async function canUserEditProject(
   let project: any = projectOrId;
   if (!project || typeof project === "string" || project instanceof mongoose.Types.ObjectId) {
     project = await Project.findById(projectOrId).select(
-      "techOwner productOwner qaLead techTeamMembers"
+      "techOwner productOwner productOwners qaLead techTeamMembers"
     );
     if (!project) return false;
   }
@@ -70,7 +70,15 @@ export async function canUserEditProject(
     return true;
   }
 
-  // 3. Product Owner (productOwner)
+  // 3. Product Owner(s) (productOwners / productOwner)
+  if (Array.isArray(project.productOwners)) {
+    const isPO = project.productOwners.some((po: any) => {
+      const id = po?._id ? String(po._id) : String(po);
+      return id === strUserId;
+    });
+    if (isPO) return true;
+  }
+
   const poId = project.productOwner?._id
     ? String(project.productOwner._id)
     : project.productOwner

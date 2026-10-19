@@ -224,7 +224,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
   // Project Manager, Product Owner & Team determination
   const currentUserId = currentUser?._id || currentUser?.id;
   const techOwnerId = project?.techOwner?._id || project?.techOwner;
-  const productOwnerId = project?.productOwner?._id || project?.productOwner;
+  const productOwnerIds: string[] =
+    Array.isArray(project?.productOwners) && project.productOwners.length > 0
+      ? project.productOwners.map((po: any) => String(po?._id || po))
+      : project?.productOwner
+        ? [String(project.productOwner?._id || project.productOwner)]
+        : [];
   const qaLeadId = project?.qaLead?._id || project?.qaLead;
   const isSuperAdmin = Boolean(
     currentUser && (currentUser.role === "SYSTEM_ADMIN" || currentUser.role === "ADMIN")
@@ -234,9 +239,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const canEditSpecifications = isSystemAdminOnly || isProjectManager;
   const canChangeQA = canEditSpecifications;
   const isProjectLead = Boolean(currentUser && (isSuperAdmin || isProjectManager));
-  const isProductOwner = Boolean(
-    currentUser && productOwnerId && String(currentUserId) === String(productOwnerId)
-  );
+  const isProductOwner = Boolean(currentUser && productOwnerIds.includes(String(currentUserId)));
   const isQALead = Boolean(currentUser && qaLeadId && String(currentUserId) === String(qaLeadId));
   const isAssignedMember = Boolean(
     currentUser &&
@@ -276,11 +279,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
       }
     }
 
-    if (project?.productOwner) {
+    const pos =
+      Array.isArray(project?.productOwners) && project.productOwners.length > 0
+        ? project.productOwners
+        : project?.productOwner
+          ? [project.productOwner]
+          : [];
+
+    pos.forEach((po: any) => {
       const poObj =
-        typeof project.productOwner === "object"
-          ? project.productOwner
-          : users.find((u: any) => u._id === project.productOwner);
+        typeof po === "object" ? po : users.find((u: any) => String(u._id || u.id) === String(po));
       if (poObj) {
         const poid = String(poObj._id || poObj.id);
         if (!addedIds.has(poid)) {
@@ -288,7 +296,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           addedIds.add(poid);
         }
       }
-    }
+    });
 
     if (project?.qaLead) {
       const qaObj =
@@ -318,6 +326,30 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
     return list.length > 0 ? list : users;
   }, [project, users]);
+
+  const productOwnersList: any[] = React.useMemo(() => {
+    if (Array.isArray(project?.productOwners) && project.productOwners.length > 0) {
+      return project.productOwners.map((po: any) =>
+        typeof po === "object"
+          ? po
+          : users.find((u: any) => String(u._id || u.id) === String(po)) || {
+              name: "Product Owner",
+              _id: po,
+            }
+      );
+    }
+    if (project?.productOwner) {
+      const poObj =
+        typeof project.productOwner === "object"
+          ? project.productOwner
+          : users.find((u: any) => String(u._id || u.id) === String(project.productOwner)) || {
+              name: "Product Owner",
+              _id: project.productOwner,
+            };
+      return [poObj];
+    }
+    return [];
+  }, [project?.productOwners, project?.productOwner, users]);
 
   // Mentions list for Project Chat (restricted to Project Team only)
   const chatMentionOptions = React.useMemo(() => {
@@ -480,7 +512,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
           priority: json.data.priority,
           status: json.data.status,
           techOwner: json.data.techOwner?._id || json.data.techOwner,
-          productOwner: json.data.productOwner?._id || json.data.productOwner,
+          productOwners:
+            Array.isArray(json.data.productOwners) && json.data.productOwners.length > 0
+              ? json.data.productOwners.map((po: any) => String(po?._id || po))
+              : json.data.productOwner
+                ? [String(json.data.productOwner?._id || json.data.productOwner)]
+                : [],
           techTeamMembers:
             json.data.techTeamMembers?.map((m: any) => m._id) || json.data.techTeamMembers || [],
           sprintId: json.data.sprintId?._id || json.data.sprintId,
@@ -740,7 +777,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
       if (isSuperAdmin) {
         payload.techOwner = values.techOwner;
-        payload.productOwner = values.productOwner;
+        payload.productOwners = values.productOwners || [];
+        payload.productOwner = values.productOwners?.[0] || undefined;
         payload.techTeamMembers = values.techTeamMembers;
       }
 
@@ -1834,7 +1872,12 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       priority: project.priority,
                       status: normalizeProjectStatus(project.status),
                       techOwner: project.techOwner?._id || project.techOwner,
-                      productOwner: project.productOwner?._id || project.productOwner,
+                      productOwners:
+                        Array.isArray(project.productOwners) && project.productOwners.length > 0
+                          ? project.productOwners.map((po: any) => String(po?._id || po))
+                          : project.productOwner
+                            ? [String(project.productOwner?._id || project.productOwner)]
+                            : [],
                       qaLead: project.qaLead?._id || project.qaLead,
                       techTeamMembers: project.techTeamMembers?.map((m: any) => m?._id || m) || [],
                       startDate: project.timeline?.startDate
@@ -1910,7 +1953,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </div>
           </div>
 
-          {/* Card 2: Product Owner */}
+          {/* Card 2: Product Owner(s) */}
           <div
             style={{
               background: "#ffffff",
@@ -1924,12 +1967,55 @@ function ProjectDetailsClient({ id }: { id: string }) {
               height: "100%",
             }}
           >
-            <Avatar
-              size={34}
-              style={{ backgroundColor: "#3b82f6", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
-            >
-              {(project.productOwner?.name || "Unassigned").charAt(0).toUpperCase()}
-            </Avatar>
+            {productOwnersList.length === 0 ? (
+              <Avatar
+                size={34}
+                style={{ backgroundColor: "#94a3b8", fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+              >
+                ?
+              </Avatar>
+            ) : productOwnersList.length === 1 ? (
+              <Tooltip
+                title={`${productOwnersList[0].name}${productOwnersList[0].email ? ` (${productOwnersList[0].email})` : ""}`}
+              >
+                <Avatar
+                  size={34}
+                  style={{
+                    backgroundColor: "#3b82f6",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  {(productOwnersList[0]?.name || "P").charAt(0).toUpperCase()}
+                </Avatar>
+              </Tooltip>
+            ) : (
+              <Avatar.Group
+                max={{
+                  count: 2,
+                  style: { color: "#ffffff", backgroundColor: "#64748b", fontSize: 11 },
+                }}
+              >
+                {productOwnersList.map((po: any, idx: number) => (
+                  <Tooltip
+                    key={po._id || idx}
+                    title={`${po.name || "Product Owner"}${po.email ? ` (${po.email})` : ""}`}
+                  >
+                    <Avatar
+                      size={34}
+                      style={{
+                        backgroundColor: idx % 2 === 0 ? "#3b82f6" : "#0284c7",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {(po.name || "P").charAt(0).toUpperCase()}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+              </Avatar.Group>
+            )}
             <div style={{ minWidth: 0, flex: 1 }}>
               <div
                 style={{
@@ -1938,22 +2024,51 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   fontWeight: 600,
                   color: "#94a3b8",
                   letterSpacing: "0.5px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
-                Product Owner
+                <span>Product Owner{productOwnersList.length > 1 ? "s" : ""}</span>
+                {productOwnersList.length > 1 && (
+                  <Tag
+                    color="blue"
+                    bordered={false}
+                    style={{
+                      fontSize: 10,
+                      lineHeight: "14px",
+                      padding: "0 5px",
+                      margin: 0,
+                      borderRadius: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {productOwnersList.length}
+                  </Tag>
+                )}
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "#1e293b",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+              <Tooltip
+                title={
+                  productOwnersList.length > 0
+                    ? productOwnersList.map((p) => p.name || "Product Owner").join(", ")
+                    : "No product owner designated"
+                }
               >
-                {project.productOwner?.name || "Unassigned"}
-              </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#1e293b",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {productOwnersList.length > 0
+                    ? productOwnersList.map((p) => p.name || "Product Owner").join(", ")
+                    : "Unassigned"}
+                </div>
+              </Tooltip>
             </div>
           </div>
 
@@ -6440,15 +6555,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </Col>
             <Col xs={24} sm={12}>
               <Form.Item
-                name="productOwner"
-                label={isSuperAdmin ? "Product Owner" : "Product Owner (Admin Only)"}
+                name="productOwners"
+                label={isSuperAdmin ? "Product Owner(s)" : "Product Owner(s) (Admin Only)"}
               >
                 <Select
+                  mode="multiple"
                   disabled={!isSuperAdmin}
                   allowClear
                   showSearch
                   optionFilterProp="label"
-                  placeholder="Assign Product Owner"
+                  placeholder="Assign Product Owner(s)"
                   options={users.map((u: any) => ({
                     label: `${u.name} (${u.role})`,
                     value: String(u._id || u.id),
