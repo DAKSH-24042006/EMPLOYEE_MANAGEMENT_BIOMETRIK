@@ -19,6 +19,7 @@ import {
   Alert,
   Spin,
   Tooltip,
+  Checkbox,
 } from "antd";
 import {
   Mail,
@@ -31,6 +32,7 @@ import {
   AlertCircle,
   HelpCircle,
   RefreshCw,
+  Bug,
 } from "lucide-react";
 
 const { Title, Text, Paragraph } = Typography;
@@ -59,6 +61,17 @@ interface EmailConfigData {
     deadlineToday: TemplateConfig;
     taskOverdue: TemplateConfig;
   };
+  bugNotifications?: Record<
+    string,
+    {
+      enabled: boolean;
+      notifyAssignee: boolean;
+      notifyQA: boolean;
+      notifyProjectManager: boolean;
+      customEmail?: string;
+      template: TemplateConfig;
+    }
+  >;
 }
 
 export default function EmailSettingsPanel() {
@@ -68,6 +81,7 @@ export default function EmailSettingsPanel() {
   const [testingEmail, setTestingEmail] = useState(false);
   const [testRecipient, setTestRecipient] = useState("");
   const [activeTemplateTab, setActiveTemplateTab] = useState("taskCreated");
+  const [activeBugTab, setActiveBugTab] = useState("bugReported");
 
   const [form] = Form.useForm();
   const [config, setConfig] = useState<EmailConfigData | null>(null);
@@ -83,13 +97,13 @@ export default function EmailSettingsPanel() {
       const cfg = data.data;
       setConfig(cfg);
       form.setFieldsValue({
-        smtpHost: "smtp.office365.com",
-        smtpPort: 587,
-        smtpSecure: false,
-        smtpUser: "notifications@biometrik.in",
-        smtpPass: "••••••••", // Hidden password representation
-        fromEmail: "notifications@biometrik.in",
-        fromName: "Biometrik Systems Notifications",
+        smtpHost: cfg.smtpHost || "smtp.office365.com",
+        smtpPort: cfg.smtpPort || 587,
+        smtpSecure: Boolean(cfg.smtpSecure),
+        smtpUser: cfg.smtpUser || "notifications@biometrik.in",
+        smtpPass: cfg.smtpPass ? "••••••••" : "",
+        fromEmail: cfg.fromEmail || "notifications@biometrik.in",
+        fromName: cfg.fromName || "Biometrik Systems Notifications",
         isEnabled: cfg.isEnabled ?? true,
         reminderDaysBeforeDue: cfg.reminderDaysBeforeDue ?? 1,
         sendOnDueDate: cfg.sendOnDueDate ?? true,
@@ -102,6 +116,48 @@ export default function EmailSettingsPanel() {
         todayBody: cfg.templates?.deadlineToday?.body || "",
         overdueSubject: cfg.templates?.taskOverdue?.subject || "",
         overdueBody: cfg.templates?.taskOverdue?.body || "",
+
+        // Bug Notifications Config
+        bugNotifications_masterEnabled: cfg.bugNotifications?.enabled ?? true,
+        bugReported_enabled: cfg.bugNotifications?.bugReported?.enabled ?? true,
+        bugReported_notifyAssignee: cfg.bugNotifications?.bugReported?.notifyAssignee ?? true,
+        bugReported_notifyQA: cfg.bugNotifications?.bugReported?.notifyQA ?? false,
+        bugReported_notifyPM: cfg.bugNotifications?.bugReported?.notifyProjectManager ?? true,
+        bugReported_customEmail: cfg.bugNotifications?.bugReported?.customEmail || "",
+        bugReported_subject: cfg.bugNotifications?.bugReported?.template?.subject || "",
+        bugReported_body: cfg.bugNotifications?.bugReported?.template?.body || "",
+
+        bugAssigned_enabled: cfg.bugNotifications?.bugAssigned?.enabled ?? true,
+        bugAssigned_notifyAssignee: cfg.bugNotifications?.bugAssigned?.notifyAssignee ?? true,
+        bugAssigned_notifyQA: cfg.bugNotifications?.bugAssigned?.notifyQA ?? false,
+        bugAssigned_notifyPM: cfg.bugNotifications?.bugAssigned?.notifyProjectManager ?? true,
+        bugAssigned_customEmail: cfg.bugNotifications?.bugAssigned?.customEmail || "",
+        bugAssigned_subject: cfg.bugNotifications?.bugAssigned?.template?.subject || "",
+        bugAssigned_body: cfg.bugNotifications?.bugAssigned?.template?.body || "",
+
+        bugReassigned_enabled: cfg.bugNotifications?.bugReassigned?.enabled ?? true,
+        bugReassigned_notifyAssignee: cfg.bugNotifications?.bugReassigned?.notifyAssignee ?? true,
+        bugReassigned_notifyQA: cfg.bugNotifications?.bugReassigned?.notifyQA ?? false,
+        bugReassigned_notifyPM: cfg.bugNotifications?.bugReassigned?.notifyProjectManager ?? true,
+        bugReassigned_customEmail: cfg.bugNotifications?.bugReassigned?.customEmail || "",
+        bugReassigned_subject: cfg.bugNotifications?.bugReassigned?.template?.subject || "",
+        bugReassigned_body: cfg.bugNotifications?.bugReassigned?.template?.body || "",
+
+        fixSubmitted_enabled: cfg.bugNotifications?.fixSubmitted?.enabled ?? true,
+        fixSubmitted_notifyAssignee: cfg.bugNotifications?.fixSubmitted?.notifyAssignee ?? true,
+        fixSubmitted_notifyQA: cfg.bugNotifications?.fixSubmitted?.notifyQA ?? true,
+        fixSubmitted_notifyPM: cfg.bugNotifications?.fixSubmitted?.notifyProjectManager ?? true,
+        fixSubmitted_customEmail: cfg.bugNotifications?.fixSubmitted?.customEmail || "",
+        fixSubmitted_subject: cfg.bugNotifications?.fixSubmitted?.template?.subject || "",
+        fixSubmitted_body: cfg.bugNotifications?.fixSubmitted?.template?.body || "",
+
+        bugClosed_enabled: cfg.bugNotifications?.bugClosed?.enabled ?? true,
+        bugClosed_notifyAssignee: cfg.bugNotifications?.bugClosed?.notifyAssignee ?? true,
+        bugClosed_notifyQA: cfg.bugNotifications?.bugClosed?.notifyQA ?? true,
+        bugClosed_notifyPM: cfg.bugNotifications?.bugClosed?.notifyProjectManager ?? true,
+        bugClosed_customEmail: cfg.bugNotifications?.bugClosed?.customEmail || "",
+        bugClosed_subject: cfg.bugNotifications?.bugClosed?.template?.subject || "",
+        bugClosed_body: cfg.bugNotifications?.bugClosed?.template?.body || "",
       });
     } catch (err: any) {
       message.error(err.message || "Failed to fetch email settings");
@@ -146,6 +202,64 @@ export default function EmailSettingsPanel() {
           taskOverdue: {
             subject: values.overdueSubject,
             body: values.overdueBody,
+          },
+        },
+        bugNotifications: {
+          enabled: values.bugNotifications_masterEnabled ?? true,
+          bugReported: {
+            enabled: values.bugReported_enabled ?? true,
+            notifyAssignee: values.bugReported_notifyAssignee ?? true,
+            notifyQA: values.bugReported_notifyQA ?? false,
+            notifyProjectManager: values.bugReported_notifyPM ?? true,
+            customEmail: values.bugReported_customEmail || "",
+            template: {
+              subject: values.bugReported_subject || "",
+              body: values.bugReported_body || "",
+            },
+          },
+          bugAssigned: {
+            enabled: values.bugAssigned_enabled ?? true,
+            notifyAssignee: values.bugAssigned_notifyAssignee ?? true,
+            notifyQA: values.bugAssigned_notifyQA ?? false,
+            notifyProjectManager: values.bugAssigned_notifyPM ?? true,
+            customEmail: values.bugAssigned_customEmail || "",
+            template: {
+              subject: values.bugAssigned_subject || "",
+              body: values.bugAssigned_body || "",
+            },
+          },
+          bugReassigned: {
+            enabled: values.bugReassigned_enabled ?? true,
+            notifyAssignee: values.bugReassigned_notifyAssignee ?? true,
+            notifyQA: values.bugReassigned_notifyQA ?? false,
+            notifyProjectManager: values.bugReassigned_notifyPM ?? true,
+            customEmail: values.bugReassigned_customEmail || "",
+            template: {
+              subject: values.bugReassigned_subject || "",
+              body: values.bugReassigned_body || "",
+            },
+          },
+          fixSubmitted: {
+            enabled: values.fixSubmitted_enabled ?? true,
+            notifyAssignee: values.fixSubmitted_notifyAssignee ?? true,
+            notifyQA: values.fixSubmitted_notifyQA ?? true,
+            notifyProjectManager: values.fixSubmitted_notifyPM ?? true,
+            customEmail: values.fixSubmitted_customEmail || "",
+            template: {
+              subject: values.fixSubmitted_subject || "",
+              body: values.fixSubmitted_body || "",
+            },
+          },
+          bugClosed: {
+            enabled: values.bugClosed_enabled ?? true,
+            notifyAssignee: values.bugClosed_notifyAssignee ?? true,
+            notifyQA: values.bugClosed_notifyQA ?? true,
+            notifyProjectManager: values.bugClosed_notifyPM ?? true,
+            customEmail: values.bugClosed_customEmail || "",
+            template: {
+              subject: values.bugClosed_subject || "",
+              body: values.bugClosed_body || "",
+            },
           },
         },
       };
@@ -825,6 +939,477 @@ export default function EmailSettingsPanel() {
               </Card>
             </Col>
           </Row>
+
+          {/* Dedicated Bug Tracking Notifications Section (Section 8) */}
+          <Card
+            variant="borderless"
+            style={{
+              marginTop: 20,
+              borderRadius: 12,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #e2e8f0",
+            }}
+            title={
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                <Space size={8}>
+                  <Bug size={18} color="#00897b" />
+                  <Text strong style={{ fontSize: 16 }}>
+                    Bug Notifications Configuration
+                  </Text>
+                </Space>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<Save size={15} />}
+                  loading={saving}
+                  style={{
+                    backgroundColor: "#00897b",
+                    borderColor: "#00897b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Save Bug Notification Settings
+                </Button>
+              </div>
+            }
+          >
+            <Alert
+              message="Configurable Bug Lifecycle Notifications"
+              description="Configure recipient routing rules, individual event toggles, and customized email templates for all bug defect workflows. When enabled, automated alerts dispatch with project metadata and deep links directly to the defect workspace."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16, borderRadius: 8 }}
+            />
+
+            {/* Master Switch for Bug Notifications */}
+            <Card
+              size="small"
+              style={{
+                marginBottom: 16,
+                background: "#f0fdfa",
+                border: "1px solid #99f6e4",
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f766e", fontSize: 14 }}>
+                    Master Switch: Bug Email Notifications
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Enable or disable all automated bug defect emails across the entire system.
+                  </div>
+                </div>
+                <Form.Item name="bugNotifications_masterEnabled" valuePropName="checked" noStyle>
+                  <Switch
+                    checkedChildren="All Bug Emails ON"
+                    unCheckedChildren="All Bug Emails OFF"
+                  />
+                </Form.Item>
+              </div>
+            </Card>
+
+            {/* Supported Placeholders Reference */}
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "10px 14px",
+                background: "#f8fafc",
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontSize: 12,
+              }}
+            >
+              <Text strong style={{ color: "#334155", display: "block", marginBottom: 6 }}>
+                Supported Template Placeholders:
+              </Text>
+              <Space wrap size={[6, 6]}>
+                {[
+                  "{{bugId}}",
+                  "{{title}}",
+                  "{{projectName}}",
+                  "{{severity}}",
+                  "{{status}}",
+                  "{{recipientName}}",
+                  "{{assignedByName}}",
+                  "{{previousAssigneeName}}",
+                  "{{reassignedByName}}",
+                  "{{developerName}}",
+                  "{{qaName}}",
+                  "{{remarks}}",
+                  "{{description}}",
+                  "{{bugUrl}}",
+                ].map((ph) => (
+                  <Tag key={ph} color="blue" style={{ fontFamily: "monospace", fontSize: 11 }}>
+                    {ph}
+                  </Tag>
+                ))}
+              </Space>
+            </div>
+
+            <Tabs
+              activeKey={activeBugTab}
+              onChange={setActiveBugTab}
+              items={[
+                {
+                  key: "bugReported",
+                  label: "1. New Bug Reported",
+                  children: (
+                    <div>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugReported_enabled"
+                            valuePropName="checked"
+                            label={<strong>Enable Notification</strong>}
+                            extra="Send email whenever a new bug is reported on any project"
+                          >
+                            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugReported_customEmail"
+                            label="Additional CC Email / Distribution List"
+                            extra="Optional comma-separated email addresses"
+                          >
+                            <Input placeholder="e.g. qa-team@biometrik.in, devlead@biometrik.in" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "12px 16px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Text strong style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                          Recipient Rules:
+                        </Text>
+                        <Space direction="horizontal" wrap size={24}>
+                          <Form.Item
+                            name="bugReported_notifyAssignee"
+                            valuePropName="checked"
+                            noStyle
+                          >
+                            <Checkbox>Assigned Developer / Triage Lead</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugReported_notifyQA" valuePropName="checked" noStyle>
+                            <Checkbox>QA Lead</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugReported_notifyPM" valuePropName="checked" noStyle>
+                            <Checkbox>Project Manager (techOwner)</Checkbox>
+                          </Form.Item>
+                        </Space>
+                      </div>
+
+                      <Form.Item name="bugReported_subject" label="Subject Line">
+                        <Input placeholder="[Biometrik Defect {{bugId}}] [{{severity}}] New Bug Reported in {{projectName}}" />
+                      </Form.Item>
+                      <Form.Item name="bugReported_body" label="Message Body">
+                        <Input.TextArea
+                          rows={6}
+                          style={{ fontFamily: "monospace", fontSize: 13 }}
+                        />
+                      </Form.Item>
+                    </div>
+                  ),
+                },
+                {
+                  key: "bugAssigned",
+                  label: "2. Bug Assigned",
+                  children: (
+                    <div>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugAssigned_enabled"
+                            valuePropName="checked"
+                            label={<strong>Enable Notification</strong>}
+                            extra="Send email when a defect is assigned to a developer"
+                          >
+                            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugAssigned_customEmail"
+                            label="Additional CC Email / Distribution List"
+                            extra="Optional comma-separated email addresses"
+                          >
+                            <Input placeholder="e.g. dev-team@biometrik.in" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "12px 16px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Text strong style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                          Recipient Rules:
+                        </Text>
+                        <Space direction="horizontal" wrap size={24}>
+                          <Form.Item
+                            name="bugAssigned_notifyAssignee"
+                            valuePropName="checked"
+                            noStyle
+                          >
+                            <Checkbox>Assigned Developer</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugAssigned_notifyQA" valuePropName="checked" noStyle>
+                            <Checkbox>QA Lead</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugAssigned_notifyPM" valuePropName="checked" noStyle>
+                            <Checkbox>Project Manager (techOwner)</Checkbox>
+                          </Form.Item>
+                        </Space>
+                      </div>
+
+                      <Form.Item name="bugAssigned_subject" label="Subject Line">
+                        <Input placeholder="[Biometrik Defect {{bugId}}] [{{severity}}] Bug Assigned to You: {{title}}" />
+                      </Form.Item>
+                      <Form.Item name="bugAssigned_body" label="Message Body">
+                        <Input.TextArea
+                          rows={6}
+                          style={{ fontFamily: "monospace", fontSize: 13 }}
+                        />
+                      </Form.Item>
+                    </div>
+                  ),
+                },
+                {
+                  key: "bugReassigned",
+                  label: "3. Bug Reassigned",
+                  children: (
+                    <div>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugReassigned_enabled"
+                            valuePropName="checked"
+                            label={<strong>Enable Notification</strong>}
+                            extra="Send email when a defect is reassigned to a different developer"
+                          >
+                            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugReassigned_customEmail"
+                            label="Additional CC Email / Distribution List"
+                            extra="Optional comma-separated email addresses"
+                          >
+                            <Input placeholder="e.g. dev-alerts@biometrik.in" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "12px 16px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Text strong style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                          Recipient Rules:
+                        </Text>
+                        <Space direction="horizontal" wrap size={24}>
+                          <Form.Item
+                            name="bugReassigned_notifyAssignee"
+                            valuePropName="checked"
+                            noStyle
+                          >
+                            <Checkbox>New Assigned Developer</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugReassigned_notifyQA" valuePropName="checked" noStyle>
+                            <Checkbox>QA Lead</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugReassigned_notifyPM" valuePropName="checked" noStyle>
+                            <Checkbox>Project Manager (techOwner)</Checkbox>
+                          </Form.Item>
+                        </Space>
+                      </div>
+
+                      <Form.Item name="bugReassigned_subject" label="Subject Line">
+                        <Input placeholder="[Biometrik Defect {{bugId}}] [{{severity}}] Defect Reassigned to You: {{title}}" />
+                      </Form.Item>
+                      <Form.Item name="bugReassigned_body" label="Message Body">
+                        <Input.TextArea
+                          rows={6}
+                          style={{ fontFamily: "monospace", fontSize: 13 }}
+                        />
+                      </Form.Item>
+                    </div>
+                  ),
+                },
+                {
+                  key: "fixSubmitted",
+                  label: "4. Fix Submitted for QA",
+                  children: (
+                    <div>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="fixSubmitted_enabled"
+                            valuePropName="checked"
+                            label={<strong>Enable Notification</strong>}
+                            extra="Send email when a developer submits a fix awaiting verification"
+                          >
+                            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="fixSubmitted_customEmail"
+                            label="Additional CC Email / Distribution List"
+                            extra="Optional comma-separated email addresses"
+                          >
+                            <Input placeholder="e.g. qa-verifications@biometrik.in" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "12px 16px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Text strong style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                          Recipient Rules:
+                        </Text>
+                        <Space direction="horizontal" wrap size={24}>
+                          <Form.Item name="fixSubmitted_notifyQA" valuePropName="checked" noStyle>
+                            <Checkbox>Designated QA Lead / QA Team</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="fixSubmitted_notifyPM" valuePropName="checked" noStyle>
+                            <Checkbox>Project Manager (techOwner)</Checkbox>
+                          </Form.Item>
+                          <Form.Item
+                            name="fixSubmitted_notifyAssignee"
+                            valuePropName="checked"
+                            noStyle
+                          >
+                            <Checkbox>Developer Confirmation Copy</Checkbox>
+                          </Form.Item>
+                        </Space>
+                      </div>
+
+                      <Form.Item name="fixSubmitted_subject" label="Subject Line">
+                        <Input placeholder="[Biometrik Defect {{bugId}}] Fix Submitted by {{developerName}}: {{title}}" />
+                      </Form.Item>
+                      <Form.Item name="fixSubmitted_body" label="Message Body">
+                        <Input.TextArea
+                          rows={6}
+                          style={{ fontFamily: "monospace", fontSize: 13 }}
+                        />
+                      </Form.Item>
+                    </div>
+                  ),
+                },
+                {
+                  key: "bugClosed",
+                  label: "5. Bug Resolved / Closed",
+                  children: (
+                    <div>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugClosed_enabled"
+                            valuePropName="checked"
+                            label={<strong>Enable Notification</strong>}
+                            extra="Send email when a defect passes verification and is marked closed"
+                          >
+                            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            name="bugClosed_customEmail"
+                            label="Additional CC Email / Distribution List"
+                            extra="Optional comma-separated email addresses"
+                          >
+                            <Input placeholder="e.g. release-management@biometrik.in" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "12px 16px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Text strong style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+                          Recipient Rules:
+                        </Text>
+                        <Space direction="horizontal" wrap size={24}>
+                          <Form.Item
+                            name="bugClosed_notifyAssignee"
+                            valuePropName="checked"
+                            noStyle
+                          >
+                            <Checkbox>Assigned Developer</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugClosed_notifyQA" valuePropName="checked" noStyle>
+                            <Checkbox>QA Verifier</Checkbox>
+                          </Form.Item>
+                          <Form.Item name="bugClosed_notifyPM" valuePropName="checked" noStyle>
+                            <Checkbox>Project Manager (techOwner)</Checkbox>
+                          </Form.Item>
+                        </Space>
+                      </div>
+
+                      <Form.Item name="bugClosed_subject" label="Subject Line">
+                        <Input placeholder="[Biometrik QA PASSED] Defect {{bugId}} Verified & Closed: {{title}}" />
+                      </Form.Item>
+                      <Form.Item name="bugClosed_body" label="Message Body">
+                        <Input.TextArea
+                          rows={6}
+                          style={{ fontFamily: "monospace", fontSize: 13 }}
+                        />
+                      </Form.Item>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </Card>
         </Form>
       </div>
     </Spin>

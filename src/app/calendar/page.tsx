@@ -505,11 +505,10 @@ export default function CalendarPage() {
   return (
     <div
       style={{
-        height: "100%",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
-        padding: "0",
+        minHeight: "100%",
+        paddingBottom: 32,
         minWidth: 0,
         maxWidth: "100%",
       }}
@@ -632,39 +631,33 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <Spin spinning={loading} classNames={{ root: "flex-1 overflow-hidden" }}>
+      <Spin spinning={loading} style={{ width: "100%" }}>
         <Card
           variant="borderless"
           style={{
             padding: 0,
             borderRadius: 12,
-            overflow: "hidden",
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
             boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
             border: "1px solid #e5e7eb",
+            marginBottom: 16,
+            width: "100%",
           }}
           styles={{
             body: {
               padding: 0,
-              flex: 1,
               display: "flex",
               flexDirection: "column",
-              overflow: "hidden",
             },
           }}
         >
           <div
             style={{
-              overflow: "hidden",
               width: "100%",
-              flex: 1,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {/* Weekday headers */}
               <div
                 style={{
@@ -701,8 +694,6 @@ export default function CalendarPage() {
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(7, 1fr)",
-                  flex: 1,
-                  overflowY: "auto",
                 }}
               >
                 {gridDays.map((date, idx) => {
@@ -726,7 +717,7 @@ export default function CalendarPage() {
                       key={idx}
                       onClick={() => onDateClick(date)}
                       style={{
-                        minHeight: isMobile ? 60 : "calc((100vh - 350px) / 6)",
+                        minHeight: isMobile ? 65 : 105,
                         borderRight: (idx + 1) % 7 !== 0 ? "1px solid #f0f0f0" : "none",
                         borderBottom: "1px solid #f0f0f0",
                         padding: isMobile ? 4 : 8,
@@ -902,11 +893,17 @@ export default function CalendarPage() {
       <div
         style={{
           display: "flex",
-          gap: 18,
-          marginTop: 12,
+          gap: "10px 18px",
+          marginTop: 6,
+          marginBottom: 20,
+          padding: "12px 18px",
           justifyContent: "center",
           flexWrap: "wrap",
           alignItems: "center",
+          backgroundColor: "#ffffff",
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

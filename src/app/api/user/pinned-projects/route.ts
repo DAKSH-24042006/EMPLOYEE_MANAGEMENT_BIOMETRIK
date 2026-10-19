@@ -4,6 +4,7 @@ import { User } from "@/lib/models/User";
 import { Project } from "@/lib/models/Project";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/auth";
+import { isUserAuthorizedProjectMember } from "@/lib/projectMembership";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,8 @@ async function getAuthPayload() {
   return payload?.userId ? payload : null;
 }
 
-// GET /api/user/pinned-projects — fetch pinned projects for the logged in user
-export async function GET() {
+// GET /api/user/pinned-projects — fetch pinned projects or eligible projects for the logged in user
+export async function GET(req: Request) {
   try {
     const payload = await getAuthPayload();
     if (!payload) {
@@ -25,7 +26,46 @@ export async function GET() {
 
     await dbConnect();
 
-    const user = await User.findById(payload.userId).populate({
+    const { searchParams } = new URL(req.url);
+    const eligibleOnly = searchParams.get("eligible") === "true";
+
+    const user = await User.findById(payload.userId);
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const pinnedIds = (user.pinnedProjects || []).map(String);
+    const isSystemAdmin = payload.role === "SYSTEM_ADMIN";
+
+    if (eligibleOnly) {
+      // Return projects user can access that are not yet pinned
+      const query: any = { _id: { $nin: pinnedIds } };
+      if (!isSystemAdmin) {
+        query.$or = [
+          { techOwner: user._id },
+          { productOwner: user._id },
+          { qaLead: user._id },
+          { techTeamMembers: user._id },
+        ];
+      }
+
+      const eligibleProjects = await Project.find(query)
+        .populate("techOwner", "name email role")
+        .sort({ updatedAt: -1 });
+
+      const formatted = eligibleProjects.map((p: any) => ({
+        _id: p._id,
+        title: p.title || p.clientDetails?.companyName || "Untitled Project",
+        status: p.status || "In Progress",
+        clientName: p.clientDetails?.companyName || "",
+        projectManager: p.techOwner?.name || "Unassigned",
+      }));
+
+      return NextResponse.json({ data: formatted }, { status: 200 });
+    }
+
+    // Default: return user's pinned projects
+    const populatedUser = await User.findById(payload.userId).populate({
       path: "pinnedProjects",
       populate: [
         { path: "techOwner", select: "name email role" },
@@ -33,11 +73,34 @@ export async function GET() {
       ],
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const validPinned: any[] = [];
+    const staleIds: string[] = [];
+
+    for (const project of (populatedUser?.pinnedProjects || []) as any[]) {
+      if (!project) continue;
+      if (!isSystemAdmin && !isUserAuthorizedProjectMember(project, payload.userId)) {
+        staleIds.push(String(project._id));
+        continue;
+      }
+      validPinned.push({
+        _id: project._id,
+        title: project.title || project.clientDetails?.companyName || "Untitled Project",
+        description: project.description || "",
+        status: project.status || "In Progress",
+        clientDetails: project.clientDetails || {},
+        techOwner: project.techOwner || null,
+        timeline: project.timeline || {},
+        estimatedDeliveryDate: project.estimatedDeliveryDate || null,
+      });
     }
 
-    return NextResponse.json({ data: user.pinnedProjects || [] }, { status: 200 });
+    if (staleIds.length > 0) {
+      await User.findByIdAndUpdate(payload.userId, {
+        $pull: { pinnedProjects: { $in: staleIds } },
+      });
+    }
+
+    return NextResponse.json({ data: validPinned }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -64,6 +127,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // RBAC: Non-system admins must be an authorized member of the project
+    const isSystemAdmin = payload.role === "SYSTEM_ADMIN";
+    if (!isSystemAdmin && !isUserAuthorizedProjectMember(project, payload.userId)) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not authorized to pin this project." },
+        { status: 403 }
+      );
+    }
+
     await User.findByIdAndUpdate(
       payload.userId,
       { $addToSet: { pinnedProjects: projectId } },
@@ -71,8 +143,8 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json(
-      { message: "Project pinned to dashboard shortcuts", projectId },
-      { status: 200 }
+      { message: "Project pinned to dashboard shortcuts successfully", projectId },
+      { status: 201 }
     );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

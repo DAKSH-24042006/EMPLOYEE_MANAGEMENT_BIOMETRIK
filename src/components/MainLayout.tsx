@@ -15,13 +15,13 @@ import {
   List,
   message,
   Card,
+  Tooltip,
 } from "antd";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu as MenuIcon, LogOut } from "lucide-react";
+import { Menu as MenuIcon, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
-  JiraAppSwitcherIcon,
   JiraDashboardIcon,
   JiraProjectsIcon,
   JiraCalendarIcon,
@@ -34,8 +34,8 @@ import { Role } from "@/lib/constants";
 import logo from "../../public/Biometrik_New_Logo.png";
 import { HomeOutlined } from "@ant-design/icons";
 
-// Notification Dropdown Component using Jira Bell Icon
-function NotificationDropdown() {
+// Notification Dropdown Component
+function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -47,8 +47,8 @@ function NotificationDropdown() {
       const res = await fetch("/api/notifications");
       const json = await res.json();
       if (res.ok) {
-        setNotifications(json.data);
-        setUnreadCount(json.data.filter((n: any) => !n.read).length);
+        setNotifications(json.data || []);
+        setUnreadCount((json.data || []).filter((n: any) => !n.read).length);
       }
     } catch (err: any) {
       if (err.message !== "Failed to fetch") {
@@ -61,7 +61,6 @@ function NotificationDropdown() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll notifications every 60 seconds
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -116,7 +115,7 @@ function NotificationDropdown() {
         width: 350,
         maxHeight: 400,
         overflowY: "auto",
-        boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
         borderRadius: 8,
       }}
     >
@@ -157,41 +156,224 @@ function NotificationDropdown() {
     </Card>
   );
 
-  return (
-    <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="bottomRight">
-      <Badge count={unreadCount} size="small" offset={[-2, 4]} style={{ cursor: "pointer" }}>
-        <div
-          role="button"
-          tabIndex={0}
-          className="jira-icon-btn"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            borderRadius: "50%",
-            cursor: "pointer",
-            color: "#44546F",
-            transition: "all 0.2s ease",
-          }}
+  if (collapsed) {
+    return (
+      <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="topLeft">
+        <Tooltip
+          title={
+            unreadCount > 0
+              ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`
+              : "Notifications"
+          }
+          placement="right"
         >
-          <JiraBellIcon size={19} />
+          <div
+            role="button"
+            tabIndex={0}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              height: 38,
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#44546F",
+              transition: "all 0.2s ease",
+            }}
+            className="sidebar-icon-btn"
+          >
+            <Badge count={unreadCount} size="small" offset={[2, -2]}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <JiraBellIcon size={19} />
+              </div>
+            </Badge>
+          </div>
+        </Tooltip>
+      </Dropdown>
+    );
+  }
+
+  return (
+    <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="topLeft">
+      <div
+        role="button"
+        tabIndex={0}
+        className="sidebar-notif-btn"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 10px",
+          borderRadius: 6,
+          cursor: "pointer",
+          color: "#44546F",
+          transition: "all 0.2s ease",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Badge count={unreadCount} size="small" offset={[2, -2]}>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <JiraBellIcon size={18} />
+            </div>
+          </Badge>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "#44546F" }}>Notifications</span>
         </div>
-      </Badge>
+        {unreadCount > 0 && (
+          <span
+            style={{
+              backgroundColor: "#E0F2F1",
+              color: "#00897b",
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "1px 7px",
+              borderRadius: 10,
+            }}
+          >
+            {unreadCount}
+          </span>
+        )}
+      </div>
     </Dropdown>
   );
 }
 
-const { Header, Content } = Layout;
+// User Profile Section Component
+function UserProfileDropdown({
+  user,
+  collapsed,
+  onLogout,
+}: {
+  user: { name: string; role: string; designation?: string } | null;
+  collapsed?: boolean;
+  onLogout: () => void;
+}) {
+  const profileMenuItems = [
+    { key: "1", label: <Link href="/profile">Profile</Link> },
+    { type: "divider" as const },
+    {
+      key: "2",
+      label: "Logout",
+      icon: <LogOut size={15} />,
+      danger: true,
+      onClick: onLogout,
+    },
+  ];
+
+  if (collapsed) {
+    return (
+      <Dropdown menu={{ items: profileMenuItems }} placement="topLeft" trigger={["click"]}>
+        <Tooltip title={user?.name || "Profile"} placement="right">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              cursor: "pointer",
+              padding: "2px 0",
+            }}
+          >
+            <Avatar
+              style={{
+                backgroundColor: "#00897b",
+                color: "#ffffff",
+                fontWeight: 600,
+                width: 36,
+                height: 36,
+                fontSize: 14,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+              }}
+            >
+              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            </Avatar>
+          </div>
+        </Tooltip>
+      </Dropdown>
+    );
+  }
+
+  return (
+    <Dropdown menu={{ items: profileMenuItems }} placement="topRight" trigger={["click"]}>
+      <div
+        className="sidebar-user-pill"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          cursor: "pointer",
+          padding: "7px 10px",
+          borderRadius: 8,
+          transition: "background 0.2s ease",
+          background: "rgba(9, 30, 66, 0.03)",
+          border: "1px solid #EBECF0",
+        }}
+      >
+        <Avatar
+          style={{
+            backgroundColor: "#00897b",
+            color: "#ffffff",
+            fontWeight: 600,
+            width: 32,
+            height: 32,
+            fontSize: 13,
+            flexShrink: 0,
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+          }}
+        >
+          {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+        </Avatar>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            lineHeight: 1.2,
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 600,
+              color: "#172B4D",
+              fontSize: 13,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {user?.name || "Loading..."}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              color: "#626F86",
+              textTransform: "capitalize",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {user?.role === Role.SYSTEM_ADMIN
+              ? "System Admin"
+              : user?.designation || user?.role?.toLowerCase().replace("_", " ") || "Employee"}
+          </span>
+        </div>
+        <JiraChevronDownIcon size={12} color="#626F86" />
+      </div>
+    </Dropdown>
+  );
+}
+
+const { Content, Sider, Header } = Layout;
 const { useBreakpoint } = Grid;
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<{ name: string; role: string; designation?: string } | null>(
     null
   );
   const pathname = usePathname() || "";
+  const router = useRouter();
   const screens = useBreakpoint();
 
   const {
@@ -203,7 +385,23 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     setMounted(true);
     fetchUserData();
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("biometrik_sidebar_collapsed");
+      if (saved === "true") {
+        setCollapsed(true);
+      }
+    }
   }, []);
+
+  const handleToggleCollapse = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("biometrik_sidebar_collapsed", String(next));
+      }
+      return next;
+    });
+  };
 
   const fetchUserData = async () => {
     try {
@@ -259,35 +457,44 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Navigation Items using official Jira icons
   const navItems = [
     {
-      key: "/dashboard",
-      icon: <JiraDashboardIcon size={17} />,
-      label: <Link href="/dashboard">Dashboard</Link>,
+      key: "/dashboard-group",
+      icon: <JiraDashboardIcon size={18} />,
+      label: "Dashboard",
+      children: [
+        {
+          key: "/dashboard",
+          label: <Link href="/dashboard">Overview</Link>,
+        },
+        {
+          key: "/dashboard/personal",
+          label: <Link href="/dashboard/personal">Personal Dashboard</Link>,
+        },
+        {
+          key: "/dashboard/personal-projects",
+          label: <Link href="/dashboard/personal-projects">Personal Projects</Link>,
+        },
+      ],
     },
     {
       key: "/projects",
-      icon: <JiraProjectsIcon size={17} />,
-      label: (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <Link href="/projects">Projects</Link>
-          <JiraChevronDownIcon size={11} color="#626F86" />
-        </span>
-      ),
+      icon: <JiraProjectsIcon size={18} />,
+      label: <Link href="/projects">Projects</Link>,
     },
     {
       key: "/calendar",
-      icon: <JiraCalendarIcon size={17} />,
+      icon: <JiraCalendarIcon size={18} />,
       label: <Link href="/calendar">Calendar</Link>,
     },
     {
       key: "/bug-history",
-      icon: <JiraBugIcon size={17} />,
+      icon: <JiraBugIcon size={18} />,
       label: <Link href="/bug-history">Bug History</Link>,
     },
     ...(isSuperAdmin
       ? [
           {
             key: "/admin",
-            icon: <JiraPeopleIcon size={17} />,
+            icon: <JiraPeopleIcon size={18} />,
             label: <Link href="/admin">User Management</Link>,
           },
         ]
@@ -314,7 +521,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ? "User Management"
           : snippet === "bug-history"
             ? "Bug History"
-            : snippet.replace("-", " ");
+            : snippet === "personal-projects"
+              ? "Personal Projects"
+              : snippet === "personal"
+                ? "Personal Dashboard"
+                : snippet.replace("-", " ");
       return {
         title: (
           <Link href={url} style={{ textTransform: "capitalize" }}>
@@ -334,329 +545,443 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
-  // Determine current active key for top nav
-  const activeKey =
-    navItems.find((item) => pathname.startsWith(item.key) && item.key !== "/")?.key ||
-    (pathname === "/" ? "/dashboard" : "");
+  // Determine current active key
+  let activeKey = "/dashboard";
+  if (pathname.startsWith("/dashboard/personal-projects")) {
+    activeKey = "/dashboard/personal-projects";
+  } else if (pathname.startsWith("/dashboard/personal")) {
+    activeKey = "/dashboard/personal";
+  } else if (pathname === "/dashboard") {
+    activeKey = "/dashboard";
+  } else {
+    activeKey =
+      navItems.find((item) => pathname.startsWith(item.key) && item.key !== "/")?.key || pathname;
+  }
 
   return (
     <Layout
       style={{
-        minHeight: "100vh",
+        height: "100vh",
+        maxHeight: "100vh",
+        overflow: "hidden",
         background:
           "radial-gradient(circle at 100% 0%, rgba(0, 149, 135, 0.08) 0%, rgba(245, 248, 250, 0.5) 35%, #F5F8FA 100%)",
       }}
     >
-      {/* Top Navigation Bar - Jira Style */}
-      <Header
-        style={{
-          height: 56,
-          lineHeight: "56px",
-          padding: "0 20px",
-          background: "#ffffff",
-          borderBottom: "1px solid #DFE1E6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 1000,
-          boxShadow: "0 1px 2px rgba(9, 30, 66, 0.08)",
-        }}
-      >
-        {/* Left Section: App Switcher + Logo + Navigation Links */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, height: "100%", flex: 1 }}>
-          {/* Mobile hamburger menu toggle */}
-          {isMobile ? (
-            <Button
-              type="text"
-              icon={<MenuIcon size={20} color="#44546F" />}
-              onClick={() => setDrawerVisible(true)}
-              style={{ width: 36, height: 36, padding: 0 }}
-            />
-          ) : (
-            /* Desktop Jira 9-Dot App Switcher Icon */
-            <div
-              className="jira-icon-btn"
-              title="Atlassian Switcher"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 34,
-                height: 34,
-                borderRadius: 4,
-                cursor: "pointer",
-                color: "#44546F",
-                transition: "background 0.2s ease, color 0.2s ease",
-              }}
-            >
-              <JiraAppSwitcherIcon size={18} />
-            </div>
-          )}
-
-          {/* Biometrik Brand Logo */}
-          <Link
-            href="/dashboard"
+      {/* Desktop Collapsible Side Bar (Replaces Top Bar) */}
+      {!isMobile && (
+        <Sider
+          collapsible
+          collapsed={collapsed}
+          onCollapse={(val) => {
+            setCollapsed(val);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("biometrik_sidebar_collapsed", String(val));
+            }
+          }}
+          trigger={null}
+          width={240}
+          collapsedWidth={72}
+          theme="light"
+          style={{
+            height: "100vh",
+            maxHeight: "100vh",
+            background: "#ffffff",
+            borderRight: "1px solid #DFE1E6",
+            boxShadow: "1px 0 4px rgba(9, 30, 66, 0.05)",
+            zIndex: 100,
+            flexShrink: 0,
+            overflow: "hidden",
+          }}
+        >
+          <div
             style={{
               display: "flex",
-              alignItems: "center",
-              marginRight: 12,
-              flexShrink: 0,
+              flexDirection: "column",
+              height: "100%",
+              justifyContent: "space-between",
             }}
           >
-            <Image
-              src={logo}
-              alt="Biometrik"
-              height={32}
-              priority
-              style={{ height: 32, width: "auto", objectFit: "contain" }}
-            />
-          </Link>
-
-          {/* Desktop Top Horizontal Navigation Menu */}
-          {!isMobile && (
-            <nav style={{ display: "flex", alignItems: "center", height: "100%", gap: 2 }}>
-              {navItems.map((item) => {
-                const isActive = activeKey === item.key;
-                return (
-                  <div
-                    key={item.key}
-                    className={`jira-nav-item ${isActive ? "active" : ""}`}
-                    style={{
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 12px",
-                      position: "relative",
-                      fontSize: 14,
-                      fontWeight: isActive ? 600 : 500,
-                      color: "#535353",
-                      cursor: "pointer",
-                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                      borderBottom: isActive ? "3px solid #009587" : "3px solid transparent",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        color: "#535353",
-                      }}
-                    >
-                      <span
-                        className={`jira-nav-icon ${isActive ? "active-glow" : ""}`}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          color: "#535353",
-                          transition: "all 0.25s ease",
-                          filter: isActive
-                            ? "drop-shadow(0 0 6px rgba(0, 149, 135, 0.65))"
-                            : "none",
-                        }}
-                      >
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </nav>
-          )}
-        </div>
-
-        {/* Right Section: Notifications + User Profile */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-          {/* Jira-style Notification Bell Dropdown */}
-          <NotificationDropdown />
-
-          {/* User Profile Avatar with dropdown */}
-          <Dropdown
-            menu={{
-              items: [
-                { key: "1", label: <Link href="/profile">Profile</Link> },
-                { type: "divider" },
-                {
-                  key: "2",
-                  label: "Logout",
-                  icon: <LogOut size={15} />,
-                  danger: true,
-                  onClick: handleLogout,
-                },
-              ],
-            }}
-            placement="bottomRight"
-            trigger={["click"]}
-          >
+            {/* Sidebar Top: Logo + Minimize / Maximize Toggle */}
             <div
-              className="jira-profile-pill"
               style={{
+                height: collapsed ? "auto" : 58,
+                padding: collapsed ? "10px 0 8px" : "0 14px",
+                borderBottom: "1px solid #F0F2F5",
                 display: "flex",
+                flexDirection: collapsed ? "column" : "row",
                 alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                padding: "3px 8px 3px 4px",
-                borderRadius: 6,
-                transition: "background 0.2s ease",
+                justifyContent: collapsed ? "center" : "space-between",
+                gap: collapsed ? 8 : 10,
+                flexShrink: 0,
               }}
             >
-              <Avatar
-                style={{
-                  backgroundColor: "#00897b",
-                  color: "#ffffff",
-                  fontWeight: 600,
-                  width: 32,
-                  height: 32,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-                }}
-              >
-                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-              </Avatar>
-              {!isMobile && (
-                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-                  <span style={{ fontWeight: 600, color: "#172B4D", fontSize: 13 }}>
-                    {user?.name || "Loading..."}
-                  </span>
-                  <span
+              {collapsed ? (
+                <>
+                  <Link
+                    href="/dashboard"
                     style={{
-                      fontSize: 11,
-                      color: "#626F86",
-                      textTransform: "capitalize",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "2px",
+                      width: "100%",
                     }}
                   >
-                    {user?.role === Role.SYSTEM_ADMIN
-                      ? "System Admin"
-                      : user?.designation ||
-                        user?.role?.toLowerCase().replace("_", " ") ||
-                        "Employee"}
-                  </span>
-                </div>
+                    <Image
+                      src={logo}
+                      alt="Biometrik"
+                      style={{
+                        width: "56px",
+                        height: "auto",
+                        maxWidth: "58px",
+                        objectFit: "contain",
+                      }}
+                      priority
+                    />
+                  </Link>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PanelLeftOpen size={16} color="#44546F" />}
+                    onClick={handleToggleCollapse}
+                    className="sidebar-icon-btn"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/dashboard"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      overflow: "hidden",
+                      flex: 1,
+                    }}
+                  >
+                    <Image
+                      src={logo}
+                      alt="Biometrik"
+                      height={32}
+                      priority
+                      style={{ height: 32, width: "auto", objectFit: "contain" }}
+                    />
+                  </Link>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PanelLeftClose size={17} color="#44546F" />}
+                    onClick={handleToggleCollapse}
+                    className="sidebar-icon-btn"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  />
+                </>
               )}
             </div>
-          </Dropdown>
-        </div>
-      </Header>
 
-      {/* Mobile Drawer Navigation */}
-      {mounted && isMobile && (
-        <Drawer
-          placement="left"
-          onClose={() => setDrawerVisible(false)}
-          open={drawerVisible}
-          styles={{ body: { padding: 0 } }}
-          size={260}
-          closable={false}
-        >
-          <div style={{ padding: "20px 16px", borderBottom: "1px solid #f0f0f0" }}>
-            <Image
-              src={logo}
-              alt="Biometrik"
-              height={32}
-              style={{ height: 32, width: "auto", objectFit: "contain" }}
-            />
+            {/* Middle: Navigation Menu */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                overflowX: "hidden",
+                padding: collapsed ? "10px 4px" : "12px 8px",
+              }}
+            >
+              <Menu
+                theme="light"
+                mode="inline"
+                selectedKeys={[activeKey]}
+                defaultOpenKeys={["/dashboard-group"]}
+                items={navItems}
+                onClick={({ key }) => {
+                  if (key && !key.endsWith("-group")) router.push(key);
+                }}
+                style={{
+                  borderRight: 0,
+                  background: "transparent",
+                }}
+              />
+            </div>
+
+            {/* Bottom: Notifications + User Profile (No bottom toggle) */}
+            <div
+              style={{
+                padding: collapsed ? "12px 8px" : "12px 12px",
+                borderTop: "1px solid #F0F2F5",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                background: "#FAFBFC",
+                flexShrink: 0,
+              }}
+            >
+              {/* Notifications */}
+              <NotificationDropdown collapsed={collapsed} />
+
+              {/* User Profile */}
+              <UserProfileDropdown user={user} collapsed={collapsed} onLogout={handleLogout} />
+            </div>
           </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            selectedKeys={[activeKey]}
-            items={navItems}
-            onClick={() => setDrawerVisible(false)}
-            style={{ borderRight: 0, marginTop: 8 }}
-          />
-        </Drawer>
+        </Sider>
       )}
 
-      {/* Main Full-Width Content Canvas */}
-      <Content
+      {/* Main Right Content Layout Canvas */}
+      <Layout
         style={{
+          height: "100vh",
+          maxHeight: "100vh",
+          overflowY: "auto",
+          overflowX: "hidden",
+          background: "transparent",
+          minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          flex: 1,
-          width: "100%",
-          padding: isMobile ? "10px 12px" : "14px 24px",
-          minWidth: 0,
         }}
       >
-        <Breadcrumb
-          separator=">"
-          items={breadcrumbItems}
-          style={{
-            marginBottom: 10,
-            fontSize: 12.5,
-            color: "#6B7280",
-          }}
-        />
+        {/* Mobile Header (Only visible on screens < lg) */}
+        {isMobile && (
+          <Header
+            style={{
+              height: 52,
+              lineHeight: "52px",
+              padding: "0 16px",
+              background: "#ffffff",
+              borderBottom: "1px solid #DFE1E6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              position: "sticky",
+              top: 0,
+              zIndex: 1000,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Button
+                type="text"
+                icon={<MenuIcon size={20} color="#44546F" />}
+                onClick={() => setDrawerVisible(true)}
+                style={{ width: 36, height: 36, padding: 0 }}
+              />
+              <Link href="/dashboard" style={{ display: "flex", alignItems: "center" }}>
+                <Image
+                  src={logo}
+                  alt="Biometrik"
+                  height={28}
+                  priority
+                  style={{ height: 28, width: "auto", objectFit: "contain" }}
+                />
+              </Link>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <NotificationDropdown collapsed={true} />
+              <UserProfileDropdown user={user} collapsed={true} onLogout={handleLogout} />
+            </div>
+          </Header>
+        )}
 
-        <div
+        {/* Mobile Slide-out Drawer */}
+        {isMobile && (
+          <Drawer
+            placement="left"
+            onClose={() => setDrawerVisible(false)}
+            open={drawerVisible}
+            styles={{
+              body: { padding: 0, display: "flex", flexDirection: "column", height: "100%" },
+            }}
+            width={260}
+            closable={false}
+          >
+            <div
+              style={{
+                padding: "16px",
+                borderBottom: "1px solid #f0f0f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Image
+                src={logo}
+                alt="Biometrik"
+                height={30}
+                style={{ height: 30, width: "auto", objectFit: "contain" }}
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<PanelLeftClose size={18} color="#44546F" />}
+                onClick={() => setDrawerVisible(false)}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px 8px" }}>
+              <Menu
+                theme="light"
+                mode="inline"
+                selectedKeys={[activeKey]}
+                defaultOpenKeys={["/dashboard-group"]}
+                items={navItems}
+                onClick={({ key }) => {
+                  setDrawerVisible(false);
+                  if (key && !key.endsWith("-group")) router.push(key);
+                }}
+                style={{ borderRight: 0 }}
+              />
+            </div>
+            <div
+              style={{
+                padding: "12px 14px",
+                borderTop: "1px solid #f0f0f0",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                background: "#FAFBFC",
+              }}
+            >
+              <NotificationDropdown collapsed={false} />
+              <UserProfileDropdown user={user} collapsed={false} onLogout={handleLogout} />
+            </div>
+          </Drawer>
+        )}
+
+        {/* Main Full-Width Content Canvas */}
+        <Content
           style={{
+            display: "flex",
+            flexDirection: "column",
             flex: 1,
-            background: pathname === "/projects" ? "transparent" : colorBgContainer,
-            borderRadius: pathname === "/projects" ? 0 : borderRadiusLG,
-            padding: pathname === "/projects" ? 0 : isMobile ? 14 : 24,
-            boxShadow: pathname === "/projects" ? "none" : "0 1px 3px rgba(9, 30, 66, 0.06)",
-            overflowY: "auto",
-            minHeight: 0,
+            width: "100%",
+            padding: isMobile ? "10px 12px" : "16px 28px",
+            minWidth: 0,
           }}
         >
-          {children}
-        </div>
-      </Content>
+          <Breadcrumb
+            separator=">"
+            items={breadcrumbItems}
+            style={{
+              marginBottom: 12,
+              fontSize: 12.5,
+              color: "#6B7280",
+            }}
+          />
 
-      {/* Footer */}
-      <Layout.Footer
-        style={{
-          textAlign: "center",
-          padding: "12px 20px",
-          background: "#ffffff",
-          borderTop: "1px solid #DFE1E6",
-          fontSize: 12,
-          color: "#626F86",
-          flexShrink: 0,
-        }}
-      >
-        © {new Date().getFullYear()}{" "}
-        <strong style={{ color: "#00897b" }}>Biometrik® Systems</strong>. All rights reserved.
-      </Layout.Footer>
+          <div
+            style={{
+              flex: 1,
+              background: pathname === "/projects" ? "transparent" : colorBgContainer,
+              borderRadius: pathname === "/projects" ? 0 : borderRadiusLG,
+              padding: pathname === "/projects" ? 0 : isMobile ? 14 : 24,
+              boxShadow: pathname === "/projects" ? "none" : "0 1px 3px rgba(9, 30, 66, 0.06)",
+              overflowY: "auto",
+              minHeight: 0,
+            }}
+          >
+            {children}
+          </div>
+        </Content>
 
-      {/* Jira Top Bar Styles */}
+        {/* Footer */}
+        <Layout.Footer
+          style={{
+            textAlign: "center",
+            padding: "12px 20px",
+            background: "#ffffff",
+            borderTop: "1px solid #DFE1E6",
+            fontSize: 12,
+            color: "#626F86",
+            flexShrink: 0,
+          }}
+        >
+          &copy; {new Date().getFullYear()}{" "}
+          <strong style={{ color: "#00897b" }}>Biometrik&reg; Systems</strong>. All rights reserved.
+        </Layout.Footer>
+      </Layout>
+
+      {/* Sidebar Styling */}
       <style jsx global>{`
-        .jira-icon-btn:hover {
-          background-color: #091e420f;
-          color: #262626 !important;
+        .sidebar-icon-btn:hover {
+          background-color: rgba(9, 30, 66, 0.08) !important;
+          color: #172b4d !important;
         }
-        .jira-nav-item a {
-          color: #535353 !important;
+        .sidebar-notif-btn:hover {
+          background-color: rgba(9, 30, 66, 0.08) !important;
         }
-        .jira-nav-item:hover {
-          background-color: #091e420f;
+        .sidebar-user-pill:hover {
+          background-color: rgba(9, 30, 66, 0.08) !important;
         }
-        .jira-nav-item:hover a,
-        .jira-nav-item:hover span {
-          color: #262626 !important;
+
+        .ant-layout-sider-children {
+          height: 100% !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
         }
-        .jira-nav-item:hover .jira-nav-icon {
-          filter: drop-shadow(0 0 4px rgba(0, 149, 135, 0.4)) !important;
+
+        /* Menu customization for Biometrik brand */
+        .ant-layout-sider .ant-menu-inline .ant-menu-item {
+          border-radius: 6px !important;
+          margin-block: 4px !important;
+          margin-inline: 4px !important;
+          width: calc(100% - 8px) !important;
+          height: 38px !important;
+          line-height: 38px !important;
+          font-size: 13.5px !important;
+          color: #44546f !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
-        .jira-nav-item:active .jira-nav-icon,
-        .jira-nav-icon.active-glow {
-          filter: drop-shadow(0 0 8px rgba(0, 149, 135, 0.75)) drop-shadow(0 0 2px #009587) !important;
+        .ant-layout-sider .ant-menu-inline .ant-menu-item:hover {
+          background-color: #f1f8f7 !important;
+          color: #00897b !important;
         }
-        .jira-nav-item.active {
-          box-shadow: inset 0 -2px 8px -2px rgba(0, 149, 135, 0.35);
+        .ant-layout-sider .ant-menu-inline .ant-menu-item:hover svg {
+          stroke: #00897b !important;
+          color: #00897b !important;
         }
-        .jira-nav-item.active a {
-          color: #535353 !important;
-          font-weight: 600;
+        .ant-layout-sider .ant-menu-inline .ant-menu-item-selected {
+          background-color: #e0f2f1 !important;
+          color: #00897b !important;
+          font-weight: 600 !important;
         }
-        .jira-profile-pill:hover {
-          background-color: #091e420f;
+        .ant-layout-sider .ant-menu-inline .ant-menu-item-selected a {
+          color: #00897b !important;
+        }
+        .ant-layout-sider .ant-menu-inline .ant-menu-item-selected svg {
+          stroke: #00897b !important;
+          color: #00897b !important;
+          filter: drop-shadow(0 0 4px rgba(0, 149, 135, 0.45));
+        }
+
+        /* Collapsed menu styling */
+        .ant-layout-sider-collapsed .ant-menu-inline-collapsed .ant-menu-item {
+          padding: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin-inline: auto !important;
+          width: 44px !important;
+          height: 44px !important;
+        }
+        .ant-layout-sider-collapsed .ant-menu-inline-collapsed .ant-menu-item .ant-menu-item-icon {
+          line-height: 1 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
         }
       `}</style>
     </Layout>

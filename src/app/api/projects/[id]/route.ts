@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
-import { Project } from "@/lib/models/Project";
+import { Project, normalizeProjectStatus } from "@/lib/models/Project";
 import { ProjectVersion } from "@/lib/models/ProjectVersion";
 import { WorkItem } from "@/lib/models/WorkItem";
 import { Task } from "@/lib/models/Task";
@@ -129,6 +129,90 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           {
             error:
               "Forbidden: Only System Administrator has access to add or modify project members.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Designated QA / QA Lead can ONLY be changed by that project's Project Manager (techOwner) or SYSTEM_ADMIN
+    if (body.qaLead !== undefined) {
+      const isProjectManager =
+        existingProject.techOwner &&
+        String(existingProject.techOwner._id || existingProject.techOwner) === String(userId);
+      const isSystemAdmin = userRole === Role.SYSTEM_ADMIN;
+      const currentQALead = existingProject.qaLead
+        ? String(existingProject.qaLead._id || existingProject.qaLead)
+        : "";
+      const newQALead = body.qaLead ? String(body.qaLead) : "";
+
+      if (currentQALead !== newQALead && !isSystemAdmin && !isProjectManager) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: Designated QA can only be changed by this project's Project Manager or System Administrator.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Project Specifications (Title, Description, Timeline/Dates) can ONLY be edited by System Admin or that project's Project Manager
+    const touchesSpecifications =
+      body.title !== undefined ||
+      body.description !== undefined ||
+      body.timeline !== undefined ||
+      body.startDate !== undefined ||
+      body.endDate !== undefined;
+
+    if (touchesSpecifications) {
+      const isProjectManager =
+        existingProject.techOwner &&
+        String(existingProject.techOwner._id || existingProject.techOwner) === String(userId);
+      const isSystemAdmin = userRole === Role.SYSTEM_ADMIN;
+
+      const isTitleChanged =
+        body.title !== undefined &&
+        String(body.title || "").trim() !== String(existingProject.title || "").trim();
+      const isDescChanged =
+        body.description !== undefined &&
+        String(body.description || "").trim() !== String(existingProject.description || "").trim();
+
+      const existingStartDate = existingProject.timeline?.startDate
+        ? new Date(existingProject.timeline.startDate).toISOString()
+        : "";
+      const newStartDate = body.timeline?.startDate
+        ? new Date(body.timeline.startDate).toISOString()
+        : body.startDate
+          ? new Date(body.startDate).toISOString()
+          : existingStartDate;
+      const isStartDateChanged =
+        (body.timeline?.startDate !== undefined || body.startDate !== undefined) &&
+        newStartDate !== existingStartDate;
+
+      const existingEndDate = existingProject.timeline?.endDate
+        ? new Date(existingProject.timeline.endDate).toISOString()
+        : "";
+      const newEndDate = body.timeline?.endDate
+        ? new Date(body.timeline.endDate).toISOString()
+        : body.endDate !== undefined
+          ? body.endDate
+            ? new Date(body.endDate).toISOString()
+            : ""
+          : existingEndDate;
+      const isEndDateChanged =
+        (body.timeline?.endDate !== undefined || body.endDate !== undefined) &&
+        newEndDate !== existingEndDate;
+
+      if (
+        (isTitleChanged || isDescChanged || isStartDateChanged || isEndDateChanged) &&
+        !isSystemAdmin &&
+        !isProjectManager
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: Project specifications (Title, Description, and Dates) can only be edited by this project's Project Manager or System Administrator.",
           },
           { status: 403 }
         );
@@ -360,13 +444,42 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.budget !== undefined) existingProject.budget = body.budget;
     if (body.integrations !== undefined) existingProject.integrations = body.integrations;
     if (body.priority !== undefined) existingProject.priority = body.priority;
-    if (body.status !== undefined) existingProject.status = body.status;
+    if (body.status !== undefined) existingProject.status = normalizeProjectStatus(body.status);
     if (body.timeline !== undefined) {
+      if (Array.isArray(body.timeline)) {
+        existingProject.timeline = {
+          startDate: body.timeline[0]
+            ? new Date(body.timeline[0])
+            : existingProject.timeline?.startDate,
+          endDate:
+            body.timeline[1] !== undefined
+              ? body.timeline[1]
+                ? new Date(body.timeline[1])
+                : null
+              : existingProject.timeline?.endDate,
+        };
+      } else if (typeof body.timeline === "object" && body.timeline !== null) {
+        existingProject.timeline = {
+          startDate: body.timeline.startDate
+            ? new Date(body.timeline.startDate)
+            : existingProject.timeline?.startDate,
+          endDate:
+            body.timeline.endDate !== undefined
+              ? body.timeline.endDate
+                ? new Date(body.timeline.endDate)
+                : null
+              : existingProject.timeline?.endDate,
+        };
+      }
+    } else if (body.startDate !== undefined || body.endDate !== undefined) {
       existingProject.timeline = {
-        startDate: body.timeline[0]
-          ? new Date(body.timeline[0])
-          : existingProject.timeline.startDate,
-        endDate: body.timeline[1] ? new Date(body.timeline[1]) : existingProject.timeline.endDate,
+        startDate: body.startDate ? new Date(body.startDate) : existingProject.timeline?.startDate,
+        endDate:
+          body.endDate !== undefined
+            ? body.endDate
+              ? new Date(body.endDate)
+              : null
+            : existingProject.timeline?.endDate,
       };
     }
 

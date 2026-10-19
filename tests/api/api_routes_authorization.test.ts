@@ -61,6 +61,60 @@ describe("Phase 1: API Endpoint Authorization & Privilege Escalation Defenses", 
       expect(canDeleteProject("SALES")).toBe(false);
       expect(canDeleteProject(Role.SYSTEM_ADMIN)).toBe(true);
     });
+
+    describe("Designated QA / QA Lead Modification Policy", () => {
+      function canModifyQALead(
+        userRole: string,
+        userId: string,
+        projectTechOwnerId: string
+      ): boolean {
+        const isSystemAdmin = userRole === Role.SYSTEM_ADMIN;
+        const isProjectManager = String(projectTechOwnerId) === String(userId);
+        return isSystemAdmin || isProjectManager;
+      }
+
+      it("ALLOWS System Administrator to change QA Lead", () => {
+        expect(canModifyQALead(Role.SYSTEM_ADMIN, "admin-123", "pm-456")).toBe(true);
+      });
+
+      it("ALLOWS that project's Project Manager to change QA Lead", () => {
+        expect(canModifyQALead(Role.EMPLOYEE, "pm-456", "pm-456")).toBe(true);
+      });
+
+      it("FORBIDS regular developer or unrelated employee from changing QA Lead", () => {
+        expect(canModifyQALead(Role.EMPLOYEE, "dev-789", "pm-456")).toBe(false);
+        expect(canModifyQALead("SALES", "sales-001", "pm-456")).toBe(false);
+        expect(canModifyQALead("QA", "qa-002", "pm-456")).toBe(false);
+      });
+    });
+
+    describe("Project Specifications (Title, Description, Dates) Modification Policy", () => {
+      function canModifySpecifications(
+        userRole: string,
+        userId: string,
+        projectTechOwnerId: string
+      ): boolean {
+        const isSystemAdmin = userRole === Role.SYSTEM_ADMIN;
+        const isProjectManager = String(projectTechOwnerId) === String(userId);
+        return isSystemAdmin || isProjectManager;
+      }
+
+      it("ALLOWS System Administrator to edit title, description, and dates", () => {
+        expect(canModifySpecifications(Role.SYSTEM_ADMIN, "admin-123", "pm-456")).toBe(true);
+      });
+
+      it("ALLOWS that project's Project Manager to edit title, description, and dates", () => {
+        expect(canModifySpecifications(Role.EMPLOYEE, "pm-456", "pm-456")).toBe(true);
+      });
+
+      it("FORBIDS regular developers, QA leads, Product Owners, or unrelated roles from editing specifications", () => {
+        expect(canModifySpecifications(Role.EMPLOYEE, "dev-789", "pm-456")).toBe(false);
+        expect(canModifySpecifications("DEVELOPER", "dev-789", "pm-456")).toBe(false);
+        expect(canModifySpecifications("QA", "qa-002", "pm-456")).toBe(false);
+        expect(canModifySpecifications("PRODUCT_OWNER", "po-003", "pm-456")).toBe(false);
+        expect(canModifySpecifications("SALES", "sales-001", "pm-456")).toBe(false);
+      });
+    });
   });
 
   describe("Work Items Authorization (/api/projects/[id]/work-items)", () => {

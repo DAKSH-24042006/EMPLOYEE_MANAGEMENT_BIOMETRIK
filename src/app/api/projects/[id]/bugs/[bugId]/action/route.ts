@@ -367,6 +367,7 @@ export async function POST(
         const returningDevId = prevAssigneeUser?._id || currentAssigneeUser?._id;
         if (returningDevId) {
           bug.assignee = returningDevId;
+          bug.assignedAt = new Date();
         }
 
         bug.status = "FAIL";

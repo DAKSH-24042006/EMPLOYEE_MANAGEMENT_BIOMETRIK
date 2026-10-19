@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
-import { Project, FEATURE_KEYS } from "@/lib/models/Project";
+import { Project, FEATURE_KEYS, normalizeProjectStatus } from "@/lib/models/Project";
 import { verifyJwt } from "@/lib/auth";
 import { Role } from "@/lib/constants";
 
@@ -64,8 +64,9 @@ export async function POST(req: Request) {
           ? new Date(data.endDate)
           : data.timeline?.[1]
             ? new Date(data.timeline[1])
-            : undefined,
+            : null,
       },
+      status: data.status ? normalizeProjectStatus(data.status) : "In Progress",
       createdBy: payload.userId,
       techOwner: data.techOwner || undefined,
       productOwner: data.productOwner || undefined,
@@ -78,8 +79,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Project Title is required." }, { status: 400 });
     }
 
-    if (!newProject.timeline.startDate || !newProject.timeline.endDate) {
-      return NextResponse.json({ error: "A comprehensive Timeline is required." }, { status: 400 });
+    if (!newProject.timeline.startDate) {
+      return NextResponse.json({ error: "Start Date is required." }, { status: 400 });
     }
 
     await dbConnect();

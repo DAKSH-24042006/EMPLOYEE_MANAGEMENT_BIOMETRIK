@@ -44,6 +44,7 @@ export async function GET() {
         sendOnDueDate: config.sendOnDueDate ?? true,
         overdueIntervalDays: config.overdueIntervalDays ?? 2,
         templates: config.templates,
+        bugNotifications: config.bugNotifications,
         updatedAt: config.updatedAt,
       },
     });
@@ -113,6 +114,74 @@ export async function PUT(req: Request) {
       config.templates = mergedTemplates as any;
     }
 
+    if (body.bugNotifications && typeof body.bugNotifications === "object") {
+      const existingBugs = config.bugNotifications || ({} as any);
+      const incomingBugs = body.bugNotifications;
+      const bugKeys = [
+        "bugReported",
+        "bugAssigned",
+        "bugReassigned",
+        "fixSubmitted",
+        "bugClosed",
+      ] as const;
+      const mergedBugs: Record<string, any> = {
+        enabled:
+          incomingBugs.enabled !== undefined
+            ? Boolean(incomingBugs.enabled)
+            : (existingBugs.enabled ?? true),
+      };
+
+      for (const key of bugKeys) {
+        const existing = (existingBugs as any)[key] || {};
+        const incoming = (incomingBugs as any)[key] || {};
+
+        const customEmailStr =
+          incoming.customEmail !== undefined
+            ? String(incoming.customEmail).trim()
+            : existing.customEmail || "";
+
+        // Server-side validation for comma-separated custom emails
+        if (customEmailStr) {
+          const emailList = customEmailStr
+            .split(",")
+            .map((e: string) => e.trim())
+            .filter(Boolean);
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          for (const email of emailList) {
+            if (!emailRegex.test(email)) {
+              return NextResponse.json(
+                { error: `Invalid custom email address for ${key}: '${email}'` },
+                { status: 400 }
+              );
+            }
+          }
+        }
+
+        mergedBugs[key] = {
+          enabled:
+            incoming.enabled !== undefined ? Boolean(incoming.enabled) : (existing.enabled ?? true),
+          notifyAssignee:
+            incoming.notifyAssignee !== undefined
+              ? Boolean(incoming.notifyAssignee)
+              : (existing.notifyAssignee ?? true),
+          notifyQA:
+            incoming.notifyQA !== undefined
+              ? Boolean(incoming.notifyQA)
+              : (existing.notifyQA ?? false),
+          notifyProjectManager:
+            incoming.notifyProjectManager !== undefined
+              ? Boolean(incoming.notifyProjectManager)
+              : (existing.notifyProjectManager ?? true),
+          customEmail: customEmailStr,
+          template: {
+            subject: incoming.template?.subject?.trim() || existing.template?.subject || "",
+            body: incoming.template?.body?.trim() || existing.template?.body || "",
+          },
+        };
+      }
+      config.bugNotifications = mergedBugs as any;
+    }
+
     config.updatedBy = admin.userId as any;
     await config.save();
 
@@ -131,6 +200,7 @@ export async function PUT(req: Request) {
         sendOnDueDate: config.sendOnDueDate,
         overdueIntervalDays: config.overdueIntervalDays,
         templates: config.templates,
+        bugNotifications: config.bugNotifications,
       },
     });
   } catch (error: unknown) {

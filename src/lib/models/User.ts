@@ -16,7 +16,7 @@ export interface IUser extends Document {
   profilePhoto?: string;
   faceData?: string;
   bio?: string;
-  pinnedProjects?: mongoose.Types.ObjectId[];
+  pinnedProjects?: mongoose.Types.ObjectId[] | any[];
   createdAt: Date;
   updatedAt: Date;
 }

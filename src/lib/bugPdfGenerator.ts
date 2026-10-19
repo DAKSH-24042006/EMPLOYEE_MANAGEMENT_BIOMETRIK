@@ -62,7 +62,7 @@ const getStatusColors = (
 };
 
 /**
- * Generates an Individual Bug Dossier PDF and triggers browser download.
+ * Generates an Individual Bug Investigation Report PDF and triggers browser download.
  */
 export const downloadBugPdf = async (bug: any, projectTitle?: string) => {
   const doc = new jsPDF();
@@ -111,7 +111,7 @@ export const downloadBugPdf = async (bug: any, projectTitle?: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(15, 23, 42);
-    doc.text("BUG INVESTIGATION DOSSIER", pageWidth - 14, 16, { align: "right" });
+    doc.text("BUG INVESTIGATION REPORT", pageWidth - 14, 16, { align: "right" });
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -383,7 +383,7 @@ export const downloadBugPdf = async (bug: any, projectTitle?: string) => {
     });
   }
 
-  doc.save(`${bug.bugId || "BUG"}_Dossier.pdf`);
+  doc.save(`${bug.bugId || "BUG"}_Investigation_Report.pdf`);
 };
 
 /**

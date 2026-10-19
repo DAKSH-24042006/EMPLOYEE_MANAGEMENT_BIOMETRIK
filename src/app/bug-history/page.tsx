@@ -10,6 +10,7 @@ import {
   Input,
   Select,
   Drawer,
+  Modal,
   Typography,
   Avatar,
   Row,
@@ -240,6 +241,7 @@ export default function BugHistoryPage() {
       dataIndex: "bugId",
       key: "bugId",
       width: 120,
+      sorter: (a: any, b: any) => (a.bugId || "").localeCompare(b.bugId || ""),
       render: (id: string, record: any) => (
         <a
           onClick={() => {
@@ -256,6 +258,8 @@ export default function BugHistoryPage() {
       title: "Project",
       key: "project",
       width: 160,
+      sorter: (a: any, b: any) =>
+        (a.projectId?.title || "").localeCompare(b.projectId?.title || ""),
       render: (_: any, record: any) => (
         <span style={{ fontWeight: 600, color: "#334155" }}>
           {record.projectId?.title || "Project Workspace"}
@@ -263,9 +267,10 @@ export default function BugHistoryPage() {
       ),
     },
     {
-      title: "Defect Title & Summary",
+      title: "Bug Title",
       dataIndex: "title",
       key: "title",
+      sorter: (a: any, b: any) => (a.title || "").localeCompare(b.title || ""),
       render: (title: string, record: any) => (
         <div>
           <a
@@ -298,66 +303,53 @@ export default function BugHistoryPage() {
       dataIndex: "severity",
       key: "severity",
       width: 100,
+      sorter: (a: any, b: any) => {
+        const order: Record<string, number> = { Severe: 4, High: 3, Medium: 2, Low: 1 };
+        return (order[a.severity] || 0) - (order[b.severity] || 0);
+      },
       render: (sev: string) => renderSeverityTag(sev),
+    },
+    {
+      title: "Date Assigned",
+      key: "assignedDate",
+      width: 130,
+      sorter: (a: any, b: any) =>
+        (a.assignedAt ? new Date(a.assignedAt).getTime() : 0) -
+        (b.assignedAt ? new Date(b.assignedAt).getTime() : 0),
+      render: (_: any, record: any) => (
+        <span style={{ fontSize: 12, color: record.assignedAt ? "#334155" : "#94a3b8" }}>
+          {record.assignedAt ? dayjs(record.assignedAt).format("DD MMM YYYY") : "—"}
+        </span>
+      ),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
       width: 160,
+      sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
       render: (status: string, record: any) => renderStatusTag(status, record.reopenCount),
-    },
-    {
-      title: "Reporter",
-      key: "reportedBy",
-      width: 140,
-      render: (_: any, record: any) => {
-        const u = record.reportedBy;
-        if (!u)
-          return (
-            <Text type="secondary" italic style={{ fontSize: 12 }}>
-              Unknown
-            </Text>
-          );
-        return (
-          <Space size={6}>
-            <Avatar size={20} style={{ backgroundColor: "#00897b", fontSize: 10, fontWeight: 600 }}>
-              {u.name?.charAt(0).toUpperCase()}
-            </Avatar>
-            <span style={{ fontSize: 12, color: "#334155" }}>{u.name}</span>
-          </Space>
-        );
-      },
     },
     {
       title: "Assignee",
       key: "assignee",
-      width: 170,
+      width: 160,
+      sorter: (a: any, b: any) => (a.assignee?.name || "").localeCompare(b.assignee?.name || ""),
       render: (_: any, record: any) => {
         const u = record.assignee;
         if (!u) {
           return (
             <Tag color="warning" style={{ borderRadius: 12, fontWeight: 600, padding: "2px 8px" }}>
-              ● To be assigned
+              ● Unassigned
             </Tag>
           );
         }
         return (
-          <Space size={6} align="start">
-            <Avatar
-              size={22}
-              style={{ backgroundColor: "#0284c7", fontSize: 10, fontWeight: 600, marginTop: 2 }}
-            >
+          <Space size={6} align="center">
+            <Avatar size={22} style={{ backgroundColor: "#0284c7", fontSize: 10, fontWeight: 600 }}>
               {u.name?.charAt(0).toUpperCase()}
             </Avatar>
-            <div style={{ lineHeight: 1.25 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>{u.name}</div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>
-                {record.assignedAt
-                  ? `Assigned: ${dayjs(record.assignedAt).format("DD MMM YYYY")}`
-                  : "Assigned"}
-              </div>
-            </div>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "#334155" }}>{u.name}</span>
           </Space>
         );
       },
@@ -366,14 +358,20 @@ export default function BugHistoryPage() {
       title: "Date Reported",
       dataIndex: "reportedAt",
       key: "reportedAt",
-      width: 120,
+      width: 130,
+      sorter: (a: any, b: any) =>
+        (a.reportedAt ? new Date(a.reportedAt).getTime() : 0) -
+        (b.reportedAt ? new Date(b.reportedAt).getTime() : 0),
       render: (d: string) => (d ? dayjs(d).format("DD MMM YYYY") : "—"),
     },
     {
       title: "Last Updated",
       dataIndex: "updatedAt",
       key: "updatedAt",
-      width: 120,
+      width: 130,
+      sorter: (a: any, b: any) =>
+        (a.updatedAt ? new Date(a.updatedAt).getTime() : 0) -
+        (b.updatedAt ? new Date(b.updatedAt).getTime() : 0),
       render: (d: string) => (d ? dayjs(d).format("DD MMM YYYY") : "—"),
     },
     {
@@ -382,18 +380,18 @@ export default function BugHistoryPage() {
       width: 80,
       render: (_: any, record: any) => (
         <Space size={4}>
-          <Tooltip title="View Read-Only Details">
+          <Tooltip title="View Investigation">
             <Button
               size="small"
               type="text"
-              icon={<Eye size={14} color="#00897b" />}
+              icon={<Eye size={14} color="#009587" />}
               onClick={() => {
                 setSelectedBug(record);
                 setIsDrawerOpen(true);
               }}
             />
           </Tooltip>
-          <Tooltip title="Download Dossier PDF">
+          <Tooltip title="Export Bug Report">
             <Button
               size="small"
               type="text"
@@ -723,33 +721,60 @@ export default function BugHistoryPage() {
         />
       </Card>
 
-      {/* ── Read-Only Detail Drawer ────────────────────────────────────────── */}
-      <Drawer
+      {/* ── Investigation Details Centered Modal Sheet ───────────────────────────── */}
+      <Modal
         title={
           selectedBug ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: "#00897b", fontWeight: 700 }}>{selectedBug.bugId}</span>
-              {renderStatusTag(selectedBug.status, selectedBug.reopenCount)}
-              {renderSeverityTag(selectedBug.severity)}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingRight: 32,
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: "#009587", fontWeight: 700, fontSize: 16 }}>
+                  {selectedBug.bugId}
+                </span>
+                {renderStatusTag(selectedBug.status, selectedBug.reopenCount)}
+                {renderSeverityTag(selectedBug.severity)}
+              </div>
+              <Button
+                size="small"
+                icon={<FileDown size={14} />}
+                onClick={() => downloadBugPdf(selectedBug, selectedBug.projectId?.title)}
+                style={{ borderColor: "#009587", color: "#009587" }}
+              >
+                Export PDF
+              </Button>
             </div>
           ) : (
-            "Bug History Details"
+            "Investigation Details"
           )
         }
         open={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        width={650}
-        extra={
-          selectedBug && (
-            <Button
-              size="small"
-              icon={<FileDown size={14} />}
-              onClick={() => downloadBugPdf(selectedBug, selectedBug.projectId?.title)}
-            >
-              Export Dossier PDF
-            </Button>
-          )
-        }
+        onCancel={() => setIsDrawerOpen(false)}
+        footer={null}
+        width="94%"
+        centered
+        destroyOnClose
+        style={{ maxWidth: 1400, top: 20, paddingBottom: 20 }}
+        styles={{
+          container: {
+            borderRadius: 14,
+            padding: "20px 24px",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+          },
+          body: {
+            maxHeight: "calc(88vh - 75px)",
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingRight: 6,
+          },
+        }}
       >
         {selectedBug && (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -1001,7 +1026,7 @@ export default function BugHistoryPage() {
             </div>
           </Space>
         )}
-      </Drawer>
+      </Modal>
     </div>
   );
 }

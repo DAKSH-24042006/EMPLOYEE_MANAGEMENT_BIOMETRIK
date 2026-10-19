@@ -225,6 +225,7 @@ export default function NewProjectPage() {
             requiredMark={false}
             initialValues={{
               priority: "Medium",
+              status: "In Progress",
             }}
           >
             {/* Section 1: Client & Project Identity */}
@@ -317,17 +318,49 @@ export default function NewProjectPage() {
               </div>
 
               <Row gutter={24}>
-                <Col xs={24} md={12}>
+                <Col xs={24} md={6}>
                   <Form.Item
-                    name="timeline"
-                    label={<span style={{ fontWeight: 500 }}>Target Timeline Range</span>}
-                    rules={[{ required: true, message: "Timeline range is required" }]}
+                    name="startDate"
+                    label={<span style={{ fontWeight: 500 }}>Start Date</span>}
+                    rules={[{ required: true, message: "Start Date is required" }]}
                   >
-                    <RangePicker size="large" style={{ width: "100%" }} />
+                    <DatePicker size="large" style={{ width: "100%" }} />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={12}>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="endDate"
+                    label={<span style={{ fontWeight: 500 }}>Finish Date (Optional)</span>}
+                  >
+                    <DatePicker
+                      size="large"
+                      style={{ width: "100%" }}
+                      allowClear
+                      placeholder="No finish date"
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="status"
+                    label={<span style={{ fontWeight: 500 }}>Lifecycle Status</span>}
+                    rules={[{ required: true }]}
+                  >
+                    <Select
+                      size="large"
+                      options={[
+                        { label: "In Progress", value: "In Progress" },
+                        { label: "On Hold (Backlogged)", value: "On Hold (Backlogged)" },
+                        { label: "In Testing", value: "In Testing" },
+                        { label: "Live / Deployed", value: "Live / Deployed" },
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
                   <Form.Item
                     name="priority"
                     label={<span style={{ fontWeight: 500 }}>Priority Level</span>}

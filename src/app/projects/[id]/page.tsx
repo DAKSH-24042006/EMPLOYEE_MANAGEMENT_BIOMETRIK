@@ -81,28 +81,19 @@ import dayjs from "dayjs";
 import { FilePdfOutlined, EyeOutlined } from "@ant-design/icons";
 import { generateProjectPDF } from "@/lib/reportUtils";
 import ProjectBugTrackingTab from "@/components/project/ProjectBugTrackingTab";
+import { CANONICAL_PROJECT_LIFECYCLE, normalizeProjectStatus } from "@/lib/constants";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
 // ----------------------------------------------------
-// Unified Project Stages Single Source of Truth
+// Canonical 4-State Project Lifecycle Single Source of Truth
 // ----------------------------------------------------
 const PROJECT_STAGES = [
-  { key: "Requirement Created", label: "Requirement Created", shortLabel: "Req. Created" },
-  {
-    key: "Submitted for Tech Review",
-    label: "Submitted for Tech Review",
-    shortLabel: "Tech Review",
-  },
-  { key: "Clarification Required", label: "Clarification Required", shortLabel: "Clarification" },
-  { key: "Technically Approved", label: "Technically Approved", shortLabel: "Approved" },
-  { key: "Planning", label: "Planning", shortLabel: "Planning" },
-  { key: "Development", label: "Development", shortLabel: "Dev" },
-  { key: "Testing/UAT", label: "Testing/UAT", shortLabel: "UAT" },
-  { key: "Signoff Pending", label: "Signoff Pending", shortLabel: "Signoff" },
-  { key: "Delivered", label: "Delivered", shortLabel: "Delivered" },
-  { key: "Closed", label: "Closed", shortLabel: "Closed" },
+  { key: "In Progress", label: "In Progress", shortLabel: "In Progress" },
+  { key: "On Hold (Backlogged)", label: "On Hold (Backlogged)", shortLabel: "On Hold" },
+  { key: "In Testing", label: "In Testing", shortLabel: "In Testing" },
+  { key: "Live / Deployed", label: "Live / Deployed", shortLabel: "Live" },
 ];
 
 // ----------------------------------------------------
@@ -238,9 +229,11 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const isSuperAdmin = Boolean(
     currentUser && (currentUser.role === "SYSTEM_ADMIN" || currentUser.role === "ADMIN")
   );
-  const isProjectLead = Boolean(
-    currentUser && (isSuperAdmin || (techOwnerId && String(currentUserId) === String(techOwnerId)))
-  );
+  const isSystemAdminOnly = Boolean(currentUser && currentUser.role === "SYSTEM_ADMIN");
+  const isProjectManager = Boolean(techOwnerId && String(currentUserId) === String(techOwnerId));
+  const canEditSpecifications = isSystemAdminOnly || isProjectManager;
+  const canChangeQA = canEditSpecifications;
+  const isProjectLead = Boolean(currentUser && (isSuperAdmin || isProjectManager));
   const isProductOwner = Boolean(
     currentUser && productOwnerId && String(currentUserId) === String(productOwnerId)
   );
@@ -722,16 +715,25 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // Operations
   const handleUpdateProject = async (values: any) => {
+    if (!canEditSpecifications) {
+      message.error(
+        "Forbidden: Only System Administrator or this project's Project Manager can edit specifications."
+      );
+      return;
+    }
     try {
       const payload: any = {
         title: values.title,
         description: values.description,
         priority: values.priority,
-        status: values.status,
-        qaLead: values.qaLead,
+        status: normalizeProjectStatus(values.status),
+        qaLead: canChangeQA ? values.qaLead : undefined,
         sprintId: values.sprintId,
-        timeline: values.timeline
-          ? [values.timeline[0].toISOString(), values.timeline[1].toISOString()]
+        timeline: values.startDate
+          ? {
+              startDate: values.startDate.toISOString(),
+              endDate: values.endDate ? values.endDate.toISOString() : null,
+            }
           : undefined,
         changeReason: values.changeReason || "Update specifications",
       };
@@ -1493,25 +1495,16 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   // Unified Biometrik Palette Helpers
   const getProjectStatusStyle = (status: string) => {
-    switch (status) {
-      case "Requirement Created":
-      case "Planning":
-        return { bg: "#f0fdfa", color: "#0f766e", border: "#b2dfdb", dot: "#00897b" };
-      case "Submitted for Tech Review":
-      case "Signoff Pending":
-        return { bg: "#f4f8f7", color: "#00695c", border: "#80cbc4", dot: "#00897b" };
-      case "Development":
-      case "Active":
-        return { bg: "#e0f2f1", color: "#004d40", border: "#4db6ac", dot: "#00897b" };
-      case "Testing/UAT":
-        return { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0", dot: "#22c55e" };
-      case "Delivered":
-      case "Completed":
-      case "Technically Approved":
-        return { bg: "#ecfdf5", color: "#065f46", border: "#a7f3d0", dot: "#10b981" };
-      case "Clarification Required":
-      case "Pending":
-        return { bg: "#fffbeb", color: "#92400e", border: "#fde68a", dot: "#f59e0b" };
+    const s = normalizeProjectStatus(status);
+    switch (s) {
+      case "In Progress":
+        return { bg: "#e6f4ea", color: "#137333", border: "#ceead6", dot: "#1e8e3e" };
+      case "On Hold (Backlogged)":
+        return { bg: "#fef7e0", color: "#b06000", border: "#feefc3", dot: "#f9ab00" };
+      case "In Testing":
+        return { bg: "#e8f0fe", color: "#1a73e8", border: "#d2e3fc", dot: "#1a73e8" };
+      case "Live / Deployed":
+        return { bg: "#e6f7f6", color: "#009587", border: "#b2dfdb", dot: "#009587" };
       default:
         return { bg: "#f3f4f6", color: "#374151", border: "#e5e7eb", dot: "#9ca3af" };
     }
@@ -1701,14 +1694,17 @@ function ProjectDetailsClient({ id }: { id: string }) {
       w.status !== "Cancelled"
   ).length;
 
-  const projEndDate = dayjs(project.timeline?.endDate);
-  const projDiffDays = projEndDate.diff(dayjs(), "day");
-  const projIsOverdue = projDiffDays < 0;
-  const projTimelineRemaining = projIsOverdue
-    ? `${Math.abs(projDiffDays)}d overdue`
-    : projDiffDays === 0
-      ? "Due today"
-      : `${projDiffDays}d remaining`;
+  const projHasEndDate = Boolean(project.timeline?.endDate);
+  const projEndDate = projHasEndDate ? dayjs(project.timeline?.endDate) : null;
+  const projDiffDays = projEndDate ? projEndDate.diff(dayjs(), "day") : null;
+  const projIsOverdue = projDiffDays !== null && projDiffDays < 0;
+  const projTimelineRemaining = !projHasEndDate
+    ? "No finish date"
+    : projIsOverdue
+      ? `${Math.abs(projDiffDays!)}d overdue`
+      : projDiffDays === 0
+        ? "Due today"
+        : `${projDiffDays}d remaining`;
 
   const projectStatusStyle = getProjectStatusStyle(project.status);
   const projectPriorityStyle = getProjectPriorityStyle(project.priority);
@@ -1827,7 +1823,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
           </div>
 
           <Space size={10} wrap>
-            {isProjectEditor && (
+            {canEditSpecifications && (
               <Button
                 type="primary"
                 onClick={() => {
@@ -1836,15 +1832,17 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       title: project.title,
                       description: project.description || "",
                       priority: project.priority,
-                      status: project.status,
+                      status: normalizeProjectStatus(project.status),
                       techOwner: project.techOwner?._id || project.techOwner,
                       productOwner: project.productOwner?._id || project.productOwner,
                       qaLead: project.qaLead?._id || project.qaLead,
                       techTeamMembers: project.techTeamMembers?.map((m: any) => m?._id || m) || [],
-                      timeline:
-                        project.timeline?.startDate && project.timeline?.endDate
-                          ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
-                          : undefined,
+                      startDate: project.timeline?.startDate
+                        ? dayjs(project.timeline.startDate)
+                        : undefined,
+                      endDate: project.timeline?.endDate
+                        ? dayjs(project.timeline.endDate)
+                        : undefined,
                     });
                   }
                   setIsEditModalOpen(true);
@@ -2126,8 +2124,13 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   whiteSpace: "nowrap",
                 }}
               >
-                {dayjs(project.timeline?.startDate).format("DD MMM")} –{" "}
-                {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}
+                {project.timeline?.startDate
+                  ? `${dayjs(project.timeline.startDate).format("DD MMM YYYY")}${
+                      project.timeline?.endDate
+                        ? ` – ${dayjs(project.timeline.endDate).format("DD MMM YYYY")}`
+                        : " (No finish date)"
+                    }`
+                  : "No timeline set"}
               </div>
             </div>
           </div>
@@ -3464,20 +3467,66 @@ function ProjectDetailsClient({ id }: { id: string }) {
                             >
                               <Row gutter={[24, 16]} align="middle">
                                 <Col xs={24} md={8}>
-                                  <Text type="secondary" style={{ fontSize: 12 }}>
-                                    OVERALL PROJECT PROGRESS
-                                  </Text>
-                                  <Title
-                                    level={3}
-                                    style={{ margin: "4px 0 6px", color: "#00897b" }}
+                                  <Text
+                                    type="secondary"
+                                    style={{
+                                      fontSize: 11,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.5px",
+                                    }}
                                   >
-                                    {overallPct}%
-                                  </Title>
-                                  <Progress
-                                    percent={overallPct}
-                                    strokeColor="#00897b"
-                                    size="small"
-                                  />
+                                    Lifecycle Status
+                                  </Text>
+                                  <div
+                                    style={{
+                                      marginTop: 6,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 8,
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        background: projectStatusStyle.bg,
+                                        color: projectStatusStyle.color,
+                                        border: `1px solid ${projectStatusStyle.border}`,
+                                        borderRadius: 12,
+                                        padding: "4px 12px",
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          width: 6,
+                                          height: 6,
+                                          borderRadius: "50%",
+                                          background: projectStatusStyle.dot,
+                                          display: "inline-block",
+                                        }}
+                                      />
+                                      <span>{normalizeProjectStatus(project.status)}</span>
+                                    </div>
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        background: projectPriorityStyle.bg,
+                                        color: projectPriorityStyle.color,
+                                        border: `1px solid ${projectPriorityStyle.border}`,
+                                        borderRadius: 12,
+                                        padding: "4px 10px",
+                                        fontSize: 11.5,
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {project.priority || "Medium"} Priority
+                                    </span>
+                                  </div>
                                 </Col>
                                 <Col xs={24} md={16}>
                                   <Row gutter={[16, 12]}>
@@ -6349,13 +6398,26 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
           </Form.Item>
 
-          <Form.Item
-            name="timeline"
-            label="Timeline Dates"
-            rules={[{ required: true, message: "Please select timeline dates" }]}
-          >
-            <DatePicker.RangePicker style={{ width: "100%" }} />
-          </Form.Item>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="startDate"
+                label="Start Date"
+                rules={[{ required: true, message: "Please select start date" }]}
+              >
+                <DatePicker style={{ width: "100%" }} placeholder="Select start date" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="endDate"
+                label="Finish Date (Optional)"
+                extra="Leave empty if finish date is not set"
+              >
+                <DatePicker style={{ width: "100%" }} placeholder="Select finish date" allowClear />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
@@ -6395,12 +6457,20 @@ function ProjectDetailsClient({ id }: { id: string }) {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="qaLead" label="Designated QA / QA Lead">
+              <Form.Item
+                name="qaLead"
+                label={
+                  canChangeQA
+                    ? "Designated QA / QA Lead"
+                    : "Designated QA / QA Lead (PM / Admin Only)"
+                }
+              >
                 <Select
+                  disabled={!canChangeQA}
                   allowClear
                   showSearch
                   optionFilterProp="label"
-                  placeholder="Assign QA Lead"
+                  placeholder={canChangeQA ? "Assign QA Lead" : "Assigned by PM or System Admin"}
                   options={users.map((u: any) => ({
                     label: `${u.name} (${u.role || "Employee"})`,
                     value: String(u._id || u.id),

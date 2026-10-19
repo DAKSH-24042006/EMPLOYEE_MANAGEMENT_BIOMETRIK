@@ -46,7 +46,12 @@ import {
 import dayjs from "dayjs";
 import Link from "next/link";
 import { generateProjectPDF } from "@/lib/reportUtils";
-import { Role } from "@/lib/constants";
+import {
+  Role,
+  CANONICAL_PROJECT_LIFECYCLE,
+  normalizeProjectStatus,
+  ProjectLifecycleStatus,
+} from "@/lib/constants";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -146,9 +151,36 @@ const FEATURE_LABELS: Record<string, string> = {
 // ─── Professional Biometrik Palette Helpers ─────────────────────────────────
 
 function getProjectStatusStyle(status: string) {
-  switch (status) {
-    case "Requirement Created":
-    case "Planning":
+  const canonical = normalizeProjectStatus(status);
+  switch (canonical) {
+    case "In Progress":
+      return {
+        bg: "#E6F7F5",
+        color: "#00796B",
+        border: "#B2DFDB",
+        dot: "#009587",
+      };
+    case "On Hold (Backlogged)":
+      return {
+        bg: "#FFF7ED",
+        color: "#C2410C",
+        border: "#FFEDD5",
+        dot: "#EA580C",
+      };
+    case "In Testing":
+      return {
+        bg: "#F5F3FF",
+        color: "#6D28D9",
+        border: "#DDD6FE",
+        dot: "#7C3AED",
+      };
+    case "Live / Deployed":
+      return {
+        bg: "#ECFDF5",
+        color: "#047857",
+        border: "#A7F3D0",
+        dot: "#10B981",
+      };
     default:
       return {
         bg: "#E6F7F5",
@@ -206,12 +238,10 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
       form.setFieldsValue({
         title: project.title || "",
         description: project.description || "",
-        timeline:
-          project.timeline?.startDate && project.timeline?.endDate
-            ? [dayjs(project.timeline.startDate), dayjs(project.timeline.endDate)]
-            : undefined,
+        startDate: project.timeline?.startDate ? dayjs(project.timeline.startDate) : undefined,
+        endDate: project.timeline?.endDate ? dayjs(project.timeline.endDate) : undefined,
         priority: project.priority || "Medium",
-        status: project.status,
+        status: normalizeProjectStatus(project.status),
       });
     }
   }, [project, open, form]);
@@ -226,9 +256,8 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
         description: values.description,
         priority: values.priority,
         status: values.status,
-        timeline: values.timeline
-          ? [values.timeline[0].toISOString(), values.timeline[1].toISOString()]
-          : undefined,
+        startDate: values.startDate ? values.startDate.toISOString() : undefined,
+        endDate: values.endDate ? values.endDate.toISOString() : null,
       };
 
       const res = await fetch(`/api/projects/${project!._id}`, {
@@ -284,13 +313,27 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
           <TextArea rows={3} placeholder="Project overview, scope, and objectives..." />
         </Form.Item>
 
-        <Form.Item
-          name="timeline"
-          label="Timeline Dates"
-          rules={[{ required: true, message: "Timeline dates are required" }]}
-        >
-          <RangePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-        </Form.Item>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              name="startDate"
+              label="Start Date"
+              rules={[{ required: true, message: "Start date is required" }]}
+            >
+              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="endDate" label="Finish Date (Optional)">
+              <DatePicker
+                style={{ width: "100%" }}
+                format="DD/MM/YYYY"
+                allowClear
+                placeholder="No finish date"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12}>
@@ -316,7 +359,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
               rules={[{ required: true, message: "Status is required" }]}
             >
               <Select>
-                {Object.keys(STATUS_CONFIG).map((s) => (
+                {CANONICAL_PROJECT_LIFECYCLE.map((s) => (
                   <Option key={s} value={s}>
                     {s}
                   </Option>
@@ -490,7 +533,9 @@ function ProjectDetailsModal({
                       Start Date
                     </Text>
                     <div style={{ fontWeight: 500 }}>
-                      {dayjs(project.timeline.startDate).format("DD MMM YYYY")}
+                      {project.timeline?.startDate
+                        ? dayjs(project.timeline.startDate).format("DD MMM YYYY")
+                        : "Not set"}
                     </div>
                   </div>
                   <Divider orientation="vertical" style={{ height: 40 }} />
@@ -499,7 +544,9 @@ function ProjectDetailsModal({
                       End Date
                     </Text>
                     <div style={{ fontWeight: 500 }}>
-                      {dayjs(project.timeline.endDate).format("DD MMM YYYY")}
+                      {project.timeline?.endDate
+                        ? dayjs(project.timeline.endDate).format("DD MMM YYYY")
+                        : "Not set"}
                     </div>
                   </div>
                 </div>
@@ -636,7 +683,7 @@ export default function ProjectsPage() {
   const [previewFilename, setPreviewFilename] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | ProjectLifecycleStatus>("all");
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
 
@@ -742,16 +789,23 @@ export default function ProjectsPage() {
 
   // ── Project Filtering & Metrics ──────────────────────────────────────────
 
-  const isProjectCompleted = (status: string) =>
-    ["Completed", "Delivered", "Closed"].includes(status);
-
   const totalCount = projects.length;
-  const activeCount = projects.filter((p) => !isProjectCompleted(p.status)).length;
-  const completedCount = projects.filter((p) => isProjectCompleted(p.status)).length;
+  const inProgressCount = projects.filter(
+    (p) => normalizeProjectStatus(p.status) === "In Progress"
+  ).length;
+  const onHoldCount = projects.filter(
+    (p) => normalizeProjectStatus(p.status) === "On Hold (Backlogged)"
+  ).length;
+  const inTestingCount = projects.filter(
+    (p) => normalizeProjectStatus(p.status) === "In Testing"
+  ).length;
+  const liveCount = projects.filter(
+    (p) => normalizeProjectStatus(p.status) === "Live / Deployed"
+  ).length;
 
   const filteredProjects = projects.filter((project) => {
-    if (statusFilter === "active" && isProjectCompleted(project.status)) return false;
-    if (statusFilter === "completed" && !isProjectCompleted(project.status)) return false;
+    const canonical = normalizeProjectStatus(project.status);
+    if (statusFilter !== "all" && canonical !== statusFilter) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -884,8 +938,10 @@ export default function ProjectsPage() {
       >
         {[
           { key: "all", label: "All Projects", count: totalCount },
-          { key: "active", label: "Active", count: activeCount },
-          { key: "completed", label: "Delivered", count: completedCount },
+          { key: "In Progress", label: "In Progress", count: inProgressCount },
+          { key: "On Hold (Backlogged)", label: "On Hold", count: onHoldCount },
+          { key: "In Testing", label: "In Testing", count: inTestingCount },
+          { key: "Live / Deployed", label: "Live / Deployed", count: liveCount },
         ].map((tab) => {
           const isSelected = statusFilter === tab.key;
           return (
@@ -1021,14 +1077,18 @@ export default function ProjectsPage() {
               const priorityStyle = getProjectPriorityStyle(priority);
 
               // Calculate relative timeline
-              const endDate = dayjs(project.timeline?.endDate);
-              const diffDays = endDate.diff(dayjs(), "day");
-              const isOverdue = diffDays < 0;
-              const daysRemainingText = isOverdue
-                ? `${Math.abs(diffDays)}d overdue`
-                : diffDays === 0
-                  ? "Due today"
-                  : `${diffDays}d remaining`;
+              const hasEndDate = Boolean(project.timeline?.endDate);
+              const endDate = hasEndDate ? dayjs(project.timeline?.endDate) : null;
+              const diffDays = endDate ? endDate.diff(dayjs(), "day") : null;
+              const isOverdue = diffDays !== null && diffDays < 0;
+              const daysRemainingText = !hasEndDate
+                ? "No finish date"
+                : isOverdue
+                  ? `${Math.abs(diffDays!)}d overdue`
+                  : diffDays === 0
+                    ? "Due today"
+                    : `${diffDays}d remaining`;
+              const normalizedStatus = normalizeProjectStatus(project.status);
 
               return (
                 <Col xs={24} sm={12} lg={8} key={project._id}>
@@ -1084,7 +1144,7 @@ export default function ProjectsPage() {
                           alignItems: "center",
                           flexWrap: "wrap",
                           gap: 7,
-                          marginBottom: 12,
+                          marginBottom: 14,
                         }}
                       >
                         {/* Status Badge */}
@@ -1111,7 +1171,7 @@ export default function ProjectsPage() {
                               display: "inline-block",
                             }}
                           />
-                          <span>{project.status || "Requirement Created"}</span>
+                          <span>{normalizedStatus}</span>
                         </div>
 
                         {/* Priority Badge */}
@@ -1142,35 +1202,7 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      {/* 3. Overall Progress */}
-                      <div style={{ marginBottom: 12 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            fontSize: 11.5,
-                            marginBottom: 5,
-                          }}
-                        >
-                          <span style={{ color: "#6B7280", fontWeight: 500 }}>
-                            Overall Progress
-                          </span>
-                          <span style={{ color: "#111827", fontWeight: 700, fontSize: 12 }}>
-                            {pct}%
-                          </span>
-                        </div>
-                        <Progress
-                          percent={pct}
-                          showInfo={false}
-                          strokeColor="#009587"
-                          railColor="#EEF2F6"
-                          size={["100%", 5]}
-                          style={{ margin: 0 }}
-                        />
-                      </div>
-
-                      {/* 4. Due Date and Remaining Days */}
+                      {/* 3. Due Date and Remaining Days */}
                       <div
                         style={{
                           display: "flex",
@@ -1179,17 +1211,34 @@ export default function ProjectsPage() {
                           fontSize: 12,
                           color: "#4B5563",
                           fontWeight: 500,
-                          marginBottom: 14,
+                          marginBottom: 16,
+                          padding: "8px 10px",
+                          background: "#F8FAFC",
+                          borderRadius: 8,
+                          border: "1px solid #F1F5F9",
                         }}
                       >
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <CalendarOutlined style={{ color: "#4B5563", fontSize: 13 }} />
-                          <span>Due: {dayjs(project.timeline?.endDate).format("DD MMM YYYY")}</span>
+                          <span>
+                            {hasEndDate
+                              ? `Due: ${endDate!.format("DD MMM YYYY")}`
+                              : "No finish date set"}
+                          </span>
                         </div>
 
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <ClockCircleOutlined style={{ color: "#4B5563", fontSize: 13 }} />
-                          <span>{daysRemainingText}</span>
+                          <ClockCircleOutlined
+                            style={{ color: isOverdue ? "#DC2626" : "#4B5563", fontSize: 13 }}
+                          />
+                          <span
+                            style={{
+                              color: isOverdue ? "#DC2626" : undefined,
+                              fontWeight: isOverdue ? 600 : 500,
+                            }}
+                          >
+                            {daysRemainingText}
+                          </span>
                         </div>
                       </div>
                     </div>

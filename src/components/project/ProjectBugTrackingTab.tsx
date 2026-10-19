@@ -360,14 +360,14 @@ export default function ProjectBugTrackingTab({
             setSelectedBug(record);
             setIsDetailDrawerOpen(true);
           }}
-          style={{ fontWeight: 700, color: "#00897b", fontSize: 13 }}
+          style={{ fontWeight: 700, color: "#009587", fontSize: 13 }}
         >
           {id}
         </a>
       ),
     },
     {
-      title: "Defect Title & Summary",
+      title: "Bug Title",
       dataIndex: "title",
       key: "title",
       render: (title: string, record: any) => (
@@ -412,47 +412,47 @@ export default function ProjectBugTrackingTab({
       render: (sev: string) => renderSeverityTag(sev),
     },
     {
+      title: "Assigned Date",
+      key: "assignedDate",
+      width: 130,
+      render: (_: any, record: any) => (
+        <span style={{ fontSize: 12, color: record.assignedAt ? "#334155" : "#94a3b8" }}>
+          {record.assignedAt ? dayjs(record.assignedAt).format("DD MMM YYYY") : "—"}
+        </span>
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 180,
+      width: 160,
       render: (status: string, record: any) => renderStatusTag(status, record.reopenCount),
     },
     {
       title: "Assignee",
       key: "assignee",
-      width: 175,
+      width: 160,
       render: (_: any, record: any) => {
         const u = record.assignee;
         if (!u) {
           return (
             <Tag color="warning" style={{ borderRadius: 12, fontWeight: 600, padding: "2px 8px" }}>
-              ● To be assigned
+              ● Unassigned
             </Tag>
           );
         }
         return (
-          <Space size={6} align="start">
-            <Avatar
-              size={22}
-              style={{ backgroundColor: "#0284c7", fontSize: 10, fontWeight: 600, marginTop: 2 }}
-            >
+          <Space size={6} align="center">
+            <Avatar size={22} style={{ backgroundColor: "#0284c7", fontSize: 10, fontWeight: 600 }}>
               {u.name?.charAt(0).toUpperCase()}
             </Avatar>
-            <div style={{ lineHeight: 1.25 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>{u.name}</div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>
-                {record.assignedAt
-                  ? `Assigned: ${dayjs(record.assignedAt).format("DD MMM YYYY")}`
-                  : "Assigned"}
-              </div>
-            </div>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "#334155" }}>{u.name}</span>
           </Space>
         );
       },
     },
     {
-      title: "Reported",
+      title: "Reported Date",
       key: "reported",
       width: 150,
       render: (_: any, record: any) => (
@@ -470,18 +470,18 @@ export default function ProjectBugTrackingTab({
       width: 90,
       render: (_: any, record: any) => (
         <Space size={4}>
-          <Tooltip title="View Investigation Dossier">
+          <Tooltip title="View Investigation">
             <Button
               size="small"
               type="text"
-              icon={<Eye size={14} color="#00897b" />}
+              icon={<Eye size={14} color="#009587" />}
               onClick={() => {
                 setSelectedBug(record);
                 setIsDetailDrawerOpen(true);
               }}
             />
           </Tooltip>
-          <Tooltip title="Download Dossier PDF">
+          <Tooltip title="Export PDF">
             <Button
               size="small"
               type="text"
@@ -1072,33 +1072,60 @@ export default function ProjectBugTrackingTab({
         </Form>
       </Modal>
 
-      {/* ── Bug Investigation Detail & Audit Drawer ─────────────────────────── */}
-      <Drawer
+      {/* ── Bug Investigation Detail & Audit Centered Modal Sheet ─────────────────────────── */}
+      <Modal
         title={
           selectedBug ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: "#00897b", fontWeight: 700 }}>{selectedBug.bugId}</span>
-              {renderStatusTag(selectedBug.status, selectedBug.reopenCount)}
-              {renderSeverityTag(selectedBug.severity)}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingRight: 32,
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: "#009587", fontWeight: 700, fontSize: 16 }}>
+                  {selectedBug.bugId}
+                </span>
+                {renderStatusTag(selectedBug.status, selectedBug.reopenCount)}
+                {renderSeverityTag(selectedBug.severity)}
+              </div>
+              <Button
+                size="small"
+                icon={<FileDown size={14} />}
+                onClick={() => downloadBugPdf(selectedBug, project?.title)}
+                style={{ borderColor: "#009587", color: "#009587" }}
+              >
+                Export PDF
+              </Button>
             </div>
           ) : (
-            "Bug Details"
+            "Investigation Details"
           )
         }
         open={isDetailDrawerOpen}
-        onClose={() => setIsDetailDrawerOpen(false)}
-        width={680}
-        extra={
-          selectedBug && (
-            <Button
-              size="small"
-              icon={<FileDown size={14} />}
-              onClick={() => downloadBugPdf(selectedBug, project?.title)}
-            >
-              Export PDF
-            </Button>
-          )
-        }
+        onCancel={() => setIsDetailDrawerOpen(false)}
+        footer={null}
+        width="94%"
+        centered
+        destroyOnClose
+        style={{ maxWidth: 1400, top: 20, paddingBottom: 20 }}
+        styles={{
+          container: {
+            borderRadius: 14,
+            padding: "20px 24px",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+          },
+          body: {
+            maxHeight: "calc(88vh - 75px)",
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingRight: 6,
+          },
+        }}
       >
         {selectedBug && (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -1546,7 +1573,7 @@ export default function ProjectBugTrackingTab({
             </div>
           </Space>
         )}
-      </Drawer>
+      </Modal>
 
       {/* ── Transition Action Modal ──────────────────────────────────────────── */}
       <Modal

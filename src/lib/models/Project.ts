@@ -27,8 +27,34 @@ export interface IFeatures extends Record<(typeof FEATURE_KEYS)[number], boolean
 
 export interface ITimeline {
   startDate: Date;
-  endDate: Date;
+  endDate?: Date | null;
 }
+
+export {
+  CANONICAL_PROJECT_LIFECYCLE,
+  type ProjectLifecycleStatus,
+  normalizeProjectStatus,
+} from "../constants";
+
+export const ALL_PROJECT_STATUSES = [
+  "In Progress",
+  "On Hold (Backlogged)",
+  "In Testing",
+  "Live / Deployed",
+  "Requirement Created",
+  "Submitted for Tech Review",
+  "Clarification Required",
+  "Technically Approved",
+  "Planning",
+  "Development",
+  "Testing/UAT",
+  "Signoff Pending",
+  "Delivered",
+  "Closed",
+  "Pending",
+  "Active",
+  "Completed",
+] as const;
 
 export interface IProject extends Document {
   title: string;
@@ -170,26 +196,12 @@ const ProjectSchema: Schema = new Schema(
     },
     timeline: {
       startDate: { type: Date, required: [true, "Start Date is required"] },
-      endDate: { type: Date, required: [true, "End Date is required"] },
+      endDate: { type: Date, required: false },
     },
     status: {
       type: String,
-      enum: [
-        "Requirement Created",
-        "Submitted for Tech Review",
-        "Clarification Required",
-        "Technically Approved",
-        "Planning",
-        "Development",
-        "Testing/UAT",
-        "Signoff Pending",
-        "Delivered",
-        "Closed",
-        "Pending",
-        "Active",
-        "Completed",
-      ],
-      default: "Requirement Created",
+      enum: ALL_PROJECT_STATUSES,
+      default: "In Progress",
     },
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -324,4 +336,5 @@ const ProjectSchema: Schema = new Schema(
 );
 
 export const Project: Model<IProject> =
-  mongoose.models.Project || mongoose.model<IProject>("Project", ProjectSchema);
+  (mongoose?.models && mongoose.models.Project) ||
+  (mongoose?.model ? mongoose.model<IProject>("Project", ProjectSchema) : ({} as any));

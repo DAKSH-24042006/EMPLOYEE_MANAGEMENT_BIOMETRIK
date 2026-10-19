@@ -5,6 +5,24 @@ export interface IEmailTemplate {
   body: string;
 }
 
+export interface IBugNotificationRule {
+  enabled: boolean;
+  notifyAssignee: boolean;
+  notifyQA: boolean;
+  notifyProjectManager: boolean;
+  customEmail?: string;
+  template: IEmailTemplate;
+}
+
+export interface IBugNotificationsConfig {
+  enabled?: boolean;
+  bugReported: IBugNotificationRule;
+  bugAssigned: IBugNotificationRule;
+  bugReassigned: IBugNotificationRule;
+  fixSubmitted: IBugNotificationRule;
+  bugClosed: IBugNotificationRule;
+}
+
 export interface IEmailConfig extends Document {
   // SMTP Settings
   smtpHost: string;
@@ -29,6 +47,9 @@ export interface IEmailConfig extends Document {
     taskOverdue: IEmailTemplate;
   };
 
+  // Bug Notifications (Configurable in Admin UI)
+  bugNotifications?: IBugNotificationsConfig;
+
   updatedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -36,10 +57,20 @@ export interface IEmailConfig extends Document {
 
 const EmailTemplateSchema = new Schema(
   {
-    // Not required at schema level — templates have hardcoded fallbacks in mailer.ts
-    // This prevents validation crashes when only SMTP settings are saved from the UI
     subject: { type: String, required: false, default: "" },
     body: { type: String, required: false, default: "" },
+  },
+  { _id: false }
+);
+
+const BugNotificationRuleSchema = new Schema(
+  {
+    enabled: { type: Boolean, default: true },
+    notifyAssignee: { type: Boolean, default: true },
+    notifyQA: { type: Boolean, default: false },
+    notifyProjectManager: { type: Boolean, default: true },
+    customEmail: { type: String, default: "" },
+    template: { type: EmailTemplateSchema, default: () => ({ subject: "", body: "" }) },
   },
   { _id: false }
 );
@@ -148,6 +179,81 @@ Please open the task and address it immediately:
 {{taskUrl}}
 
 Best regards,`,
+        }),
+      },
+    },
+    bugNotifications: {
+      enabled: { type: Boolean, default: true },
+      bugReported: {
+        type: BugNotificationRuleSchema,
+        default: () => ({
+          enabled: true,
+          notifyAssignee: true,
+          notifyQA: false,
+          notifyProjectManager: true,
+          customEmail: "",
+          template: {
+            subject:
+              "[Biometrik Defect {{bugId}}] [{{severity}}] New Bug Reported in {{projectName}}",
+            body: `Hello {{recipientName}},\n\nA new defect {{bugId}} has been reported in project "{{projectName}}".\n\nTitle: {{title}}\nSeverity: {{severity}}\nReported By: {{reportedByName}}\n\nDescription:\n{{description}}\n\nRemarks:\n{{remarks}}\n\nPlease review and investigate:\n{{bugUrl}}`,
+          },
+        }),
+      },
+      bugAssigned: {
+        type: BugNotificationRuleSchema,
+        default: () => ({
+          enabled: true,
+          notifyAssignee: true,
+          notifyQA: false,
+          notifyProjectManager: true,
+          customEmail: "",
+          template: {
+            subject: "[Biometrik Defect {{bugId}}] [{{severity}}] Bug Assigned to You: {{title}}",
+            body: `Hello {{recipientName}},\n\nYou have been assigned defect {{bugId}} in project "{{projectName}}".\n\nTitle: {{title}}\nSeverity: {{severity}}\nAssigned By: {{assignedByName}}\n\nAssignment Remarks:\n{{remarks}}\n\nPlease begin investigation and submit your fix in the workspace:\n{{bugUrl}}`,
+          },
+        }),
+      },
+      bugReassigned: {
+        type: BugNotificationRuleSchema,
+        default: () => ({
+          enabled: true,
+          notifyAssignee: true,
+          notifyQA: false,
+          notifyProjectManager: true,
+          customEmail: "",
+          template: {
+            subject:
+              "[Biometrik Defect {{bugId}}] [{{severity}}] Defect Reassigned to You: {{title}}",
+            body: `Hello {{recipientName}},\n\nDefect {{bugId}} in project "{{projectName}}" has been reassigned to you.\n\nTitle: {{title}}\nSeverity: {{severity}}\nPrevious Assignee: {{previousAssigneeName}}\nReassigned By: {{reassignedByName}}\n\nReassignment Remarks:\n{{remarks}}\n\nPlease inspect the issue in the workspace:\n{{bugUrl}}`,
+          },
+        }),
+      },
+      fixSubmitted: {
+        type: BugNotificationRuleSchema,
+        default: () => ({
+          enabled: true,
+          notifyAssignee: true,
+          notifyQA: true,
+          notifyProjectManager: true,
+          customEmail: "",
+          template: {
+            subject: "[Biometrik Defect {{bugId}}] Fix Submitted by {{developerName}}: {{title}}",
+            body: `Hello Team,\n\nA fix has been submitted for defect {{bugId}} in project "{{projectName}}" and is awaiting QA verification.\n\nTitle: {{title}}\nSeverity: {{severity}}\nDeveloper: {{developerName}}\n\nResolution Remarks:\n{{remarks}}\n\nPlease test and verify the fix in the workspace:\n{{bugUrl}}`,
+          },
+        }),
+      },
+      bugClosed: {
+        type: BugNotificationRuleSchema,
+        default: () => ({
+          enabled: true,
+          notifyAssignee: true,
+          notifyQA: true,
+          notifyProjectManager: true,
+          customEmail: "",
+          template: {
+            subject: "[Biometrik QA PASSED] Defect {{bugId}} Verified & Closed: {{title}}",
+            body: `Hello Team,\n\nDefect {{bugId}} in project "{{projectName}}" has PASSED QA verification and is marked as closed.\n\nTitle: {{title}}\nVerified By: {{qaName}}\n\nQA Sign-off Remarks:\n{{remarks}}\n\nView details in workspace:\n{{bugUrl}}`,
+          },
         }),
       },
     },
