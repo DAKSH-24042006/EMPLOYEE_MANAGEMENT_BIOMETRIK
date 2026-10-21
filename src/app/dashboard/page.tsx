@@ -172,9 +172,7 @@ export default function DashboardPage() {
     status: normalizeProjectStatus(p.status),
     timeline: p.timeline?.startDate
       ? `${dayjs(p.timeline.startDate).format("DD MMM YYYY")}${
-          p.timeline.endDate
-            ? ` – ${dayjs(p.timeline.endDate).format("DD MMM YYYY")}`
-            : " (No finish date)"
+          p.timeline.endDate ? ` – ${dayjs(p.timeline.endDate).format("DD MMM YYYY")}` : ""
         }`
       : "Not set",
     color: COLORS[index % COLORS.length],
@@ -205,57 +203,6 @@ export default function DashboardPage() {
     }
     return null;
   };
-
-  const scheduleColumns = [
-    {
-      title: "Task Title",
-      dataIndex: "title",
-      key: "title",
-      ellipsis: true,
-      render: (text: string, record: TaskType) => (
-        <div>
-          <Text strong style={{ fontSize: 13 }} title={text}>
-            {text}
-          </Text>
-          {record.projectName && (
-            <div style={{ fontSize: 11, color: "#6b7280" }}>{record.projectName}</div>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: "Assignee",
-      dataIndex: "assigneeName",
-      key: "assigneeName",
-      width: 130,
-      render: (text: string) => <Text style={{ fontSize: 12 }}>{text || "Unassigned"}</Text>,
-    },
-    {
-      title: "Priority",
-      dataIndex: "priority",
-      key: "priority",
-      width: 90,
-      render: (priority: string) => {
-        const colors: any = { Low: "blue", Medium: "orange", High: "volcano", Urgent: "red" };
-        return <Tag color={colors[priority] || "default"}>{priority}</Tag>;
-      },
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 100,
-      render: (status: string) => {
-        const colors: any = {
-          Todo: "default",
-          "In Progress": "processing",
-          Done: "success",
-          Cancelled: "error",
-        };
-        return <Tag color={colors[status] || "default"}>{status}</Tag>;
-      },
-    },
-  ];
 
   const projectDeliveryColumns = [
     {
@@ -300,9 +247,7 @@ export default function DashboardPage() {
             <div>
               {record.timeline?.startDate
                 ? `${dayjs(record.timeline.startDate).format("DD MMM YYYY")}${
-                    hasEnd
-                      ? ` – ${dayjs(record.timeline.endDate).format("DD MMM YYYY")}`
-                      : " (No finish date)"
+                    hasEnd ? ` – ${dayjs(record.timeline.endDate).format("DD MMM YYYY")}` : ""
                   }`
                 : "Not set"}
             </div>
@@ -356,7 +301,7 @@ export default function DashboardPage() {
             Overview
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Organization-wide project metrics, lifecycle stages, and scheduled tasks.
+            Organization-wide project metrics and lifecycle stages.
           </Text>
         </div>
       </div>
@@ -455,9 +400,9 @@ export default function DashboardPage() {
             ))}
           </Row>
 
-          {/* Main Content Rows: Project Delivery and Today's Schedule */}
+          {/* Main Content Rows: Project Delivery */}
           <Row gutter={[16, 16]}>
-            <Col xs={24} lg={15}>
+            <Col xs={24} lg={24}>
               <Card
                 title={
                   <div
@@ -489,7 +434,7 @@ export default function DashboardPage() {
               >
                 <Table
                   columns={projectDeliveryColumns}
-                  dataSource={data.slice(0, 6)}
+                  dataSource={data.slice(0, 8)}
                   rowKey="_id"
                   size="middle"
                   pagination={false}
@@ -497,44 +442,6 @@ export default function DashboardPage() {
                   locale={{
                     emptyText: (
                       <div style={{ padding: 24, color: "#9ca3af" }}>No active projects</div>
-                    ),
-                  }}
-                />
-              </Card>
-            </Col>
-
-            <Col xs={24} lg={9}>
-              <Card
-                title={
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>
-                    <CalendarOutlined style={{ marginRight: 6, color: "#f59e0b" }} /> Today's
-                    Schedule & Tasks
-                  </span>
-                }
-                variant="borderless"
-                style={{
-                  height: "100%",
-                  borderRadius: 12,
-                  background: "#fff",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                  border: "1px solid #f0f0f0",
-                }}
-                styles={{ body: { padding: 0 } }}
-              >
-                <Table
-                  columns={scheduleColumns}
-                  dataSource={tasks}
-                  pagination={false}
-                  rowKey="_id"
-                  size="small"
-                  scroll={{ x: 300 }}
-                  locale={{
-                    emptyText: (
-                      <div
-                        style={{ padding: 28, textAlign: "center", color: "#9ca3af", fontSize: 12 }}
-                      >
-                        No tasks scheduled for today
-                      </div>
                     ),
                   }}
                 />

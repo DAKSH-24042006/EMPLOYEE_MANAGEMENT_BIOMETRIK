@@ -131,27 +131,30 @@ export async function PUT(
     if (body.module !== undefined) workItem.module = body.module;
     if (body.priority !== undefined) workItem.priority = body.priority;
     if (body.status !== undefined) workItem.status = body.status;
-    if (body.assignee !== undefined) {
-      const prevAssigneeStr = workItem.assignee?.toString() || "";
-      const newAssigneeStr = body.assignee ? String(body.assignee) : "";
-      if (prevAssigneeStr !== newAssigneeStr) {
-        workItem.assignedDate = body.assignee ? new Date() : undefined;
+    // Only project manager or super admin can change or clear task assignments and sprints
+    if (isSuperAdmin || isPM) {
+      if (body.assignee !== undefined) {
+        const prevAssigneeStr = workItem.assignee?.toString() || "";
+        const newAssigneeStr = body.assignee ? String(body.assignee) : "";
+        if (prevAssigneeStr !== newAssigneeStr) {
+          workItem.assignedDate = body.assignee ? new Date() : undefined;
+        }
+        workItem.assignee = body.assignee || undefined;
       }
-      workItem.assignee = body.assignee || undefined;
-    }
-    if (body.assignees !== undefined) {
-      workItem.assignees = body.assignees || [];
-      if (!workItem.assignee && workItem.assignees && workItem.assignees.length > 0) {
-        workItem.assignee = workItem.assignees[0];
-        workItem.assignedDate = new Date();
+      if (body.assignees !== undefined) {
+        workItem.assignees = body.assignees || [];
+        if (!workItem.assignee && workItem.assignees && workItem.assignees.length > 0) {
+          workItem.assignee = workItem.assignees[0];
+          workItem.assignedDate = new Date();
+        }
       }
-    }
-    const incomingSprint = body.sprintId !== undefined ? body.sprintId : body.sprint;
-    if (incomingSprint !== undefined) {
-      workItem.sprint =
-        incomingSprint && incomingSprint !== "none" && incomingSprint !== ""
-          ? incomingSprint
-          : undefined;
+      const incomingSprint = body.sprintId !== undefined ? body.sprintId : body.sprint;
+      if (incomingSprint !== undefined) {
+        workItem.sprint =
+          incomingSprint && incomingSprint !== "none" && incomingSprint !== ""
+            ? incomingSprint
+            : undefined;
+      }
     }
     if (body.dueDate !== undefined)
       workItem.dueDate = body.dueDate ? new Date(body.dueDate) : undefined;

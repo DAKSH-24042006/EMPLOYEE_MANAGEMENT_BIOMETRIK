@@ -104,10 +104,10 @@ export default function PersonalProjectsPage() {
       if (res.ok) {
         setPersonalProjects(json.data || []);
       } else {
-        message.error(json.error || "Failed to load personal projects");
+        message.error(json.error || "Failed to load favourite projects");
       }
     } catch {
-      message.error("Network error while loading personal projects");
+      message.error("Network error while loading favourite projects");
     } finally {
       setLoading(false);
     }
@@ -158,15 +158,15 @@ export default function PersonalProjectsPage() {
       const json = await res.json();
 
       if (res.ok) {
-        message.success(json.message || "Project added to your Personal Projects");
+        message.success(json.message || "Project added to your Favourite Projects");
         setIsAddModalOpen(false);
         setSelectedProjectId(null);
         fetchPersonalProjects();
       } else {
-        message.error(json.error || "Failed to add project to Personal Projects");
+        message.error(json.error || "Failed to add project to Favourite Projects");
       }
     } catch {
-      message.error("Failed to add project to Personal Projects");
+      message.error("Failed to add project to Favourite Projects");
     } finally {
       setActionLoading(false);
     }
@@ -182,7 +182,7 @@ export default function PersonalProjectsPage() {
       const json = await res.json();
 
       if (res.ok) {
-        message.success("Project removed from Personal Projects");
+        message.success("Project removed from Favourite Projects");
         setPersonalProjects((prev) => prev.filter((p) => p._id !== projectId));
       } else {
         message.error(json.error || "Failed to remove project");
@@ -214,7 +214,7 @@ export default function PersonalProjectsPage() {
       >
         <div>
           <Title level={3} style={{ margin: 0, color: "#0F172A", fontWeight: 700 }}>
-            Personal Projects
+            Favourite Projects
           </Title>
           <Text type="secondary" style={{ fontSize: 13, marginTop: 4, display: "block" }}>
             Your quick-access project workspace. Displays projects where you are assigned as Project
@@ -267,10 +267,10 @@ export default function PersonalProjectsPage() {
             description={
               <div style={{ maxWidth: 440, margin: "0 auto" }}>
                 <Title level={5} style={{ color: "#334155", marginBottom: 6 }}>
-                  No Personal Projects Pinned
+                  No Favourite Projects Pinned
                 </Title>
                 <Text type="secondary" style={{ fontSize: 13 }}>
-                  You haven&apos;t added any projects to your personal workspace yet. Click the
+                  You haven&apos;t added any projects to your favourite workspace yet. Click the
                   button below to select from projects you participate in.
                 </Text>
               </div>
@@ -344,14 +344,14 @@ export default function PersonalProjectsPage() {
                       </Link>
 
                       <Popconfirm
-                        title="Remove from Personal Projects?"
-                        description="This removes the project from your personal workspace only. The project itself remains untouched."
+                        title="Remove from Favourite Projects?"
+                        description="This removes the project from your favourite workspace only. The project itself remains untouched."
                         okText="Remove"
                         cancelText="Cancel"
                         okButtonProps={{ danger: true }}
                         onConfirm={() => handleRemoveProject(project._id)}
                       >
-                        <Tooltip title="Remove from personal projects">
+                        <Tooltip title="Remove from favourite projects">
                           <Button
                             type="text"
                             size="small"
@@ -494,7 +494,7 @@ export default function PersonalProjectsPage() {
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <PlusOutlined style={{ color: "#00897b" }} />
-            <span>Add Project to Personal Workspace</span>
+            <span>Add Project to Favourite Workspace</span>
           </div>
         }
         open={isAddModalOpen}
@@ -511,14 +511,14 @@ export default function PersonalProjectsPage() {
             onClick={handleAddProject}
             style={{ backgroundColor: "#00897b", borderColor: "#00897b" }}
           >
-            Add to Personal Projects
+            Add to Favourite Projects
           </Button>,
         ]}
         destroyOnClose
       >
         <div style={{ padding: "12px 0" }}>
           <Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 16 }}>
-            Select an eligible project to pin to your personal workspace. Only projects where you
+            Select an eligible project to pin to your favourite workspace. Only projects where you
             have an active membership (or all projects if you are a verified System Admin) are
             listed below.
           </Paragraph>

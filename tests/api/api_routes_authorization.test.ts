@@ -136,11 +136,8 @@ describe("Phase 1: API Endpoint Authorization & Privilege Escalation Defenses", 
       }
 
       if (!input.isProjectLead) {
-        // Regular members can only create tasks for THEMSELVES
-        if (input.requestedAssigneeId !== input.userId) {
-          return { allowed: false, targetAssignee: "", statusCode: 403 };
-        }
-        return { allowed: true, targetAssignee: input.userId, statusCode: 201 };
+        // Only Project Managers and System Admins can create work items
+        return { allowed: false, targetAssignee: "", statusCode: 403 };
       }
 
       return { allowed: true, targetAssignee: input.requestedAssigneeId, statusCode: 201 };
@@ -158,7 +155,7 @@ describe("Phase 1: API Endpoint Authorization & Privilege Escalation Defenses", 
       expect(result.statusCode).toBe(403);
     });
 
-    it("ALLOWS assigned team member to create task for THEMSELVES", () => {
+    it("BLOCKS regular assigned team member from creating work items/tasks (403)", () => {
       const result = authorizeWorkItemCreation({
         userRole: "DEVELOPER",
         userId: "dev-123",
@@ -166,8 +163,8 @@ describe("Phase 1: API Endpoint Authorization & Privilege Escalation Defenses", 
         isProjectParticipant: true,
         requestedAssigneeId: "dev-123",
       });
-      expect(result.allowed).toBe(true);
-      expect(result.targetAssignee).toBe("dev-123");
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(403);
     });
 
     it("BLOCKS team member from assigning task to a peer developer (403)", () => {

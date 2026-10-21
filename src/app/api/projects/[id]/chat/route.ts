@@ -157,24 +157,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const mentionSet = new Set((mentions || []).map((m: any) => m.toString()));
 
-    // Create notifications for all relevant project members
-    const notificationsToCreate = Array.from(memberSet).map((recipientId) => {
+    // Create or update notifications for all relevant project members
+    for (const recipientId of Array.from(memberSet)) {
       const isMentioned = mentionSet.has(recipientId);
-      return {
-        recipientId,
-        projectId: id,
-        type: isMentioned ? "CHAT_MENTION" : "CHAT_MESSAGE",
-        title: isMentioned
-          ? "Tagged in Project Chat"
-          : `Project Chat: ${project.title || "Project"}`,
-        message: isMentioned
-          ? `You were mentioned in project "${project.title || "Project"}" chat.`
-          : `New message posted in project "${project.title || "Project"}".`,
-      };
-    });
+      if (isMentioned) {
+        await Notification.create({
+          recipientId,
+          projectId: id,
+          type: "CHAT_MENTION",
+          title: "Tagged in Project Chat",
+          message: `You were mentioned in project "${project.title || "Project"}" chat.`,
+        });
+      } else {
+        // Consolidate general unread chat notifications to avoid notification spam
+        const existingNotif = await Notification.findOne({
+          recipientId,
+          projectId: id,
+          type: "CHAT_MESSAGE",
+          read: false,
+        });
 
-    if (notificationsToCreate.length > 0) {
-      await Notification.insertMany(notificationsToCreate);
+        if (existingNotif) {
+          const match = existingNotif.message.match(/(\d+)\s+new messages/);
+          const newCount = match ? parseInt(match[1], 10) + 1 : 2;
+          existingNotif.title = `Project Chat: ${project.title || "Project"}`;
+          existingNotif.message = `${newCount} new messages in "${project.title || "Project"}" chat.`;
+          await existingNotif.save();
+        } else {
+          await Notification.create({
+            recipientId,
+            projectId: id,
+            type: "CHAT_MESSAGE",
+            title: `Project Chat: ${project.title || "Project"}`,
+            message: `New message posted in project "${project.title || "Project"}".`,
+          });
+        }
+      }
     }
 
     const populatedMsg = await ChatMessage.findById(chatMsg._id)

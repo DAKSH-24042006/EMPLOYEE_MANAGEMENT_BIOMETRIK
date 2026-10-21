@@ -337,7 +337,7 @@ export default function NewProjectPage() {
                       size="large"
                       style={{ width: "100%" }}
                       allowClear
-                      placeholder="No finish date"
+                      placeholder="Select finish date"
                     />
                   </Form.Item>
                 </Col>

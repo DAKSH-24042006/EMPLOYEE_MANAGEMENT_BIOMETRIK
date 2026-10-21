@@ -207,6 +207,7 @@ export async function POST(
           payload.userId
         );
 
+        /* Notification disabled: Bug Reassigned email suppressed per specification
         if (newAssignee.email) {
           sendBugReassignedEmail({
             toEmail: newAssignee.email,
@@ -221,6 +222,7 @@ export async function POST(
             bugUrl,
           }).catch((err) => console.error("[BugsAPI] Reassign email error:", err));
         }
+        */
         break;
       }
 
@@ -268,6 +270,7 @@ export async function POST(
           payload.userId
         );
 
+        /* Notification disabled: Fix Submitted for QA email suppressed per specification
         const recipientEmails: string[] = [];
         if (techOwner?.email) recipientEmails.push(techOwner.email);
 
@@ -286,6 +289,7 @@ export async function POST(
           projectName: project.title,
           bugUrl,
         }).catch((err) => console.error("[BugsAPI] Fix email error:", err));
+        */
         break;
       }
 
@@ -329,6 +333,7 @@ export async function POST(
           payload.userId
         );
 
+        /* Notification disabled: Bug Resolved / Closed email suppressed per specification
         const recipientEmails: string[] = [];
         if (techOwner?.email) recipientEmails.push(techOwner.email);
         if (currentAssigneeUser?.email && !recipientEmails.includes(currentAssigneeUser.email)) {
@@ -346,6 +351,7 @@ export async function POST(
           projectName: project.title,
           bugUrl,
         }).catch((err) => console.error("[BugsAPI] QA Pass email error:", err));
+        */
         break;
       }
 

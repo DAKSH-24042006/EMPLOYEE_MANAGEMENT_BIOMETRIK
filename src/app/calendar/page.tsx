@@ -480,6 +480,8 @@ export default function CalendarPage() {
             e.stopPropagation();
             if (isPersonal) {
               onEditTask(task);
+            } else if (task.projectId) {
+              router.push(`/projects/${task.projectId}?tab=work-items`);
             } else {
               setSelectedDate(date);
               setDrawerVisible(true);
@@ -1190,7 +1192,7 @@ export default function CalendarPage() {
                               icon={<ArrowRightOutlined />}
                               onClick={() => {
                                 setDrawerVisible(false);
-                                router.push(`/projects/${item.projectId}`);
+                                router.push(`/projects/${item.projectId}?tab=work-items`);
                               }}
                             >
                               Open Project

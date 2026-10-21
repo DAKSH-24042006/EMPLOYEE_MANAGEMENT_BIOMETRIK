@@ -18,6 +18,8 @@ import {
   Tooltip,
   Avatar,
   Modal,
+  Select,
+  DatePicker,
 } from "antd";
 import {
   CalendarOutlined,
@@ -31,6 +33,8 @@ import {
   FileTextOutlined,
   EyeOutlined,
   FilePdfOutlined,
+  FilterOutlined,
+  ClearOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -50,6 +54,26 @@ export default function PersonalDashboardPage() {
   // Investigation Modal state
   const [selectedBug, setSelectedBug] = useState<any>(null);
   const [isBugModalOpen, setIsBugModalOpen] = useState(false);
+
+  // ─── Section-Specific Filter States ──────────────────────────────────────
+  // A. My Work Items Filters
+  const [wiPriorityFilter, setWiPriorityFilter] = useState<string>("ALL");
+  const [wiStatusFilter, setWiStatusFilter] = useState<string>("ALL");
+  const [wiDatePreset, setWiDatePreset] = useState<string>("ALL");
+  const [wiCustomDateRange, setWiCustomDateRange] = useState<any>(null);
+
+  // B. My Tasks Filters
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>("ALL");
+  const [taskUrgencyFilter, setTaskUrgencyFilter] = useState<string>("ALL");
+
+  // C. My Bugs Filters
+  const [bugSeverityFilter, setBugSeverityFilter] = useState<string>("ALL");
+  const [bugStatusFilter, setBugStatusFilter] = useState<string>("ALL");
+  const [bugActionFilter, setBugActionFilter] = useState<string>("ALL");
+
+  // D. My Upcoming Work / Deadlines Filters
+  const [upcomingTimeframe, setUpcomingTimeframe] = useState<string>("ALL");
+  const [upcomingTypeFilter, setUpcomingTypeFilter] = useState<string>("ALL");
 
   const { message } = App.useApp();
 
@@ -382,6 +406,126 @@ export default function PersonalDashboardPage() {
     return list.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [workItems, tasks]);
 
+  // ─── Filtered Lists for Each Section ─────────────────────────────────────
+  // A. Filtered Work Items
+  const filteredWorkItems = useMemo(() => {
+    return workItems.filter((w) => {
+      if (wiPriorityFilter !== "ALL") {
+        const p = (w.priority || "Medium").toLowerCase();
+        if (p !== wiPriorityFilter.toLowerCase()) return false;
+      }
+      if (wiStatusFilter !== "ALL") {
+        const s = (w.status || "To Do").toLowerCase();
+        const target = wiStatusFilter.toLowerCase();
+        if (target === "done") {
+          if (s !== "done" && s !== "completed") return false;
+        } else if (s !== target) {
+          return false;
+        }
+      }
+      if (wiDatePreset === "THIS_WEEK") {
+        if (!w.dueDate) return false;
+        const d = dayjs(w.dueDate);
+        const start = dayjs().startOf("week");
+        const end = dayjs().endOf("week");
+        if (d.isBefore(start, "day") || d.isAfter(end, "day")) return false;
+      } else if (wiDatePreset === "THIS_MONTH") {
+        if (!w.dueDate) return false;
+        const d = dayjs(w.dueDate);
+        const start = dayjs().startOf("month");
+        const end = dayjs().endOf("month");
+        if (d.isBefore(start, "day") || d.isAfter(end, "day")) return false;
+      } else if (wiDatePreset === "CUSTOM") {
+        if (!w.dueDate) return false;
+        if (wiCustomDateRange && wiCustomDateRange[0] && wiCustomDateRange[1]) {
+          const d = dayjs(w.dueDate);
+          if (
+            d.isBefore(dayjs(wiCustomDateRange[0]), "day") ||
+            d.isAfter(dayjs(wiCustomDateRange[1]), "day")
+          ) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [workItems, wiPriorityFilter, wiStatusFilter, wiDatePreset, wiCustomDateRange]);
+
+  // B. Filtered Tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (taskStatusFilter !== "ALL") {
+        const isDone = t.status === "Completed" || t.status === "Done";
+        if (taskStatusFilter === "Completed" && !isDone) return false;
+        if (taskStatusFilter === "Pending" && isDone) return false;
+      }
+      if (taskUrgencyFilter === "OVERDUE") {
+        const isOverdue =
+          t.isOverdue ||
+          (t.dueDate &&
+            dayjs(t.dueDate).isBefore(dayjs(), "day") &&
+            t.status !== "Completed" &&
+            t.status !== "Done");
+        if (!isOverdue) return false;
+      } else if (taskUrgencyFilter === "UPCOMING") {
+        const isUpcoming =
+          t.dueDate &&
+          !dayjs(t.dueDate).isBefore(dayjs(), "day") &&
+          t.status !== "Completed" &&
+          t.status !== "Done";
+        if (!isUpcoming) return false;
+      }
+      return true;
+    });
+  }, [tasks, taskStatusFilter, taskUrgencyFilter]);
+
+  // C. Filtered Bugs
+  const applyBugFilters = (list: any[]) => {
+    return list.filter((b) => {
+      if (bugSeverityFilter !== "ALL") {
+        if ((b.severity || "").toLowerCase() !== bugSeverityFilter.toLowerCase()) return false;
+      }
+      if (bugStatusFilter !== "ALL") {
+        if ((b.status || "").toUpperCase() !== bugStatusFilter.toUpperCase()) return false;
+      }
+      if (bugActionFilter === "DEV_ACTION") {
+        if (b.status !== "ASSIGNED" && b.status !== "FAIL") return false;
+      } else if (bugActionFilter === "QA_ACTION") {
+        if (b.status !== "FIXED") return false;
+      }
+      return true;
+    });
+  };
+
+  const filteredAssignedBugs = useMemo(
+    () => applyBugFilters(bugs),
+    [bugs, bugSeverityFilter, bugStatusFilter, bugActionFilter]
+  );
+
+  const filteredReportedBugs = useMemo(
+    () => applyBugFilters(reportedBugs),
+    [reportedBugs, bugSeverityFilter, bugStatusFilter, bugActionFilter]
+  );
+
+  // D. Filtered Upcoming Work
+  const filteredUpcomingWork = useMemo(() => {
+    return upcomingWork.filter((u) => {
+      if (upcomingTimeframe === "OVERDUE") {
+        if (!u.isOverdue && u.diffDays >= 0) return false;
+      } else if (upcomingTimeframe === "24H") {
+        if (u.diffDays < 0 || u.diffDays > 1) return false;
+      } else if (upcomingTimeframe === "7D") {
+        if (u.diffDays < 0 || u.diffDays > 7) return false;
+      } else if (upcomingTimeframe === "30D") {
+        if (u.diffDays < 0 || u.diffDays > 30) return false;
+      }
+      if (upcomingTypeFilter !== "ALL") {
+        if (u.category !== upcomingTypeFilter) return false;
+      }
+      return true;
+    });
+  }, [upcomingWork, upcomingTimeframe, upcomingTypeFilter]);
+
   const upcomingColumns = [
     {
       title: "Work Item / Task",
@@ -691,7 +835,7 @@ export default function PersonalDashboardPage() {
               icon={<FolderOpenOutlined />}
               style={{ backgroundColor: "#009587", borderColor: "#009587" }}
             >
-              Personal Projects ({personalProjectsCount})
+              Favourite Projects ({personalProjectsCount})
             </Button>
           </Link>
         </Space>
@@ -800,15 +944,121 @@ export default function PersonalDashboardPage() {
           style={{ borderRadius: 12, border: "1px solid #E2E8F0", marginBottom: 20 }}
           styles={{ body: { padding: 0 } }}
         >
+          {/* Work Items Filter Toolbar */}
+          <div
+            style={{
+              padding: "10px 16px",
+              background: "#f8fafc",
+              borderBottom: "1px solid #E2E8F0",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <Space wrap size={10} align="center">
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#64748B",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <FilterOutlined style={{ fontSize: 12 }} /> Filters:
+              </span>
+              <Select
+                size="small"
+                value={wiPriorityFilter}
+                onChange={setWiPriorityFilter}
+                style={{ width: 140 }}
+                options={[
+                  { value: "ALL", label: "All Priorities" },
+                  { value: "Critical", label: "Critical" },
+                  { value: "High", label: "High" },
+                  { value: "Medium", label: "Medium" },
+                  { value: "Low", label: "Low" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={wiStatusFilter}
+                onChange={setWiStatusFilter}
+                style={{ width: 140 }}
+                options={[
+                  { value: "ALL", label: "All Statuses" },
+                  { value: "To Do", label: "To Do" },
+                  { value: "In Progress", label: "In Progress" },
+                  { value: "Testing", label: "Testing" },
+                  { value: "Blocked", label: "Blocked" },
+                  { value: "Done", label: "Done" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={wiDatePreset}
+                onChange={(v) => {
+                  setWiDatePreset(v);
+                  if (v !== "CUSTOM") setWiCustomDateRange(null);
+                }}
+                style={{ width: 155 }}
+                options={[
+                  { value: "ALL", label: "All Due Dates" },
+                  { value: "THIS_WEEK", label: "Due This Week" },
+                  { value: "THIS_MONTH", label: "Due This Month" },
+                  { value: "CUSTOM", label: "Custom Date Range" },
+                ]}
+              />
+              {wiDatePreset === "CUSTOM" && (
+                <DatePicker.RangePicker
+                  size="small"
+                  value={wiCustomDateRange}
+                  onChange={setWiCustomDateRange}
+                  style={{ borderRadius: 6 }}
+                />
+              )}
+              {(wiPriorityFilter !== "ALL" ||
+                wiStatusFilter !== "ALL" ||
+                wiDatePreset !== "ALL") && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ClearOutlined />}
+                  onClick={() => {
+                    setWiPriorityFilter("ALL");
+                    setWiStatusFilter("ALL");
+                    setWiDatePreset("ALL");
+                    setWiCustomDateRange(null);
+                  }}
+                  style={{ color: "#EF4444", padding: 0 }}
+                >
+                  Reset
+                </Button>
+              )}
+            </Space>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Showing {filteredWorkItems.length} of {workItems.length}
+            </Text>
+          </div>
+
           {workItems.length === 0 ? (
             <Empty
               description="No work items assigned to you"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               style={{ padding: "32px 0" }}
             />
+          ) : filteredWorkItems.length === 0 ? (
+            <Empty
+              description="No work items match the selected filters"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              style={{ padding: "32px 0" }}
+            />
           ) : (
             <Table
-              dataSource={workItems}
+              dataSource={filteredWorkItems}
               columns={workItemColumns}
               rowKey="_id"
               pagination={{ pageSize: 5, showSizeChanger: true }}
@@ -829,15 +1079,89 @@ export default function PersonalDashboardPage() {
           style={{ borderRadius: 12, border: "1px solid #E2E8F0", marginBottom: 20 }}
           styles={{ body: { padding: 0 } }}
         >
+          {/* Tasks Filter Toolbar */}
+          <div
+            style={{
+              padding: "10px 16px",
+              background: "#f8fafc",
+              borderBottom: "1px solid #E2E8F0",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <Space wrap size={10} align="center">
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#64748B",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <FilterOutlined style={{ fontSize: 12 }} /> Filters:
+              </span>
+              <Select
+                size="small"
+                value={taskStatusFilter}
+                onChange={setTaskStatusFilter}
+                style={{ width: 140 }}
+                options={[
+                  { value: "ALL", label: "All Statuses" },
+                  { value: "Pending", label: "Pending" },
+                  { value: "Completed", label: "Completed" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={taskUrgencyFilter}
+                onChange={setTaskUrgencyFilter}
+                style={{ width: 155 }}
+                options={[
+                  { value: "ALL", label: "All Urgency" },
+                  { value: "OVERDUE", label: "Overdue Tasks" },
+                  { value: "UPCOMING", label: "Upcoming Tasks" },
+                ]}
+              />
+              {(taskStatusFilter !== "ALL" || taskUrgencyFilter !== "ALL") && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ClearOutlined />}
+                  onClick={() => {
+                    setTaskStatusFilter("ALL");
+                    setTaskUrgencyFilter("ALL");
+                  }}
+                  style={{ color: "#EF4444", padding: 0 }}
+                >
+                  Reset
+                </Button>
+              )}
+            </Space>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Showing {filteredTasks.length} of {tasks.length}
+            </Text>
+          </div>
+
           {tasks.length === 0 ? (
             <Empty
               description="No tasks assigned to you"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               style={{ padding: "32px 0" }}
             />
+          ) : filteredTasks.length === 0 ? (
+            <Empty
+              description="No tasks match the selected filters"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              style={{ padding: "32px 0" }}
+            />
           ) : (
             <Table
-              dataSource={tasks}
+              dataSource={filteredTasks}
               columns={taskColumns}
               rowKey="_id"
               pagination={{ pageSize: 5, showSizeChanger: true }}
@@ -860,15 +1184,91 @@ export default function PersonalDashboardPage() {
           style={{ borderRadius: 12, border: "1px solid #E2E8F0", marginBottom: 20 }}
           styles={{ body: { padding: 0 } }}
         >
+          {/* Upcoming Work Filter Toolbar */}
+          <div
+            style={{
+              padding: "10px 16px",
+              background: "#f8fafc",
+              borderBottom: "1px solid #E2E8F0",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <Space wrap size={10} align="center">
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#64748B",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <FilterOutlined style={{ fontSize: 12 }} /> Filters:
+              </span>
+              <Select
+                size="small"
+                value={upcomingTimeframe}
+                onChange={setUpcomingTimeframe}
+                style={{ width: 165 }}
+                options={[
+                  { value: "ALL", label: "All Deadlines" },
+                  { value: "OVERDUE", label: "Overdue" },
+                  { value: "24H", label: "Due in 24 Hours" },
+                  { value: "7D", label: "Due Next 7 Days" },
+                  { value: "30D", label: "Due Next 30 Days" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={upcomingTypeFilter}
+                onChange={setUpcomingTypeFilter}
+                style={{ width: 155 }}
+                options={[
+                  { value: "ALL", label: "All Item Types" },
+                  { value: "Work Item", label: "Work Items" },
+                  { value: "Task", label: "Calendar Tasks" },
+                ]}
+              />
+              {(upcomingTimeframe !== "ALL" || upcomingTypeFilter !== "ALL") && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ClearOutlined />}
+                  onClick={() => {
+                    setUpcomingTimeframe("ALL");
+                    setUpcomingTypeFilter("ALL");
+                  }}
+                  style={{ color: "#EF4444", padding: 0 }}
+                >
+                  Reset
+                </Button>
+              )}
+            </Space>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Showing {filteredUpcomingWork.length} of {upcomingWork.length}
+            </Text>
+          </div>
+
           {upcomingWork.length === 0 ? (
             <Empty
               description="No upcoming deadlines on your assigned work"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               style={{ padding: "32px 0" }}
             />
+          ) : filteredUpcomingWork.length === 0 ? (
+            <Empty
+              description="No upcoming items match the selected filters"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              style={{ padding: "32px 0" }}
+            />
           ) : (
             <Table
-              dataSource={upcomingWork}
+              dataSource={filteredUpcomingWork}
               columns={upcomingColumns}
               rowKey="_id"
               pagination={{ pageSize: 5, showSizeChanger: true }}
@@ -889,12 +1289,102 @@ export default function PersonalDashboardPage() {
           style={{ borderRadius: 12, border: "1px solid #E2E8F0" }}
           styles={{ body: { padding: "12px 16px" } }}
         >
+          {/* Bugs Filter Toolbar */}
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#f8fafc",
+              border: "1px solid #E2E8F0",
+              borderRadius: 8,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              marginBottom: 14,
+            }}
+          >
+            <Space wrap size={10} align="center">
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#64748B",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <FilterOutlined style={{ fontSize: 12 }} /> Filters:
+              </span>
+              <Select
+                size="small"
+                value={bugSeverityFilter}
+                onChange={setBugSeverityFilter}
+                style={{ width: 135 }}
+                options={[
+                  { value: "ALL", label: "All Severities" },
+                  { value: "Severe", label: "Severe" },
+                  { value: "High", label: "High" },
+                  { value: "Medium", label: "Medium" },
+                  { value: "Low", label: "Low" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={bugStatusFilter}
+                onChange={setBugStatusFilter}
+                style={{ width: 145 }}
+                options={[
+                  { value: "ALL", label: "All Statuses" },
+                  { value: "OPEN", label: "OPEN" },
+                  { value: "ASSIGNED", label: "ASSIGNED" },
+                  { value: "FIXED", label: "FIXED" },
+                  { value: "PASS", label: "PASS" },
+                  { value: "FAIL", label: "FAIL (Reopened)" },
+                ]}
+              />
+              <Select
+                size="small"
+                value={bugActionFilter}
+                onChange={setBugActionFilter}
+                style={{ width: 235 }}
+                options={[
+                  { value: "ALL", label: "All Action States" },
+                  { value: "DEV_ACTION", label: "Action: Needs Fix (ASSIGNED/FAIL)" },
+                  { value: "QA_ACTION", label: "Action: Needs QA Verify (FIXED)" },
+                ]}
+              />
+              {(bugSeverityFilter !== "ALL" ||
+                bugStatusFilter !== "ALL" ||
+                bugActionFilter !== "ALL") && (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ClearOutlined />}
+                  onClick={() => {
+                    setBugSeverityFilter("ALL");
+                    setBugStatusFilter("ALL");
+                    setBugActionFilter("ALL");
+                  }}
+                  style={{ color: "#EF4444", padding: 0 }}
+                >
+                  Reset
+                </Button>
+              )}
+            </Space>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Assigned: {filteredAssignedBugs.length}/{bugs.length} · Reported:{" "}
+              {filteredReportedBugs.length}/{reportedBugs.length}
+            </Text>
+          </div>
+
           <Tabs
             defaultActiveKey="assigned"
             items={[
               {
                 key: "assigned",
-                label: `Assigned to Me (${bugs.length})`,
+                label: `Assigned to Me (${filteredAssignedBugs.length})`,
                 children:
                   bugs.length === 0 ? (
                     <Empty
@@ -902,9 +1392,15 @@ export default function PersonalDashboardPage() {
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                       style={{ padding: "24px 0" }}
                     />
+                  ) : filteredAssignedBugs.length === 0 ? (
+                    <Empty
+                      description="No assigned bugs match the selected filters"
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      style={{ padding: "24px 0" }}
+                    />
                   ) : (
                     <Table
-                      dataSource={bugs}
+                      dataSource={filteredAssignedBugs}
                       columns={bugColumns}
                       rowKey="_id"
                       pagination={{ pageSize: 5, showSizeChanger: true }}
@@ -915,7 +1411,7 @@ export default function PersonalDashboardPage() {
               },
               {
                 key: "reported",
-                label: `Reported by Me (${reportedBugs.length})`,
+                label: `Reported by Me (${filteredReportedBugs.length})`,
                 children:
                   reportedBugs.length === 0 ? (
                     <Empty
@@ -923,9 +1419,15 @@ export default function PersonalDashboardPage() {
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                       style={{ padding: "24px 0" }}
                     />
+                  ) : filteredReportedBugs.length === 0 ? (
+                    <Empty
+                      description="No reported bugs match the selected filters"
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      style={{ padding: "24px 0" }}
+                    />
                   ) : (
                     <Table
-                      dataSource={reportedBugs}
+                      dataSource={filteredReportedBugs}
                       columns={bugColumns}
                       rowKey="_id"
                       pagination={{ pageSize: 5, showSizeChanger: true }}

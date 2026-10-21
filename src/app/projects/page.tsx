@@ -329,7 +329,7 @@ function EditModal({ open, project, onClose, onSaved }: EditModalProps) {
                 style={{ width: "100%" }}
                 format="DD/MM/YYYY"
                 allowClear
-                placeholder="No finish date"
+                placeholder="Select finish date"
               />
             </Form.Item>
           </Col>
@@ -744,7 +744,8 @@ export default function ProjectsPage() {
         <div>
           <p>
             You are about to permanently delete the project for{" "}
-            <strong>{project.clientDetails.companyName}</strong>.
+            <strong>{project.clientDetails?.companyName || project.title || "this project"}</strong>
+            .
           </p>
           <p style={{ color: "#6b7280", fontSize: 13 }}>
             This action cannot be undone. All associated data will be lost.
@@ -819,6 +820,12 @@ export default function ProjectsPage() {
     }
     return true;
   });
+
+  const canDelete =
+    currentUserRole === Role.ADMIN ||
+    currentUserRole === Role.SYSTEM_ADMIN ||
+    currentUserRole === "ADMIN" ||
+    currentUserRole === "SYSTEM_ADMIN";
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -1082,7 +1089,7 @@ export default function ProjectsPage() {
               const diffDays = endDate ? endDate.diff(dayjs(), "day") : null;
               const isOverdue = diffDays !== null && diffDays < 0;
               const daysRemainingText = !hasEndDate
-                ? "No finish date"
+                ? "- remaining days"
                 : isOverdue
                   ? `${Math.abs(diffDays!)}d overdue`
                   : diffDays === 0
@@ -1108,15 +1115,19 @@ export default function ProjectsPage() {
                     }}
                   >
                     <div>
-                      {/* 1. Project Title */}
+                      {/* 1. Project Title & Actions */}
                       <div
                         style={{
                           marginBottom: 10,
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 8,
                         }}
                       >
                         <Link
                           href={`/projects/${project._id}`}
-                          style={{ textDecoration: "none", display: "block" }}
+                          style={{ textDecoration: "none", display: "block", flex: 1, minWidth: 0 }}
                         >
                           <h2
                             style={{
@@ -1135,6 +1146,36 @@ export default function ProjectsPage() {
                             {project.title || "Unnamed Project"}
                           </h2>
                         </Link>
+
+                        {canDelete && (
+                          <Tooltip title="Delete Project">
+                            <Button
+                              type="text"
+                              danger
+                              size="small"
+                              aria-label={`Delete ${project.title || "project"}`}
+                              icon={<DeleteOutlined style={{ fontSize: 15 }} />}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDelete(project);
+                              }}
+                              className="project-card-delete-btn"
+                              style={{
+                                color: "#EF4444",
+                                borderRadius: 6,
+                                padding: 0,
+                                width: 28,
+                                height: 28,
+                                minWidth: 28,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            />
+                          </Tooltip>
+                        )}
                       </div>
 
                       {/* 2. Status & Priority Badges */}
@@ -1221,9 +1262,7 @@ export default function ProjectsPage() {
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <CalendarOutlined style={{ color: "#4B5563", fontSize: 13 }} />
                           <span>
-                            {hasEndDate
-                              ? `Due: ${endDate!.format("DD MMM YYYY")}`
-                              : "No finish date set"}
+                            {hasEndDate ? `Due: ${endDate!.format("DD MMM YYYY")}` : "Due: -"}
                           </span>
                         </div>
 
@@ -1352,6 +1391,10 @@ export default function ProjectsPage() {
         }
         .biometrik-workspace-btn:hover {
           background-color: #007f73 !important;
+        }
+        .project-card-delete-btn:hover {
+          background-color: #fee2e2 !important;
+          color: #dc2626 !important;
         }
       `}</style>
 

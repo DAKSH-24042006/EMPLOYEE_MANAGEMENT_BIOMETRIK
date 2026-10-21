@@ -52,10 +52,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // Strict access control: regular members can only see their own assigned tasks
     if (!isProjectLead) {
-      query.assignee = payload.userId;
+      query.$or = [{ assignee: payload.userId }, { assignees: payload.userId }];
     } else {
       const assignee = searchParams.get("assignee");
-      if (assignee && assignee !== "All") query.assignee = assignee;
+      if (assignee && assignee !== "All") {
+        query.$or = [{ assignee: assignee }, { assignees: assignee }];
+      }
     }
 
     const status = searchParams.get("status");
@@ -131,6 +133,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const isProjectLead = isSuperAdmin || isPM;
+    if (!isProjectLead) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Only the Project Manager or System Administrator can create work items and tasks.",
+        },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
 
@@ -138,20 +149,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    // Role check: Regular team members can create tasks for THEMSELVES.
-    // Only Project Managers and System Admins can assign tasks to other team members.
-    let targetAssignee =
+    const targetAssignee =
       body.assignees && body.assignees.length > 0 ? body.assignees[0] : body.assignee || undefined;
-    if (!isProjectLead) {
-      if (body.assignees && body.assignees.some((a: any) => String(a) !== String(payload.userId))) {
-        return NextResponse.json(
-          { error: "Forbidden: Team members can only create tasks for themselves." },
-          { status: 403 }
-        );
-      }
-      targetAssignee = payload.userId; // Enforce assigning to self
-      body.assignees = [payload.userId];
-    }
 
     const newItem = await WorkItem.create({
       projectId: id,

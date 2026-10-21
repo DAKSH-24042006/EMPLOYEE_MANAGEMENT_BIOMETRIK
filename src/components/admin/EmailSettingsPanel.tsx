@@ -229,37 +229,16 @@ export default function EmailSettingsPanel() {
             },
           },
           bugReassigned: {
-            enabled: values.bugReassigned_enabled ?? true,
-            notifyAssignee: values.bugReassigned_notifyAssignee ?? true,
-            notifyQA: values.bugReassigned_notifyQA ?? false,
-            notifyProjectManager: values.bugReassigned_notifyPM ?? true,
-            customEmail: values.bugReassigned_customEmail || "",
-            template: {
-              subject: values.bugReassigned_subject || "",
-              body: values.bugReassigned_body || "",
-            },
+            ...(config?.bugNotifications?.bugReassigned || {}),
+            enabled: false,
           },
           fixSubmitted: {
-            enabled: values.fixSubmitted_enabled ?? true,
-            notifyAssignee: values.fixSubmitted_notifyAssignee ?? true,
-            notifyQA: values.fixSubmitted_notifyQA ?? true,
-            notifyProjectManager: values.fixSubmitted_notifyPM ?? true,
-            customEmail: values.fixSubmitted_customEmail || "",
-            template: {
-              subject: values.fixSubmitted_subject || "",
-              body: values.fixSubmitted_body || "",
-            },
+            ...(config?.bugNotifications?.fixSubmitted || {}),
+            enabled: false,
           },
           bugClosed: {
-            enabled: values.bugClosed_enabled ?? true,
-            notifyAssignee: values.bugClosed_notifyAssignee ?? true,
-            notifyQA: values.bugClosed_notifyQA ?? true,
-            notifyProjectManager: values.bugClosed_notifyPM ?? true,
-            customEmail: values.bugClosed_customEmail || "",
-            template: {
-              subject: values.bugClosed_subject || "",
-              body: values.bugClosed_body || "",
-            },
+            ...(config?.bugNotifications?.bugClosed || {}),
+            enabled: false,
           },
         },
       };
@@ -1203,6 +1182,7 @@ export default function EmailSettingsPanel() {
                     </div>
                   ),
                 },
+                /*
                 {
                   key: "bugReassigned",
                   label: "3. Bug Reassigned",
@@ -1407,6 +1387,7 @@ export default function EmailSettingsPanel() {
                     </div>
                   ),
                 },
+                */
               ]}
             />
           </Card>

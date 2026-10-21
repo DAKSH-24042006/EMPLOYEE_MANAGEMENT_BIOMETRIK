@@ -39,6 +39,7 @@ function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const router = useRouter();
 
   const fetchNotifications = async () => {
@@ -66,6 +67,7 @@ function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
   }, []);
 
   const handleMarkAsRead = async (id: string, projectId?: string) => {
+    setDropdownOpen(false);
     try {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
@@ -75,12 +77,18 @@ function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
         setUnreadCount((c) => Math.max(0, c - 1));
-        if (projectId) {
-          router.push(`/projects/${projectId}?tab=chat`);
-        }
       }
     } catch (err) {
       console.error(err);
+    }
+
+    if (projectId) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("biometrik-switch-tab", { detail: { projectId, tab: "chat" } })
+        );
+      }
+      router.push(`/projects/${projectId}?tab=chat`);
     }
   };
 
@@ -158,7 +166,13 @@ function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
 
   if (collapsed) {
     return (
-      <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="topLeft">
+      <Dropdown
+        popupRender={() => notificationMenu}
+        trigger={["click"]}
+        placement="topLeft"
+        open={dropdownOpen}
+        onOpenChange={setDropdownOpen}
+      >
         <Tooltip
           title={
             unreadCount > 0
@@ -195,7 +209,13 @@ function NotificationDropdown({ collapsed }: { collapsed?: boolean }) {
   }
 
   return (
-    <Dropdown popupRender={() => notificationMenu} trigger={["click"]} placement="topLeft">
+    <Dropdown
+      popupRender={() => notificationMenu}
+      trigger={["click"]}
+      placement="topLeft"
+      open={dropdownOpen}
+      onOpenChange={setDropdownOpen}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -471,7 +491,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         },
         {
           key: "/dashboard/personal-projects",
-          label: <Link href="/dashboard/personal-projects">Personal Projects</Link>,
+          label: <Link href="/dashboard/personal-projects">Favourite Projects</Link>,
         },
       ],
     },
@@ -522,7 +542,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           : snippet === "bug-history"
             ? "Bug History"
             : snippet === "personal-projects"
-              ? "Personal Projects"
+              ? "Favourite Projects"
               : snippet === "personal"
                 ? "Personal Dashboard"
                 : snippet.replace("-", " ");

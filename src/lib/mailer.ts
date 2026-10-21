@@ -967,78 +967,8 @@ export async function sendBugReassignedEmail({
   projectName: string;
   bugUrl?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const config = await getEmailConfig();
-    if (!config.isEnabled) return { success: true };
-    if (config.bugNotifications && config.bugNotifications.enabled === false)
-      return { success: true };
-
-    const rule = config.bugNotifications?.bugReassigned;
-    if (rule && rule.enabled === false) return { success: true };
-
-    const transporter = await createTransporter(config);
-    if (!transporter) return { success: false, error: "SMTP not configured" };
-
-    const recipients: string[] = [];
-    if (rule ? rule.notifyAssignee !== false : true) {
-      if (toEmail) recipients.push(toEmail);
-    }
-    if (rule?.customEmail) {
-      recipients.push(...rule.customEmail.split(",").map((e: string) => e.trim()));
-    }
-    const validRecipients = Array.from(new Set(recipients.filter(Boolean)));
-    if (validRecipients.length === 0) return { success: true };
-
-    const data: Record<string, string> = {
-      bugId,
-      title,
-      severity,
-      remarks,
-      previousAssigneeName: previousAssigneeName || "None",
-      reassignedByName,
-      projectName,
-      recipientName,
-      bugUrl: bugUrl || "",
-    };
-
-    const subject = rule?.template?.subject?.trim()
-      ? renderTemplate(rule.template.subject, data)
-      : `[Biometrik Defect ${bugId}] [${severity}] Defect Reassigned to You: ${title}`;
-
-    const bodyText = rule?.template?.body?.trim()
-      ? renderTemplate(rule.template.body, data)
-      : `Hello ${recipientName},\n\nDefect ${bugId} in project "${projectName}" has been reassigned to you.\n\nTitle: ${title}\nSeverity: ${severity}\nPrevious Assignee: ${previousAssigneeName || "None"}\nReassigned By: ${reassignedByName}\n\nReassignment Reason / Remarks:\n${remarks}\n\nPlease inspect the issue in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
-
-    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
-    const attachments = getLogoAttachment();
-    const html = buildEmailHtml({
-      subject,
-      bodyText,
-      taskUrl: bugUrl,
-      ctaText: "Review Reassigned Defect",
-      notificationType: "bug",
-      meta: {
-        "Defect ID": bugId,
-        Project: projectName,
-        Severity: severity,
-        "Reassigned By": reassignedByName,
-        Status: "ASSIGNED",
-      },
-    });
-
-    await transporter.sendMail({
-      from: fromAddress,
-      to: validRecipients.join(", "),
-      subject,
-      text: bodyText,
-      html,
-      attachments,
-    });
-    return { success: true };
-  } catch (err: unknown) {
-    console.error("[Mailer] Bug reassigned email failed:", err);
-    return { success: false, error: (err as Error).message };
-  }
+  // Disabled: Bug Reassigned notifications suppressed per system specification
+  return { success: true };
 }
 
 /**
@@ -1063,74 +993,8 @@ export async function sendBugFixedEmail({
   projectName: string;
   bugUrl?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const config = await getEmailConfig();
-    if (!config.isEnabled) return { success: true };
-    if (config.bugNotifications && config.bugNotifications.enabled === false)
-      return { success: true };
-
-    const rule = config.bugNotifications?.fixSubmitted;
-    if (rule && rule.enabled === false) return { success: true };
-
-    const recipients =
-      rule && rule.notifyProjectManager === false && rule.notifyQA === false ? [] : [...toEmails];
-    if (rule?.customEmail) {
-      recipients.push(...rule.customEmail.split(",").map((e: string) => e.trim()));
-    }
-    const validEmails = Array.from(new Set(recipients.filter(Boolean)));
-    if (validEmails.length === 0) return { success: true };
-
-    const transporter = await createTransporter(config);
-    if (!transporter) return { success: false, error: "SMTP not configured" };
-
-    const data: Record<string, string> = {
-      bugId,
-      title,
-      severity,
-      remarks,
-      developerName,
-      projectName,
-      bugUrl: bugUrl || "",
-    };
-
-    const subject = rule?.template?.subject?.trim()
-      ? renderTemplate(rule.template.subject, data)
-      : `[Biometrik Defect ${bugId}] Fix Submitted by ${developerName}: ${title}`;
-
-    const bodyText = rule?.template?.body?.trim()
-      ? renderTemplate(rule.template.body, data)
-      : `Hello Team,\n\nA fix has been submitted for defect ${bugId} in project "${projectName}" and is awaiting QA verification.\n\nTitle: ${title}\nSeverity: ${severity}\nDeveloper: ${developerName}\n\nResolution Remarks:\n${remarks}\n\nPlease test and verify the fix in the workspace:\n${bugUrl || ""}\n\nBest regards,`;
-
-    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
-    const attachments = getLogoAttachment();
-    const html = buildEmailHtml({
-      subject,
-      bodyText,
-      taskUrl: bugUrl,
-      ctaText: "Verify Fix in Workspace",
-      notificationType: "bug",
-      meta: {
-        "Defect ID": bugId,
-        Project: projectName,
-        Severity: severity,
-        Developer: developerName,
-        Status: "FIXED (Awaiting QA)",
-      },
-    });
-
-    await transporter.sendMail({
-      from: fromAddress,
-      to: validEmails.join(", "),
-      subject,
-      text: bodyText,
-      html,
-      attachments,
-    });
-    return { success: true };
-  } catch (err: unknown) {
-    console.error("[Mailer] Bug fixed email failed:", err);
-    return { success: false, error: (err as Error).message };
-  }
+  // Disabled: Fix Submitted for QA notifications suppressed per system specification
+  return { success: true };
 }
 
 /**
@@ -1157,84 +1021,6 @@ export async function sendBugQAVerifiedEmail({
   projectName: string;
   bugUrl?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const config = await getEmailConfig();
-    if (!config.isEnabled) return { success: true };
-    if (config.bugNotifications && config.bugNotifications.enabled === false)
-      return { success: true };
-
-    const rule = config.bugNotifications?.bugClosed;
-    if (rule && rule.enabled === false) return { success: true };
-
-    const recipients =
-      rule && rule.notifyProjectManager === false && rule.notifyAssignee === false
-        ? []
-        : [...toEmails];
-    if (rule?.customEmail) {
-      recipients.push(...rule.customEmail.split(",").map((e: string) => e.trim()));
-    }
-    const validEmails = Array.from(new Set(recipients.filter(Boolean)));
-    if (validEmails.length === 0) return { success: true };
-
-    const transporter = await createTransporter(config);
-    if (!transporter) return { success: false, error: "SMTP not configured" };
-
-    const isPass = outcome === "PASS";
-    const data: Record<string, string> = {
-      bugId,
-      title,
-      severity,
-      outcome,
-      remarks,
-      qaName,
-      projectName,
-      bugUrl: bugUrl || "",
-    };
-
-    const defaultSubject = isPass
-      ? `[Biometrik QA PASSED] Defect ${bugId} Verified: ${title}`
-      : `[Biometrik QA FAILED] Defect ${bugId} Returned to Developer: ${title}`;
-
-    const defaultBodyText = isPass
-      ? `Hello Team,\n\nDefect ${bugId} in project "${projectName}" has PASSED QA verification and is now marked complete.\n\nTitle: ${title}\nVerified By: ${qaName}\n\nQA Sign-off Remarks:\n${remarks}\n\nView details in workspace:\n${bugUrl || ""}\n\nBest regards,`
-      : `Hello Team,\n\nDefect ${bugId} in project "${projectName}" has FAILED QA verification and has been automatically re-assigned to the developer.\n\nTitle: ${title}\nTested By: ${qaName}\n\nDefect Persistence / Failure Remarks:\n${remarks}\n\nPlease inspect and address the defects:\n${bugUrl || ""}\n\nBest regards,`;
-
-    const subject = rule?.template?.subject?.trim()
-      ? renderTemplate(rule.template.subject, data)
-      : defaultSubject;
-
-    const bodyText = rule?.template?.body?.trim()
-      ? renderTemplate(rule.template.body, data)
-      : defaultBodyText;
-
-    const fromAddress = `"${config.fromName || "Biometrik Systems"}" <${config.fromEmail || config.smtpUser}>`;
-    const attachments = getLogoAttachment();
-    const html = buildEmailHtml({
-      subject,
-      bodyText,
-      taskUrl: bugUrl,
-      ctaText: "Open Defect in Workspace",
-      notificationType: isPass ? "task" : "overdue",
-      meta: {
-        "Defect ID": bugId,
-        Project: projectName,
-        "QA Outcome": outcome,
-        "Tested By": qaName,
-        Status: isPass ? "PASS (Resolved)" : "FAIL (Auto-Returned)",
-      },
-    });
-
-    await transporter.sendMail({
-      from: fromAddress,
-      to: validEmails.join(", "),
-      subject,
-      text: bodyText,
-      html,
-      attachments,
-    });
-    return { success: true };
-  } catch (err: unknown) {
-    console.error("[Mailer] Bug QA verified email failed:", err);
-    return { success: false, error: (err as Error).message };
-  }
+  // Disabled: Bug QA Verified / Closed notifications suppressed per system specification
+  return { success: true };
 }

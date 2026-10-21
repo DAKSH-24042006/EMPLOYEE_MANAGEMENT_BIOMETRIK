@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import dbConnect from "@/lib/db";
 import { ProjectActivity } from "@/lib/models/ProjectActivity";
 import { Project } from "@/lib/models/Project";
+import { User } from "@/lib/models/User";
 import { verifyJwt } from "@/lib/auth";
 import { Role } from "@/lib/constants";
 import { canUserViewProject } from "@/lib/projectAccess";
@@ -15,10 +16,7 @@ async function getAuthPayload() {
   return payload?.userId ? payload : null;
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const payload = await getAuthPayload();
     if (!payload) {
@@ -30,7 +28,10 @@ export async function GET(
 
     const canView = await canUserViewProject(id, payload.userId, payload.role);
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: Access denied to this project" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 }
+      );
     }
 
     // STRICT CHECK: Activity logs are strictly visible only to the Project Manager and System Administrators
@@ -40,11 +41,15 @@ export async function GET(
     }
 
     const isSystemAdmin = payload.role === Role.SYSTEM_ADMIN || payload.role === "ADMIN";
-    const isProjectManager = isSystemAdmin || (project.techOwner && String(project.techOwner) === String(payload.userId));
+    const isProjectManager =
+      isSystemAdmin || (project.techOwner && String(project.techOwner) === String(payload.userId));
 
     if (!isProjectManager) {
       return NextResponse.json(
-        { error: "Forbidden: Activity logs are visible only to the Project Manager and System Administrators." },
+        {
+          error:
+            "Forbidden: Activity logs are visible only to the Project Manager and System Administrators.",
+        },
         { status: 403 }
       );
     }

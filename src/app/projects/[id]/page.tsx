@@ -35,6 +35,7 @@ import {
   Spin,
   App,
   Tooltip,
+  Empty,
 } from "antd";
 import {
   ArrowLeft,
@@ -78,7 +79,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
-import { FilePdfOutlined, EyeOutlined } from "@ant-design/icons";
+import { FilePdfOutlined, EyeOutlined, ReloadOutlined } from "@ant-design/icons";
 import { generateProjectPDF } from "@/lib/reportUtils";
 import ProjectBugTrackingTab from "@/components/project/ProjectBugTrackingTab";
 import { CANONICAL_PROJECT_LIFECYCLE, normalizeProjectStatus } from "@/lib/constants";
@@ -148,7 +149,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workSearchQuery, setWorkSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>(tabQuery || "work-items");
   const [todoStatusFilter, setTodoStatusFilter] = useState<
-    "all" | "todo" | "inprogress" | "blocked" | "completed" | "overdue"
+    | "all"
+    | "todo"
+    | "inprogress"
+    | "inreview"
+    | "testing"
+    | "blocked"
+    | "done"
+    | "completed"
+    | "overdue"
   >("all");
 
   // Project Calendar & Personal Tasks states
@@ -170,6 +179,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const [workItems, setWorkItems] = useState<any[]>([]);
   const [testCases, setTestCases] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
 
   // PDF report states & handler
   const [generatingPDF, setGeneratingPDF] = useState(false);
@@ -256,13 +266,36 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   useEffect(() => {
     if (tabQuery) {
-      if (tabQuery === "chat" && !isProjectEditor) {
-        setActiveTab("work-items");
+      if (tabQuery === "chat") {
+        if (!currentUser) {
+          setActiveTab("chat");
+        } else if (isProjectEditor) {
+          setActiveTab("chat");
+        } else {
+          setActiveTab("work-items");
+        }
       } else {
         setActiveTab(tabQuery);
       }
     }
-  }, [tabQuery, isProjectEditor]);
+  }, [tabQuery, currentUser, isProjectEditor]);
+
+  // Listen to cross-component tab switch requests (e.g. from Notification click)
+  useEffect(() => {
+    const handleSwitchTab = (e: any) => {
+      const detail = e.detail;
+      if (!detail || detail.projectId === id) {
+        if (detail?.tab) {
+          setActiveTab(detail.tab);
+          if (detail.tab === "chat") {
+            setTimeout(() => scrollToChatBottom("smooth"), 200);
+          }
+        }
+      }
+    };
+    window.addEventListener("biometrik-switch-tab", handleSwitchTab);
+    return () => window.removeEventListener("biometrik-switch-tab", handleSwitchTab);
+  }, [id]);
 
   const projectTeamMembers = React.useMemo(() => {
     const list: any[] = [];
@@ -722,14 +755,28 @@ function ProjectDetailsClient({ id }: { id: string }) {
 
   const fetchActivities = async () => {
     if (!isProjectLead) return;
+    setLoadingActivities(true);
     try {
       const res = await fetch(`/api/projects/${id}/activities`, { cache: "no-store" });
       const json = await res.json();
-      if (res.ok) setActivities(json.data);
+      if (res.ok) {
+        setActivities(json.data || []);
+      } else {
+        console.error("Failed to fetch activities:", json.error);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Fetch activities error:", err);
+    } finally {
+      setLoadingActivities(false);
     }
   };
+
+  // Re-fetch activities whenever user permissions resolve or when switching to the activities tab
+  useEffect(() => {
+    if (isProjectLead && (activeTab === "activities" || activeTab === "overview")) {
+      fetchActivities();
+    }
+  }, [isProjectLead, activeTab]);
 
   // PDF generation
   const handleGeneratePDF = async () => {
@@ -1187,6 +1234,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
         type: values.type || "Task",
         dueDate: undefined,
         assignee: currentUserId,
+        assignees: currentUserId ? [currentUserId] : [],
       };
 
       const res = await fetch(`/api/projects/${id}/work-items`, {
@@ -1236,6 +1284,14 @@ function ProjectDetailsClient({ id }: { id: string }) {
     if (!item) return;
     setEditingWorkItem(item);
     editWorkItemForm.resetFields();
+
+    const computedAssignees =
+      Array.isArray(item.assignees) && item.assignees.length > 0
+        ? item.assignees.map((a: any) => a._id || a)
+        : item.assignee
+          ? [item.assignee._id || item.assignee]
+          : [];
+
     editWorkItemForm.setFieldsValue({
       title: item.title,
       description: item.description || "",
@@ -1243,9 +1299,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
       priority: item.priority || "Medium",
       status: item.status || "To Do",
       assignee: item.assignee?._id || item.assignee || undefined,
-      assignees:
-        item.assignees?.map((a: any) => a._id || a) ||
-        (item.assignee ? [item.assignee._id || item.assignee] : []),
+      assignees: computedAssignees,
       sprint: item.sprint?._id || item.sprint || undefined,
       dueDate: item.dueDate ? dayjs(item.dueDate) : undefined,
       estimatedHours: item.estimatedHours !== undefined ? item.estimatedHours : undefined,
@@ -1258,23 +1312,53 @@ function ProjectDetailsClient({ id }: { id: string }) {
     if (!editingWorkItem) return;
     setSubmittingEditWorkItem(true);
     try {
+      const existingAssignee = editingWorkItem.assignee?._id || editingWorkItem.assignee || null;
+      const existingAssignees =
+        Array.isArray(editingWorkItem.assignees) && editingWorkItem.assignees.length > 0
+          ? editingWorkItem.assignees.map((a: any) => a._id || a)
+          : existingAssignee
+            ? [existingAssignee]
+            : [];
+
       const payload: any = {
         title: values.title,
         description: values.description,
         type: values.type,
         priority: values.priority,
         status: values.status,
-        assignee: values.assignees && values.assignees.length > 0 ? values.assignees[0] : null,
-        assignees: values.assignees || [],
-        sprint: values.sprint || null,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         estimatedHours:
           values.estimatedHours !== undefined && values.estimatedHours !== ""
             ? Number(values.estimatedHours)
-            : 0,
+            : editingWorkItem.estimatedHours !== undefined
+              ? editingWorkItem.estimatedHours
+              : 0,
         progress:
-          values.progress !== undefined && values.progress !== "" ? Number(values.progress) : 0,
+          values.progress !== undefined && values.progress !== ""
+            ? Number(values.progress)
+            : editingWorkItem.progress !== undefined
+              ? editingWorkItem.progress
+              : 0,
       };
+
+      // Only project leads (PM / Super Admin) can reassign or change assignees
+      if (isProjectLead && values.assignees !== undefined) {
+        payload.assignee =
+          Array.isArray(values.assignees) && values.assignees.length > 0
+            ? values.assignees[0]
+            : null;
+        payload.assignees = values.assignees || [];
+      } else {
+        payload.assignee = existingAssignee;
+        payload.assignees = existingAssignees;
+      }
+
+      // Preserve sprint if not provided in values
+      if (values.sprint !== undefined) {
+        payload.sprint = values.sprint || null;
+      } else if (editingWorkItem.sprint) {
+        payload.sprint = editingWorkItem.sprint._id || editingWorkItem.sprint;
+      }
 
       const res = await fetch(`/api/projects/${id}/work-items/${editingWorkItem._id}`, {
         method: "PUT",
@@ -1681,21 +1765,31 @@ function ProjectDetailsClient({ id }: { id: string }) {
     // If not project lead or admin, strictly restrict to user's assigned items
     if (!isProjectLead) {
       const aid = item.assignee?._id || item.assignee;
-      if (String(aid) !== String(currentUserId)) return false;
+      const isDirect = String(aid) === String(currentUserId);
+      const isInList =
+        Array.isArray(item.assignees) &&
+        item.assignees.some((a: any) => String(a?._id || a) === String(currentUserId));
+      if (!isDirect && !isInList) return false;
     }
     if (workSearchQuery.trim()) {
       const q = workSearchQuery.toLowerCase().trim();
       const titleMatch = (item.title || "").toLowerCase().includes(q);
       const descMatch = (item.description || "").toLowerCase().includes(q);
-      const assigneeName = (item.assignee?.name || "").toLowerCase();
-      if (!titleMatch && !descMatch && !assigneeName.includes(q)) return false;
+      const assigneeNames =
+        Array.isArray(item.assignees) && item.assignees.length > 0
+          ? item.assignees.map((a: any) => (a?.name || "").toLowerCase()).join(" ")
+          : (item.assignee?.name || "").toLowerCase();
+      if (!titleMatch && !descMatch && !assigneeNames.includes(q)) return false;
     }
     if (workFilterStatus !== "All" && item.status !== workFilterStatus) return false;
-    if (
-      workFilterAssignee !== "All" &&
-      (item.assignee?._id || item.assignee) !== workFilterAssignee
-    )
-      return false;
+    if (workFilterAssignee !== "All") {
+      const aid = item.assignee?._id || item.assignee;
+      const isDirect = String(aid) === String(workFilterAssignee);
+      const isInList =
+        Array.isArray(item.assignees) &&
+        item.assignees.some((a: any) => String(a?._id || a) === String(workFilterAssignee));
+      if (!isDirect && !isInList) return false;
+    }
     if (workFilterSprint !== "All") {
       if (workFilterSprint === "None") {
         if (item.sprint?._id || item.sprint) return false;
@@ -1737,7 +1831,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
   const projDiffDays = projEndDate ? projEndDate.diff(dayjs(), "day") : null;
   const projIsOverdue = projDiffDays !== null && projDiffDays < 0;
   const projTimelineRemaining = !projHasEndDate
-    ? "No finish date"
+    ? ""
     : projIsOverdue
       ? `${Math.abs(projDiffDays!)}d overdue`
       : projDiffDays === 0
@@ -2219,15 +2313,17 @@ function ProjectDetailsClient({ id }: { id: string }) {
                 >
                   Timeline
                 </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: projIsOverdue ? "#b91c1c" : "#00796b",
-                  }}
-                >
-                  {projTimelineRemaining}
-                </span>
+                {projTimelineRemaining ? (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: projIsOverdue ? "#b91c1c" : "#00796b",
+                    }}
+                  >
+                    {projTimelineRemaining}
+                  </span>
+                ) : null}
               </div>
               <div
                 style={{
@@ -2243,7 +2339,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   ? `${dayjs(project.timeline.startDate).format("DD MMM YYYY")}${
                       project.timeline?.endDate
                         ? ` – ${dayjs(project.timeline.endDate).format("DD MMM YYYY")}`
-                        : " (No finish date)"
+                        : ""
                     }`
                   : "No timeline set"}
               </div>
@@ -2540,7 +2636,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                       )}
                     </Space>
 
-                    {isProjectEditor && (
+                    {isProjectLead && (
                       <Space>
                         <Button
                           type="primary"
@@ -2804,53 +2900,65 @@ function ProjectDetailsClient({ id }: { id: string }) {
                         title: "Actions",
                         key: "actions",
                         width: 110,
-                        render: (_: any, record: any) => (
-                          <Space size={6}>
-                            {isProjectEditor ? (
-                              <Button
-                                size="small"
-                                icon={<Edit3 size={12} />}
-                                onClick={() => openEditWorkItem(record)}
-                                style={{
-                                  color: "#00897b",
-                                  borderColor: "#00897b",
-                                  fontWeight: 500,
-                                  borderRadius: 5,
-                                }}
-                              >
-                                Edit
-                              </Button>
-                            ) : (
-                              <Button
-                                size="small"
-                                type="text"
-                                onClick={() => {
-                                  setSelectedWorkItem(record);
-                                  setWorkItemDetailOpen(true);
-                                }}
-                                style={{ color: "#64748b", fontSize: 12 }}
-                              >
-                                View
-                              </Button>
-                            )}
-                            {isProjectLead && (
-                              <Popconfirm
-                                title="Delete this task?"
-                                description="Are you sure you want to delete this work item?"
-                                onConfirm={() => handleDeleteWorkItem(record._id)}
-                                okText="Yes"
-                                cancelText="No"
-                              >
+                        render: (_: any, record: any) => {
+                          const canEditRecord =
+                            isProjectLead ||
+                            (currentUser &&
+                              (String(record.assignee?._id || record.assignee) ===
+                                String(currentUserId) ||
+                                (Array.isArray(record.assignees) &&
+                                  record.assignees.some(
+                                    (a: any) => String(a?._id || a) === String(currentUserId)
+                                  ))));
+
+                          return (
+                            <Space size={6}>
+                              {canEditRecord ? (
                                 <Button
                                   size="small"
-                                  danger
-                                  icon={<Trash2 size={12} />}
-                                  style={{ borderRadius: 5 }}
-                                />
-                              </Popconfirm>
-                            )}
-                          </Space>
-                        ),
+                                  icon={<Edit3 size={12} />}
+                                  onClick={() => openEditWorkItem(record)}
+                                  style={{
+                                    color: "#00897b",
+                                    borderColor: "#00897b",
+                                    fontWeight: 500,
+                                    borderRadius: 5,
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  onClick={() => {
+                                    setSelectedWorkItem(record);
+                                    setWorkItemDetailOpen(true);
+                                  }}
+                                  style={{ color: "#64748b", fontSize: 12 }}
+                                >
+                                  View
+                                </Button>
+                              )}
+                              {isProjectLead && (
+                                <Popconfirm
+                                  title="Delete this task?"
+                                  description="Are you sure you want to delete this work item?"
+                                  onConfirm={() => handleDeleteWorkItem(record._id)}
+                                  okText="Yes"
+                                  cancelText="No"
+                                >
+                                  <Button
+                                    size="small"
+                                    danger
+                                    icon={<Trash2 size={12} />}
+                                    style={{ borderRadius: 5 }}
+                                  />
+                                </Popconfirm>
+                              )}
+                            </Space>
+                          );
+                        },
                       },
                     ]}
                   />
@@ -2866,10 +2974,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
                   {(() => {
                     const myCount = workItems.filter((w) => {
                       const aid = w.assignee?._id || w.assignee;
+                      const isDirect = String(aid) === String(currentUserId);
+                      const isInList =
+                        Array.isArray(w.assignees) &&
+                        w.assignees.some((a: any) => String(a?._id || a) === String(currentUserId));
                       return (
-                        String(aid) === String(currentUserId) &&
+                        (isDirect || isInList) &&
                         w.status !== "Done" &&
-                        w.status !== "Completed"
+                        w.status !== "Completed" &&
+                        w.status !== "Cancelled"
                       );
                     }).length;
                     return myCount > 0 ? (
@@ -2910,17 +3023,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           </Text>
                         </div>
                         <Space wrap>
-                          <Tooltip
-                            title={
-                              !isProjectEditor
-                                ? "Only assigned project members can create tasks"
-                                : ""
-                            }
-                          >
+                          {isProjectLead && (
                             <Button
                               type="primary"
                               icon={<Plus size={14} />}
-                              disabled={!isProjectEditor}
                               onClick={() => {
                                 selfTaskForm.resetFields();
                                 selfTaskForm.setFieldsValue({
@@ -2931,15 +3037,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                 setIsSelfTaskModalOpen(true);
                               }}
                               style={{
-                                backgroundColor: isProjectEditor ? "#00897b" : undefined,
-                                borderColor: isProjectEditor ? "#00897b" : undefined,
+                                backgroundColor: "#00897b",
+                                borderColor: "#00897b",
                                 borderRadius: 8,
                                 fontWeight: 600,
                               }}
                             >
-                              Create Task for Myself
+                              Create Work Item
                             </Button>
-                          </Tooltip>
+                          )}
                           <Tag
                             color="cyan"
                             style={{ borderRadius: 12, padding: "3px 10px", fontSize: 12 }}
@@ -2953,15 +3059,23 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     {(() => {
                       const myTasks = workItems.filter((w) => {
                         const aid = w.assignee?._id || w.assignee;
-                        return String(aid) === String(currentUserId);
+                        const isDirect = String(aid) === String(currentUserId);
+                        const isInList =
+                          Array.isArray(w.assignees) &&
+                          w.assignees.some(
+                            (a: any) => String(a?._id || a) === String(currentUserId)
+                          );
+                        return isDirect || isInList;
                       });
 
                       const todoCount = myTasks.filter(
                         (w) => w.status === "To Do" || w.status === "Backlog"
                       ).length;
                       const inProgressTasks = myTasks.filter((w) => w.status === "In Progress");
+                      const inReviewTasks = myTasks.filter((w) => w.status === "In Review");
+                      const testingTasks = myTasks.filter((w) => w.status === "Testing");
                       const blockedTasks = myTasks.filter((w) => w.status === "Blocked");
-                      const completedTasks = myTasks.filter(
+                      const doneTasks = myTasks.filter(
                         (w) => w.status === "Done" || w.status === "Completed"
                       );
                       const overdueTasks = myTasks.filter(
@@ -2969,191 +3083,248 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           w.dueDate &&
                           dayjs(w.dueDate).isBefore(dayjs(), "day") &&
                           w.status !== "Done" &&
-                          w.status !== "Completed"
+                          w.status !== "Completed" &&
+                          w.status !== "Cancelled"
                       );
 
                       const myPct =
                         myTasks.length > 0
-                          ? Math.round((completedTasks.length / myTasks.length) * 100)
+                          ? Math.round((doneTasks.length / myTasks.length) * 100)
                           : 0;
 
                       return (
                         <div>
-                          {/* 6 Summary Metric Cards */}
-                          <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                          {/* 8 Summary Metric Cards */}
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                              gap: 12,
+                              marginBottom: 20,
+                            }}
+                          >
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#f8fafc",
-                                  border: "1px solid #e2e8f0",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                  }}
-                                >
-                                  Total Assigned
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#0f172a", fontWeight: 700 }}
-                                >
-                                  {myTasks.length}
-                                </Title>
-                              </Card>
-                            </Col>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                                Total Assigned
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#0f172a", fontWeight: 700 }}
+                              >
+                                {myTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#f8fafc",
-                                  border: "1px solid #e2e8f0",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                  }}
-                                >
-                                  To Do
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#64748b", fontWeight: 700 }}
-                                >
-                                  {todoCount}
-                                </Title>
-                              </Card>
-                            </Col>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                                To Do
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#64748b", fontWeight: 700 }}
+                              >
+                                {todoCount}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#eff6ff",
+                                border: "1px solid #bfdbfe",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#eff6ff",
-                                  border: "1px solid #bfdbfe",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#1d4ed8",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                    color: "#1d4ed8",
-                                  }}
-                                >
-                                  In Progress
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#2563eb", fontWeight: 700 }}
-                                >
-                                  {inProgressTasks.length}
-                                </Title>
-                              </Card>
-                            </Col>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                                In Progress
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#2563eb", fontWeight: 700 }}
+                              >
+                                {inProgressTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#fffbeb",
+                                border: "1px solid #fde68a",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#fef2f2",
-                                  border: "1px solid #fecaca",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#92400e",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                    color: "#b91c1c",
-                                  }}
-                                >
-                                  Blocked
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#dc2626", fontWeight: 700 }}
-                                >
-                                  {blockedTasks.length}
-                                </Title>
-                              </Card>
-                            </Col>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                                In Review
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#d97706", fontWeight: 700 }}
+                              >
+                                {inReviewTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#f5f3ff",
+                                border: "1px solid #ddd6fe",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#f0fdf4",
-                                  border: "1px solid #bbf7d0",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#6b21a8",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                    color: "#15803d",
-                                  }}
-                                >
-                                  Completed
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#16a34a", fontWeight: 700 }}
-                                >
-                                  {completedTasks.length}
-                                </Title>
-                              </Card>
-                            </Col>
-                            <Col xs={12} sm={8} md={4}>
-                              <Card
-                                size="small"
+                                Testing
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#7c3aed", fontWeight: 700 }}
+                              >
+                                {testingTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#fef2f2",
+                                border: "1px solid #fecaca",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
                                 style={{
-                                  borderRadius: 10,
-                                  background: "#fff7ed",
-                                  border: "1px solid #fed7aa",
-                                  textAlign: "center",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#b91c1c",
                                 }}
                               >
-                                <Text
-                                  type="secondary"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                    color: "#c2410c",
-                                  }}
-                                >
-                                  Overdue
-                                </Text>
-                                <Title
-                                  level={3}
-                                  style={{ margin: "4px 0 0", color: "#ea580c", fontWeight: 700 }}
-                                >
-                                  {overdueTasks.length}
-                                </Title>
-                              </Card>
-                            </Col>
-                          </Row>
+                                Blocked
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#dc2626", fontWeight: 700 }}
+                              >
+                                {blockedTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#f0fdf4",
+                                border: "1px solid #bbf7d0",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#15803d",
+                                }}
+                              >
+                                Done
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#16a34a", fontWeight: 700 }}
+                              >
+                                {doneTasks.length}
+                              </Title>
+                            </Card>
+
+                            <Card
+                              size="small"
+                              style={{
+                                borderRadius: 10,
+                                background: "#fff7ed",
+                                border: "1px solid #fed7aa",
+                                textAlign: "center",
+                              }}
+                            >
+                              <Text
+                                type="secondary"
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  color: "#c2410c",
+                                }}
+                              >
+                                Overdue
+                              </Text>
+                              <Title
+                                level={3}
+                                style={{ margin: "4px 0 0", color: "#ea580c", fontWeight: 700 }}
+                              >
+                                {overdueTasks.length}
+                              </Title>
+                            </Card>
+                          </div>
 
                           {/* Overall Progress Section */}
                           <div
@@ -3180,7 +3351,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                   Overall Completion
                                 </Text>
                                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                                  ({completedTasks.length} of {myTasks.length} tasks completed)
+                                  ({doneTasks.length} of {myTasks.length} tasks completed)
                                 </Text>
                               </div>
                               <span
@@ -3215,21 +3386,26 @@ function ProjectDetailsClient({ id }: { id: string }) {
                           >
                             <Radio.Group
                               value={todoStatusFilter}
-                              onChange={(e) => setTodoStatusFilter(e.target.value)}
+                              onChange={(e) => setTodoStatusFilter(e.target.value as any)}
                               size="middle"
                               buttonStyle="solid"
+                              style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
                             >
                               <Radio.Button value="all">All ({myTasks.length})</Radio.Button>
                               <Radio.Button value="todo">To Do ({todoCount})</Radio.Button>
                               <Radio.Button value="inprogress">
                                 In Progress ({inProgressTasks.length})
                               </Radio.Button>
+                              <Radio.Button value="inreview">
+                                In Review ({inReviewTasks.length})
+                              </Radio.Button>
+                              <Radio.Button value="testing">
+                                Testing ({testingTasks.length})
+                              </Radio.Button>
                               <Radio.Button value="blocked">
                                 Blocked ({blockedTasks.length})
                               </Radio.Button>
-                              <Radio.Button value="completed">
-                                Completed ({completedTasks.length})
-                              </Radio.Button>
+                              <Radio.Button value="done">Done ({doneTasks.length})</Radio.Button>
                               <Radio.Button value="overdue">
                                 Overdue ({overdueTasks.length})
                               </Radio.Button>
@@ -3243,15 +3419,18 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                 return w.status === "To Do" || w.status === "Backlog";
                               if (todoStatusFilter === "inprogress")
                                 return w.status === "In Progress";
+                              if (todoStatusFilter === "inreview") return w.status === "In Review";
+                              if (todoStatusFilter === "testing") return w.status === "Testing";
                               if (todoStatusFilter === "blocked") return w.status === "Blocked";
-                              if (todoStatusFilter === "completed")
+                              if (todoStatusFilter === "done" || todoStatusFilter === "completed")
                                 return w.status === "Done" || w.status === "Completed";
                               if (todoStatusFilter === "overdue")
                                 return (
                                   w.dueDate &&
                                   dayjs(w.dueDate).isBefore(dayjs(), "day") &&
                                   w.status !== "Done" &&
-                                  w.status !== "Completed"
+                                  w.status !== "Completed" &&
+                                  w.status !== "Cancelled"
                                 );
                               return true;
                             });
@@ -3288,9 +3467,8 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                   const isOverdue =
                                     item.dueDate &&
                                     dayjs(item.dueDate).isBefore(dayjs(), "day") &&
-                                    !isDone;
-                                  const displayStatus =
-                                    item.status === "Done" ? "Completed" : item.status;
+                                    !isDone &&
+                                    item.status !== "Cancelled";
 
                                   return (
                                     <Card
@@ -3458,29 +3636,33 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                             </div>
                                             <Select
                                               size="middle"
-                                              value={displayStatus}
+                                              value={item.status || "To Do"}
                                               onChange={(newStatus) => {
-                                                const targetDbStatus =
-                                                  newStatus === "Completed" ? "Done" : newStatus;
                                                 const newProg =
-                                                  newStatus === "Completed" || newStatus === "Done"
+                                                  newStatus === "Done"
                                                     ? 100
-                                                    : newStatus === "In Progress"
-                                                      ? 50
-                                                      : 0;
+                                                    : newStatus === "In Review" ||
+                                                        newStatus === "Testing"
+                                                      ? 80
+                                                      : newStatus === "In Progress"
+                                                        ? 50
+                                                        : 0;
                                                 handleUpdateWorkItem(item._id, {
-                                                  status: targetDbStatus,
+                                                  status: newStatus,
                                                   progress: newProg,
                                                 });
                                               }}
                                               style={{ width: 140 }}
                                               options={[
-                                                { label: "Backlog", value: "Backlog" },
-                                                { label: "To Do", value: "To Do" },
-                                                { label: "In Progress", value: "In Progress" },
-                                                { label: "Blocked", value: "Blocked" },
-                                                { label: "Completed", value: "Completed" },
-                                              ]}
+                                                "Backlog",
+                                                "To Do",
+                                                "In Progress",
+                                                "Blocked",
+                                                "In Review",
+                                                "Testing",
+                                                "Done",
+                                                "Cancelled",
+                                              ].map((s) => ({ label: s, value: s }))}
                                             />
                                           </div>
 
@@ -4702,6 +4884,10 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                   const dayWorkItems = workItems.filter(
                                     (w) => w.dueDate && dayjs(w.dueDate).isSame(dayDate, "day")
                                   );
+                                  // Find project tasks due this day
+                                  const dayTasks = tasks.filter(
+                                    (t) => t.dueDate && dayjs(t.dueDate).isSame(dayDate, "day")
+                                  );
                                   // Find sprints ending/starting this day
                                   const daySprints = sprints.filter(
                                     (s) =>
@@ -4816,8 +5002,9 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                           <div
                                             key={wi._id}
                                             onClick={() => {
-                                              setSelectedWorkItem(wi);
-                                              setWorkItemDetailOpen(true);
+                                              setWorkItemDetailOpen(false);
+                                              setSelectedWorkItem(null);
+                                              setActiveTab("work-items");
                                             }}
                                             style={{
                                               backgroundColor: "#f0fdfa",
@@ -4831,9 +5018,36 @@ function ProjectDetailsClient({ id }: { id: string }) {
                                               whiteSpace: "nowrap",
                                               cursor: "pointer",
                                             }}
-                                            title={`Work Item: ${wi.title} (${wi.status})`}
+                                            title={`Work Item: ${wi.title} (${wi.status}) - Click to view in Work Items`}
                                           >
                                             {wi.title}
+                                          </div>
+                                        ))}
+
+                                        {/* Project Tasks */}
+                                        {dayTasks.map((tk: any) => (
+                                          <div
+                                            key={tk._id}
+                                            onClick={() => {
+                                              setWorkItemDetailOpen(false);
+                                              setSelectedWorkItem(null);
+                                              setActiveTab("todo");
+                                            }}
+                                            style={{
+                                              backgroundColor: "#f0fdfa",
+                                              borderLeft: "3px solid #00897b",
+                                              padding: "2px 4px",
+                                              borderRadius: 3,
+                                              fontSize: 10,
+                                              color: "#115e59",
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              whiteSpace: "nowrap",
+                                              cursor: "pointer",
+                                            }}
+                                            title={`Task: ${tk.title} - Click to view in My To-Do`}
+                                          >
+                                            {tk.title}
                                           </div>
                                         ))}
 
@@ -5457,35 +5671,93 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     key: "activities",
                     label: "Project Activity Log",
                     children: (
-                      <div style={{ padding: "12px 0" }}>
-                        <Timeline
-                          mode="start"
-                          items={activities.map((act) => ({
-                            label: dayjs(act.createdAt).format("DD MMM, YYYY h:mm A"),
-                            color:
-                              act.type === "sprint"
-                                ? "blue"
-                                : act.type === "work_log"
-                                  ? "green"
-                                  : act.type === "project_status"
-                                    ? "purple"
-                                    : "gray",
-                            children: (
-                              <div>
-                                <Text strong style={{ fontSize: 12 }}>
-                                  {act.description}
-                                </Text>
-                                <div style={{ fontSize: 10, color: "#999" }}>
-                                  Action by {act.performedBy?.name} ({act.performedBy?.role}) |
-                                  Category:{" "}
-                                  <Tag style={{ fontSize: 9 }} color="default">
-                                    {act.type}
-                                  </Tag>
+                      <div style={{ padding: "16px 0" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: 20,
+                            paddingBottom: 12,
+                            borderBottom: "1px solid #f0f0f0",
+                          }}
+                        >
+                          <div>
+                            <Title
+                              level={4}
+                              style={{ margin: 0, fontWeight: 700, color: "#0f172a" }}
+                            >
+                              Project Activity Log
+                            </Title>
+                            <Text type="secondary" style={{ fontSize: 13 }}>
+                              Chronological audit trail of all project modifications, work items,
+                              sprints, and status changes.
+                            </Text>
+                          </div>
+                          <Button
+                            icon={<ReloadOutlined spin={loadingActivities} />}
+                            onClick={fetchActivities}
+                            loading={loadingActivities}
+                            style={{ borderRadius: 6 }}
+                          >
+                            Refresh
+                          </Button>
+                        </div>
+
+                        {loadingActivities ? (
+                          <Skeleton active paragraph={{ rows: 6 }} />
+                        ) : activities.length === 0 ? (
+                          <div
+                            style={{
+                              padding: "48px 0",
+                              textAlign: "center",
+                              background: "#fafafa",
+                              borderRadius: 8,
+                              border: "1px dashed #d9d9d9",
+                            }}
+                          >
+                            <Empty description="No activity logs recorded yet for this project." />
+                          </div>
+                        ) : (
+                          <Timeline
+                            mode="start"
+                            items={activities.map((act) => ({
+                              label: dayjs(act.createdAt).format("DD MMM, YYYY h:mm A"),
+                              color:
+                                act.type === "sprint"
+                                  ? "blue"
+                                  : act.type === "work_log"
+                                    ? "green"
+                                    : act.type === "project_status"
+                                      ? "purple"
+                                      : act.type === "work_item"
+                                        ? "cyan"
+                                        : act.type === "test_case"
+                                          ? "orange"
+                                          : act.type === "bug"
+                                            ? "red"
+                                            : "gray",
+                              children: (
+                                <div>
+                                  <Text strong style={{ fontSize: 13, color: "#1e293b" }}>
+                                    {act.description}
+                                  </Text>
+                                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                    Action by{" "}
+                                    <span style={{ fontWeight: 600, color: "#334155" }}>
+                                      {act.performedBy?.name || "System User"}
+                                    </span>{" "}
+                                    {act.performedBy?.role ? `(${act.performedBy.role})` : ""} |
+                                    Category:{" "}
+                                    <Tag style={{ fontSize: 10, marginLeft: 4 }} color="default">
+                                      {act.type}
+                                    </Tag>
+                                  </div>
                                 </div>
-                              </div>
-                            ),
-                          }))}
-                        />
+                              ),
+                            }))}
+                          />
+                        )}
                       </div>
                     ),
                   },
@@ -6219,7 +6491,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
         }}
         open={workItemDetailOpen}
         extra={
-          selectedWorkItem && isProjectLead ? (
+          selectedWorkItem &&
+          (isProjectLead ||
+            (currentUser &&
+              (String(selectedWorkItem.assignee?._id || selectedWorkItem.assignee) ===
+                String(currentUserId) ||
+                (Array.isArray(selectedWorkItem.assignees) &&
+                  selectedWorkItem.assignees.some(
+                    (a: any) => String(a?._id || a) === String(currentUserId)
+                  ))))) ? (
             <Button
               size="small"
               icon={<Edit3 size={12} />}
@@ -7118,7 +7398,15 @@ function ProjectDetailsClient({ id }: { id: string }) {
             <Form.Item name="status" label="Initial Status" rules={[{ required: true }]}>
               <Select
                 size="middle"
-                options={["Backlog", "To Do", "In Progress"].map((s) => ({ label: s, value: s }))}
+                options={[
+                  "Backlog",
+                  "To Do",
+                  "In Progress",
+                  "Blocked",
+                  "In Review",
+                  "Testing",
+                  "Done",
+                ].map((s) => ({ label: s, value: s }))}
                 disabled={submittingSelfTask}
               />
             </Form.Item>
@@ -7393,7 +7681,7 @@ function ProjectDetailsClient({ id }: { id: string }) {
             </Col>
           </Row>
 
-          {isProjectLead && (
+          {isProjectLead ? (
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={24}>
                 <Form.Item name="assignees" label="Assign To" style={{ marginBottom: 14 }}>
@@ -7411,6 +7699,50 @@ function ProjectDetailsClient({ id }: { id: string }) {
                     })}
                   />
                 </Form.Item>
+              </Col>
+            </Row>
+          ) : (
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={24}>
+                <div style={{ marginBottom: 14 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 6,
+                      fontSize: 13,
+                      color: "#475569",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Assigned To
+                  </label>
+                  <div
+                    style={{
+                      padding: "7px 12px",
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "#1e293b", fontWeight: 500 }}>
+                      {editingWorkItem?.assignees && editingWorkItem.assignees.length > 0
+                        ? editingWorkItem.assignees
+                            .map((a: any) => a?.name || a)
+                            .filter(Boolean)
+                            .join(", ")
+                        : editingWorkItem?.assignee?.name ||
+                          editingWorkItem?.assignee ||
+                          currentUser?.name ||
+                          "Assigned to you"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                      (Managed by Project Lead)
+                    </span>
+                  </div>
+                </div>
               </Col>
             </Row>
           )}

@@ -414,17 +414,26 @@ export default function BugHistoryPage() {
               width: 36,
               height: 36,
               borderRadius: 8,
-              backgroundColor: "#e0f2fe",
+              backgroundColor: "#e0f2f1",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Bug size={20} color="#0284c7" />
+            <Bug size={20} color="#00897b" />
           </div>
           <div>
-            <Title level={3} style={{ margin: 0, color: "#0f172a" }}>
-              Bug History & Cross-Project Defect Audit
+            <Title
+              level={2}
+              style={{
+                margin: 0,
+                color: "#00897b",
+                fontWeight: 800,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}
+            >
+              TRUTIK
             </Title>
             <Text type="secondary" style={{ fontSize: 13 }}>
               Centralized, read-only audit repository of all reported project defects across the

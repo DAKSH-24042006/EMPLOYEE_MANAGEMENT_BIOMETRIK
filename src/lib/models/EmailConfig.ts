@@ -216,7 +216,7 @@ Best regards,`,
       bugReassigned: {
         type: BugNotificationRuleSchema,
         default: () => ({
-          enabled: true,
+          enabled: false,
           notifyAssignee: true,
           notifyQA: false,
           notifyProjectManager: true,
@@ -231,7 +231,7 @@ Best regards,`,
       fixSubmitted: {
         type: BugNotificationRuleSchema,
         default: () => ({
-          enabled: true,
+          enabled: false,
           notifyAssignee: true,
           notifyQA: true,
           notifyProjectManager: true,
@@ -245,7 +245,7 @@ Best regards,`,
       bugClosed: {
         type: BugNotificationRuleSchema,
         default: () => ({
-          enabled: true,
+          enabled: false,
           notifyAssignee: true,
           notifyQA: true,
           notifyProjectManager: true,

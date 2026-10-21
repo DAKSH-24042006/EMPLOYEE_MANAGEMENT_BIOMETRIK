@@ -43,6 +43,11 @@ export default function NotificationsPage() {
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
         if (projectId) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("biometrik-switch-tab", { detail: { projectId, tab: "chat" } })
+            );
+          }
           router.push(`/projects/${projectId}?tab=chat`);
         }
       }

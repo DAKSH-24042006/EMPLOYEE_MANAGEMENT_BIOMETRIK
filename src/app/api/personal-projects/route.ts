@@ -147,7 +147,7 @@ export async function POST(req: Request) {
 
     if (existing) {
       return NextResponse.json(
-        { error: "Project is already in your personal projects" },
+        { error: "Project is already in your favourite projects" },
         { status: 409 }
       );
     }
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        message: "Project successfully added to Personal Projects",
+        message: "Project successfully added to Favourite Projects",
         data: {
           _id: newPersonalProject._id,
           projectId: project._id,
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: "Project is already in your personal projects" },
+        { error: "Project is already in your favourite projects" },
         { status: 409 }
       );
     }
@@ -210,13 +210,13 @@ export async function DELETE(req: Request) {
 
     if (!deleted) {
       return NextResponse.json(
-        { error: "Project is not in your personal projects" },
+        { error: "Project is not in your favourite projects" },
         { status: 404 }
       );
     }
 
     return NextResponse.json(
-      { message: "Project removed from personal projects", projectId },
+      { message: "Project removed from favourite projects", projectId },
       { status: 200 }
     );
   } catch (error: any) {
